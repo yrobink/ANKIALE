@@ -29,8 +29,6 @@ import logging
 from ..__logs import LINE
 from ..__logs import log_start_end
 
-from ..__BSACParams  import bsacParams
-
 from ..__linalg import matrix_positive_part
 
 import numpy  as np
@@ -162,12 +160,7 @@ def _mgam_multiple_fit_bootstrap( idx , X , XN , dof , degree , coef_be = None )
 	return np.array(coefs)
 ##}}}
 
-def mgam_multiple_fit_bootstrap( X , XN , n_bootstrap ):##{{{
-	
-	##
-	names  = bsacParams.clim.names
-	dof    = bsacParams.clim.GAM_dof
-	degree = bsacParams.clim.GAM_degree
+def mgam_multiple_fit_bootstrap( X , XN , n_bootstrap , names , dof , degree , n_jobs ):##{{{
 	
 	## Fit the best estimate
 	coef_be = {}
@@ -192,7 +185,7 @@ def mgam_multiple_fit_bootstrap( X , XN , n_bootstrap ):##{{{
 		break
 	
 	## Prepare dimension for parallelization
-	idxs = xr.DataArray( range(n_bootstrap) , dims = ["bootstrap"] , coords = [range(n_bootstrap)] ).chunk( { "bootstrap" : n_bootstrap // bsacParams.n_jobs } )
+	idxs = xr.DataArray( range(n_bootstrap) , dims = ["bootstrap"] , coords = [range(n_bootstrap)] ).chunk( { "bootstrap" : n_bootstrap // n_jobs } )
 	
 	## Parallelization of the bootstrap
 	coef_bs = xr.apply_ufunc(
