@@ -63,11 +63,11 @@ class BSACParams:
 	client               : distributed.client.Client | None = None
 	disable_dask         : bool               = False
 	
-	tmp_base             : str | None         = None
-	tmp_gen              : tempfile.TemporaryDirectory | None = None
-	tmp                  : str | None         = None
-	tmp_gen_dask         : tempfile.TemporaryDirectory | None = None
-	tmp_dask             : str | None         = None
+	tmp_base    : str | None         = None
+	tmp_gen     : tempfile.TemporaryDirectory | None = None
+	tmp         : str | None         = None
+	tmp_gen_dask: tempfile.TemporaryDirectory | None = None
+	tmp_dask    : str | None         = None
 	
 	config : str | None = None
 	

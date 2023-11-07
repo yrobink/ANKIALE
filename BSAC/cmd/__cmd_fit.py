@@ -22,6 +22,8 @@
 
 import os
 import logging
+import itertools as itt
+import zarr
 from ..__logs import LINE
 from ..__logs import log_start_end
 
@@ -29,6 +31,8 @@ from ..__BSACParams import bsacParams
 
 from ..stats.__MultiGAM import MultiGAM
 from ..stats.__MultiGAM import mgam_multiple_fit_bootstrap
+from ..stats.__tools    import nslawid_to_class
+from ..stats.__NSLawMLEFit import nslaw_fit_bootstrap
 
 import numpy  as np
 import xarray as xr
@@ -98,7 +102,13 @@ def run_bsac_cmd_fit_X():
 	
 	## Fit MultiGAM model with bootstrap
 	logger.info( f"Fit the MultiGAM model (number of bootstrap: {bsacParams.n_samples})" )
-	coef_,cov_ = mgam_multiple_fit_bootstrap( X , XN , n_bootstrap = bsacParams.n_samples )
+	coef_,cov_ = mgam_multiple_fit_bootstrap( X , XN ,
+	                                          n_bootstrap = bsacParams.n_samples,
+	                                          names  = bsacParams.clim.names,
+	                                          dof    = bsacParams.clim.GAM_dof,
+	                                          degree = bsacParams.clim.GAM_degree,
+	                                          n_jobs = bsacParams.n_jobs
+	                                          )
 	
 	bsacParams.clim.mean_ = coef_
 	bsacParams.clim.cov_  = cov_
@@ -108,7 +118,107 @@ def run_bsac_cmd_fit_X():
 ## run_bsac_cmd_fit_Y ##{{{
 @log_start_end(logger)
 def run_bsac_cmd_fit_Y():
-	raise NotImplementedError
+	
+	## The current climatology
+	clim = bsacParams.clim
+	## Name of the variable to fit
+	name = bsacParams.config["name"]
+	
+	## Spatial coordinates
+	spatial = bsacParams.config.get("spatial")
+	if spatial is not None:
+		spatial = spatial.split(":")
+	else:
+		spatial = []
+	
+	## Set the covariate
+	cname = bsacParams.config.get("cname")
+	if cname is None:
+		cname = clim.names[-1]
+	
+	## Open the data
+	ifile = bsacParams.input[0]
+	idata = xr.open_dataset(ifile).load()
+	
+	## Check if variables in idata
+	for v in [name] + spatial:
+		if not v in idata:
+			raise ValueError( f"Variable '{v}' not in input data" )
+	
+	## Find the nslaw
+	nslawid = bsacParams.config.get("nslaw")
+	if nslawid is None:
+		raise ValueError( f"nslaw must be set" )
+	
+	## Draw X
+	X,hparX  = clim.rvsX( bsacParams.n_samples , add_BE = True , return_hpar = True )
+	XF = X.XF.loc[:,cname,:,:]
+	
+	## Find the bias, and remove it
+	Y     = idata[name]
+	biasY = float(Y.sel( time = slice(*clim.bias_period) ).mean())
+	Y     = Y - biasY
+	
+	##
+	nslaw_class = nslawid_to_class(nslawid)
+	nslaw       = nslaw_class()
+	if Y.ndim == 3:
+		hparYshape = [nslaw.coef_name,X.period,X.sample]
+	else:
+		hparYshape = [nslaw.coef_name,X.period,X.sample] + [Y.coords[d] for d in Y.dims[3:]]
+	hparYshape = [len(s) for s in hparYshape]
+	
+	## Create the zarr file of hyperparameter of Y
+	hparY = zarr.open( os.path.join( bsacParams.tmp , "hparY.zarr" ) , mode = "w" , shape = hparYshape , dtype = "float32" , compressor = None )
+	
+	## Now the fit
+	nslaw_fit_bootstrap( Y = Y , X = XF , hparY = hparY , nslawid = nslawid , n_bootstrap = bsacParams.n_samples , n_jobs = bsacParams.n_jobs )
+	
+	## Mean and cov for new climatology
+	meanX = clim.mean_.copy()
+	covX  = clim.cov_.copy()
+	
+	if Y.ndim == 3:
+		mean_ = xr.DataArray( np.zeros( (meanX.size + hparYshape[0],) ) , dims = ["hpar"] , coords = [hparX.hpar.values.tolist()+nslaw.coef_name] )
+		cov_  = xr.DataArray( np.zeros( (meanX.size + hparYshape[0] for _ in range(2)) ) , dims = ["hpar0","hpar1"] , coords = [hparX.hpar.values.tolist()+nslaw.coef_name for _ in range(2)] )
+	else:
+		mean_ = xr.DataArray( np.zeros( [meanX.size + hparYshape[0]] + hparYshape[3:] ) , dims = ["hpar"] + list(Y.dims[3:]) , coords = [hparX.hpar.values.tolist()+nslaw.coef_name] + [Y.coords[d] for d in Y.dims[3:]] )
+		cov_  = xr.DataArray( np.zeros( [meanX.size + hparYshape[0] for _ in range(2)] + hparYshape[3:] ) , dims = ["hpar0","hpar1"] + list(Y.dims[3:]) , coords = [hparX.hpar.values.tolist()+nslaw.coef_name for _ in range(2)] + [Y.coords[d] for d in Y.dims[3:]] )
+	
+	## Variables for a loop on spatial dimension (if exists)
+	if Y.ndim == 3:
+		spatial = [1]
+	else:
+		spatial = [Y[d].size for d in Y.dims[3:]]
+	
+	## Loop on spatial dimension to build mean and cov
+	xhpar = np.zeros( (hparX.shape[1]+hparYshape[0],X.period.size,X.sample.size) )
+	xhpar[:hparX.shape[1],:,:] = hparX.values.T.reshape(hparX.shape[1],1,X.sample.size)
+	for spatial_idx in itt.product(*[range(s) for s in spatial]):
+		
+		## Extract the spatial point for hparY
+		idx    = (slice(None),slice(None),slice(None))
+		idx1d  = (slice(None),)
+		idx2d  = (slice(None),slice(None))
+		if Y.ndim > 3:
+			idx   = idx + spatial_idx
+			idx1d = idx1d + spatial_idx
+			idx2d = idx2d + spatial_idx
+		xhpar[hparX.shape[1]:,:,:] = hparY.get_orthogonal_selection(idx)
+		mean_[idx1d] = xhpar.reshape(xhpar.shape[0],-1).mean( axis = 1 )
+		cov_[idx2d]  = np.cov( xhpar.reshape(xhpar.shape[0],-1) )
+	
+	## Update the climatology
+	clim.mean_ = mean_.values
+	clim.cov_  = cov_.values
+	clim._names.append(name)
+	clim._bias[name] = biasY
+	clim._nslawid     = nslawid
+	clim._nslaw_class = nslaw_class
+	
+	if Y.ndim > 3:
+		clim._spatial = { d : Y[d] for d in Y.dims[3:] }
+	
 ##}}}
 
 ## run_bsac_cmd_fit ##{{{

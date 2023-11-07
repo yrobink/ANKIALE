@@ -106,7 +106,16 @@ The 'fit' command
         GAM_dof: Number of degree of freedom of the GAM model, default = 7
         GAM_degree: Degree of the splines in the GAM model, default = 3
 * fit Y
-    Not implemented
+    Fit the variable with the covariable fitted from --load-clim (again, dont
+    forgive the --save-clim parameter)
+    --n-samples int
+        Numbers of resamples used for the bootstrap
+    --input ifile
+        Data used to fit the climatology.
+    --config param0=value0,param1=value1,...
+        name: Name of the variable
+        spatial: Names of the spatial coordinates (if exists), separated by a ':'
+        nslaw: Identifier of the non-stationary distribution
 
 
 The 'draw' command

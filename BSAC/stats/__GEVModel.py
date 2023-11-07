@@ -42,11 +42,11 @@ class GEVModel(AbstractModel):##{{{
 		
 	##}}}
 	
-	def fit_mle( self , Y , X ):##{{{
+	def fit_mle( self , Y , X , **kwargs ):##{{{
 		self.law = self.sd( method = "mle" )
 		with warnings.catch_warnings():
 			warnings.simplefilter("ignore")
-			self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() )
+			self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , **kwargs )
 		self.coef_ = self.law.coef_
 	##}}}
 	

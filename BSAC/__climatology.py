@@ -33,6 +33,7 @@ from .__release import version
 from .__sys     import as_list
 from .__sys     import coords_samples
 from .__ebm     import EBM
+from .stats.__tools import nslawid_to_class
 
 ##################
 ## Init logging ##
@@ -63,8 +64,12 @@ class Climatology:##{{{
 		self._time = None
 		self._XN   = None 
 		
+		self._nslawid     = None
+		self._nslaw_class = None
+		self._spatial     = None
+		
 		self._Xconfig = { "GAM_dof" : 7 , "GAM_degree" : 3 }
-		self._Yconfig = { "size" : 0 }
+		self._Yconfig = {}
 	##}}}
 	
 	def __str__(self):##{{{
@@ -77,26 +82,37 @@ class Climatology:##{{{
 			bper = '/'.join([str(i) for i in self.bper])
 			bias = ", ".join( [f"{name}: {self.bias[name]:.2f}" for name in self.names] )
 			time = ', '.join( [ str(y) for y in self.time.tolist()[:3]+['...']+self.time.tolist()[-3:] ] )
+			mshape = "" if self._mean is None else str(self._mean.shape)
+			cshape = "" if self._cov  is None else str(self._cov.shape)
+			spatial = "" if self._spatial is None else ", ".join(self._spatial)
 			
 			sns = [
 			       "onlyX",
 			       "names",
+			       "nslaw",
 			       "hyper_parameter",
 			       "bias_period",
 			       "common_period",
 			       "different_periods",
 			       "bias",
-			       "time"
+			       "time",
+			       "mean_shape",
+			       "cov_shape",
+			       "spatial"
 			      ]
 			ss  = [
 			       str(self.onlyX),
 			       ", ".join(self.names),
+			       str(self._nslawid),
 			       hpar,
 			       bper,
 			       self.cper[0],
 			       ", ".join(self.dpers),
 			       bias,
-			       time
+			       time,
+			       mshape,
+			       cshape,
+			       spatial
 			      ]
 			
 			## Output
@@ -140,7 +156,19 @@ class Climatology:##{{{
 			clim._Xconfig = {}
 			for c,t in zip( ["GAM_dof","GAM_degree"] , [int,int] ):
 				clim._Xconfig[c] = t(incf.variables["X"].getncattr(c))
-		
+			
+			try:
+				clim._nslawid     = incf.variables["Y"].getncattr("nslawid")
+				clim._nslaw_class = nslawid_to_class(clim._nslawid)
+			except:
+				pass
+			
+			try:
+				spatial = incf.variables["Y"].getncattr("spatial").split(":")
+				self._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
+			except:
+				pass
+			
 		return clim
 	##}}}
 	
@@ -151,12 +179,17 @@ class Climatology:##{{{
 			
 			## Define dimensions
 			ncdims = {
-			       "hyper_parameter"   : ncf.createDimension(   "hyper_parameter" , self._mean.size ),
+			       "hyper_parameter"   : ncf.createDimension(   "hyper_parameter" , self._mean.shape[0] ),
 			       "names"             : ncf.createDimension(             "names" , len(self.names) ),
 			       "common_period"     : ncf.createDimension(     "common_period" , len(self.cper)  ),
 			       "different_periods" : ncf.createDimension( "different_periods" , len(self.dpers) ),
 			       "time"              : ncf.createDimension(              "time" , len(self.time)  ),
 			}
+			spatial = ()
+			if self._spatial is not None:
+				for d in self._spatial:
+					ncdims[d] = ncf.createDimension( d , self._spatial[d].size )
+				spatial = tuple([d for d in self._spatial])
 			
 			## Define variables
 			ncvars = {
@@ -166,16 +199,19 @@ class Climatology:##{{{
 			       "different_periods" : ncf.createVariable( "different_periods" , str       , ("different_periods",) ),
 			       "time"              : ncf.createVariable(              "time" , "float32" ,              ("time",) ),
 			         "X"               : ncf.createVariable(                 "X" , "int32"                            ),
-			       "mean"              : ncf.createVariable(              "mean" , "float32" ,   ("hyper_parameter",) ),
-			       "cov"               : ncf.createVariable(               "cov" , "float32" ,   ("hyper_parameter","hyper_parameter") ),
+			       "mean"              : ncf.createVariable(              "mean" , "float32" ,   ("hyper_parameter",) + spatial ),
+			       "cov"               : ncf.createVariable(               "cov" , "float32" ,   ("hyper_parameter","hyper_parameter") + spatial ),
 			}
 			for name in self.names:
 				ncvars[f"bias_{name}"]    = ncf.createVariable( f"bias_{name}" , "float32" )
 				ncvars[f"bias_{name}"][:] = float(self._bias[name])
 				ncvars[f"bias_{name}"].setncattr( "period" , "{}/{}".format(*self.bper) )
+			if self._spatial is not None:
+				for d in self._spatial:
+					ncvars[d] = ncf.createVariable( d , "double" , (d,) )
+					ncvars[d][:] = np.array(self._spatial[d]).ravel()
 			
 			if not self.onlyX:
-				raise NotImplementedError
 				ncvars["Y"] = ncf.createVariable( "Y" , "int32" )
 			
 			## Fill variables of dimension
@@ -204,8 +240,10 @@ class Climatology:##{{{
 			ncvars["X"].setncattr( "GAM_degree" , self.GAM_degree )
 			
 			if not self.onlyX:
-				raise NotImplementedError
 				ncvars["Y"][:] = 1
+				ncvars["Y"].setncattr( "nslawid" , self._nslawid )
+				if self._spatial is not None:
+					ncvars["Y"].setncattr( "spatial" , ":".join(self._spatial) )
 			
 			## Global attributes
 			ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
@@ -221,8 +259,8 @@ class Climatology:##{{{
 		if not name in self.names:
 			raise ValueError("Bad index")
 		
-		size_X     = (self.GAM_dof - 1) * len(self.dpers) + 2
-		size_Y     = self._Yconfig["size"]
+		size_X     = self.sizeX
+		size_Y     = self.sizeY
 		size_total = size_X * len(self.namesX) + size_Y
 		
 		if per == "ns":
@@ -241,7 +279,7 @@ class Climatology:##{{{
 	
 	## Statistics of X ##{{{ 
 	
-	def rvsX( self , size ):##{{{
+	def rvsX( self , size , add_BE = False , return_hpar = False ):##{{{
 		
 		##
 		dof  = self.GAM_dof + 1
@@ -260,7 +298,15 @@ class Climatology:##{{{
 		coef_ = self.mean_[idxM]
 		cov_  = self.cov_[idxC]
 		
-		coefs = xr.DataArray( np.random.multivariate_normal( mean = coef_ , cov = cov_ , size = size ) , dims = ["sample","hpar"] , coords = [coords_samples(size),self.hpar_names] )
+		## if add BE
+		samples = coords_samples(size)
+		if add_BE:
+			size    = size + 1
+			samples = ["BE"] + samples
+		
+		coefs = xr.DataArray( np.random.multivariate_normal( mean = coef_ , cov = cov_ , size = size ) , dims = ["sample","hpar"] , coords = [samples,self.hpar_names] )
+		if add_BE:
+			coefs[0,:] = coef_
 		
 		XF = xr.concat(
 		    [
@@ -292,7 +338,10 @@ class Climatology:##{{{
 		
 		out = xr.Dataset( { "XF" : XF , "XC" : XC , "XA" : XA } )
 		
-		return out
+		if return_hpar:
+			return out,coefs
+		else:
+			return out
 	##}}}
 	
 	##}}}
@@ -314,7 +363,6 @@ class Climatology:##{{{
 	@property
 	def XN(self):
 		if self._XN is None:
-#			self._XN = xr.DataArray( EBM().run( t = self.time ).values.squeeze() , dims = ["time"] , coords = [self.time] )
 			self._XN = EBM().run( t = self.time )
 		return self._XN
 	
@@ -336,7 +384,7 @@ class Climatology:##{{{
 	
 	@property
 	def onlyX(self):
-		return self._Yconfig["size"] == 0
+		return self._nslawid is None
 	
 	@property
 	def names(self):
@@ -360,7 +408,7 @@ class Climatology:##{{{
 			hparnames = hparnames + [f"cst_{name}",f"slope_{name}"]
 		
 		if not self.onlyX:
-			raise NotImplementedError
+			hparnames = hparnames + self._nslaw_class().coef_name
 		
 		return hparnames
 	
@@ -413,6 +461,20 @@ class Climatology:##{{{
 	@property
 	def GAM_degree(self):
 		return self._Xconfig["GAM_degree"]
+	
+	
+	@property
+	def sizeX(self):
+		return (self.GAM_dof - 1) * len(self.dpers) + 2
+	
+	@property
+	def sizeY(self):
+		if self._nslawid is None:
+			return 0
+		return len(self._nslaw_class().coef_name)
+	
+	def size(self):
+		return self.sizeX * len(self.namesX) + self.sizeY
 	
 	##}}}
 	

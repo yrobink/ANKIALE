@@ -112,8 +112,6 @@ def run_bsac():
 		if bsacParams.save_clim is not None:
 			bsacParams.clim.save( bsacParams.save_clim )
 		
-	except Exception as e:
-		raise e
 	finally:
 		bsacParams.stop_dask()
 	
