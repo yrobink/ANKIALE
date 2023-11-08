@@ -39,10 +39,32 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
+## run_bsac_cmd_draw_Y ##{{{
+@log_start_end(logger)
+def run_bsac_cmd_draw_Y():
+	
+	## Draw data
+	hpars = bsacParams.clim.rvsY( size = bsacParams.n_samples , add_BE = True )
+	
+	## And save
+	raise NotImplementedError
+##}}}
+
 ## run_bsac_cmd_draw ##{{{
 @log_start_end(logger)
 def run_bsac_cmd_draw():
-	raise NotImplementedError
+	
+	## Check the command
+	if not len(bsacParams.arg) == 1:
+		raise ValueError(f"Bad numbers of arguments of the show command: {', '.join(bsacParams.arg)}")
+	
+	available_commands = ["Y"]
+	if not bsacParams.arg[0] in available_commands:
+		raise ValueError(f"Bad argument of the show command ({bsacParams.arg[0]}), must be: {', '.join(available_commands)}")
+	
+	## OK, run the good command
+	if bsacParams.arg[0] == "Y":
+		run_bsac_cmd_draw_Y()
 ##}}}
 
 

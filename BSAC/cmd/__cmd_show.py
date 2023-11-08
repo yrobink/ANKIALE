@@ -68,6 +68,12 @@ def run_bsac_cmd_show_X():
 	
 ##}}}
 
+## run_bsac_cmd_show_Y ##{{{
+@log_start_end(logger)
+def run_bsac_cmd_show_Y():
+	raise NotImplementedError
+##}}}
+
 ## run_bsac_cmd_show ##{{{
 @log_start_end(logger)
 def run_bsac_cmd_show():
@@ -76,7 +82,7 @@ def run_bsac_cmd_show():
 	if not len(bsacParams.arg) == 1:
 		raise ValueError(f"Bad numbers of arguments of the show command: {', '.join(bsacParams.arg)}")
 	
-	available_commands = ["EBM","X"]
+	available_commands = ["EBM","X","Y"]
 	if not bsacParams.arg[0] in available_commands:
 		raise ValueError(f"Bad argument of the show command ({bsacParams.arg[0]}), must be: {', '.join(available_commands)}")
 	
@@ -85,6 +91,8 @@ def run_bsac_cmd_show():
 		run_bsac_cmd_show_ebm()
 	if bsacParams.arg[0] == "X":
 		run_bsac_cmd_show_X()
+	if bsacParams.arg[0] == "Y":
+		run_bsac_cmd_show_Y()
 	
 ##}}}
 

@@ -212,6 +212,7 @@ class BSACParams:
 		## Load from file
 		if self.load_clim is not None:
 			self.clim = Climatology.init_from_file( self.load_clim )
+			self.clim._tmp = self.tmp
 			return
 		
 		## Init from scratch
@@ -223,6 +224,7 @@ class BSACParams:
 		self.clim.bper  = self.bias_period
 		self.clim.cper  = self.common_period
 		self.clim.dpers = self.different_periods
+		self.clim._tmp  = self.tmp
 		
 	##}}}
 	

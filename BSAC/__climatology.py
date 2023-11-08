@@ -19,6 +19,8 @@
 ## Packages
 ###########
 
+import os
+import itertools as itt
 import dataclasses
 import logging
 import datetime as dt
@@ -28,12 +30,18 @@ import xarray as xr
 import netCDF4
 import cftime
 import statsmodels.gam.api as smg
+import zarr
 
 from .__release import version
 from .__sys     import as_list
 from .__sys     import coords_samples
 from .__ebm     import EBM
 from .stats.__tools import nslawid_to_class
+from .stats.__rvs   import rvs_multivariate_normal
+
+from .__XZarr import XZarr
+from .__XZarr import random_zfile
+
 
 ##################
 ## Init logging ##
@@ -53,6 +61,9 @@ class Climatology:##{{{
 	## Input / output ##{{{
 	
 	def __init__( self ):##{{{
+		
+		self._tmp = None
+		
 		self._names = None
 		self._cper  = None
 		self._bper  = None
@@ -165,7 +176,7 @@ class Climatology:##{{{
 			
 			try:
 				spatial = incf.variables["Y"].getncattr("spatial").split(":")
-				self._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
+				clim._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
 			except:
 				pass
 			
@@ -342,6 +353,111 @@ class Climatology:##{{{
 			return out,coefs
 		else:
 			return out
+	##}}}
+	
+	##}}}
+	
+	## Statistics of Y ##{{{ 
+	
+	def rvsY( self , size , add_BE = False , return_hpar = False ):##{{{
+		
+		## Parameters
+		time    = self.time
+		samples = coords_samples(size)
+		nslaw   = self._nslaw_class()
+		
+		## Update size if BE
+		if add_BE:
+			size = size + 1
+			samples = ["BE"] + samples
+		
+		## Draw hyper parameter
+		zhpar        = XZarr()
+		zhpar.zfile  = random_zfile( prefix = os.path.join( self._tmp , "rvsMN" ) )
+		zhpar.zdata  = rvs_multivariate_normal( size = size , mean = self._mean , cov = self._cov , zfile = zhpar.zfile )
+		zhpar.dims   = ["sample","hpar"] + list(self._spatial)
+		zhpar.coords = [samples,self.hpar_names] + [self._spatial[s] for s in self._spatial]
+		zhpar.shape  = [len(c) for c in zhpar.coords]
+		
+		## Init zarr files for factual and counterfactual covariates
+		XF = XZarr()
+		XF.zfile  = random_zfile( prefix = os.path.join( self._tmp , "XF" ) )
+		XF.dims   = ["sample","time","period","name"] + list(self._spatial)
+		XF.coords = [samples,time,self.dpers,self.namesX] + [self._spatial[s] for s in self._spatial]
+		XF.shape  = [len(c) for c in XF.coords]
+		XF.zdata  = zarr.open( XF.zfile , mode = "w" , shape = XF.shape , dtype = "float32" )
+		XC = XZarr()
+		XC.zfile  = random_zfile( prefix = os.path.join( self._tmp , "XC" ) )
+		XC.dims   = ["sample","time","period","name"] + list(self._spatial)
+		XC.coords = [samples,time,self.dpers,self.namesX] + [self._spatial[s] for s in self._spatial]
+		XC.shape  = [len(c) for c in XC.coords]
+		XC.zdata  = zarr.open( XC.zfile , mode = "w" , shape = XC.shape , dtype = "float32" )
+		
+		## Output
+		out = { "XF" : XF , "XC" : XC }
+		for c in nslaw.coef_kind:
+			for K in ["F","C"]:
+				znspar = XZarr()
+				znspar.zfile  = random_zfile( prefix = os.path.join( self._tmp , c + K ) )
+				znspar.dims   = ["sample","time","period"] + list(self._spatial)
+				znspar.coords = [samples,time,self.dpers] + [self._spatial[s] for s in self._spatial]
+				znspar.shape  = [len(c) for c in znspar.coords]
+				znspar.zdata  = zarr.open( znspar.zfile , mode = "w" , shape = znspar.shape , dtype = "float32" )
+				out[c+K] = znspar
+		
+		## Build design matrix of XF and XC
+		spl         = smg.BSplines( time , df = self.GAM_dof + 1 - 1 , degree = self.GAM_degree , include_intercept = False ).basis
+		lin         = np.stack( [np.ones(time.size),self.XN.loc[time].values] ).T.copy()
+		hpar_coords = [f"s{i}" for i in range(self.GAM_dof+1-2)] + ["cst","slope"]
+		designF_    = xr.DataArray( np.hstack( (spl,lin) )                , dims = ["time","hpar"] , coords = [time,hpar_coords] )
+		designC_    = xr.DataArray( np.hstack( (np.zeros_like(spl),lin) ) , dims = ["time","hpar"] , coords = [time,hpar_coords] )
+		
+		## Loop on spatial coordinates
+		for spatial_idx in itt.product(*[range(self._spatial[s].size) for s in self._spatial]):
+			
+			## Build XF and XC
+			hpar = zhpar.get_orthogonal_selection( (slice(None),slice(None)) + spatial_idx )
+			xXF =  xr.concat(
+			    [
+			     xr.concat(
+			        [
+			         xr.concat( [hpar[:,self.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
+			         for per in self.dpers
+			        ],
+			        dim = "period"
+			        )
+			     for name in self.namesX
+			    ],
+			    dim = "name"
+			    ).assign_coords( { "period" : self.dpers , "name" : self.namesX } ).transpose("sample","time","period","name")
+			xXC = xr.concat(
+			    [
+			     xr.concat(
+			        [
+			         xr.concat( [hpar[:,self.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designC_
+			         for per in self.dpers
+			        ],
+			        dim = "period"
+			        )
+			     for name in self.namesX
+			    ],
+			    dim = "name"
+			    ).assign_coords( { "period" : self.dpers , "name" : self.namesX } ).transpose("sample","time","period","name")
+			
+			## And add to zarr file
+			XF.set_orthogonal_selection( (slice(None),slice(None),slice(None),slice(None)) + spatial_idx , xXF.values )
+			XC.set_orthogonal_selection( (slice(None),slice(None),slice(None),slice(None)) + spatial_idx , xXC.values )
+			
+			## Build nslaw parameters
+			xnsparF = nslaw.draw_params( xXF.loc[:,:,:,self.namesX[-1]] , hpar )
+			xnsparC = nslaw.draw_params( xXC.loc[:,:,:,self.namesX[-1]] , hpar )
+			
+			## And add to the zarr file
+			for c in nslaw.coef_kind:
+				out[c+"F"].set_orthogonal_selection( (slice(None),slice(None),slice(None)) + spatial_idx , xnsparF[c].values )
+				out[c+"C"].set_orthogonal_selection( (slice(None),slice(None),slice(None)) + spatial_idx , xnsparC[c].values )
+		
+		return out
 	##}}}
 	
 	##}}}
