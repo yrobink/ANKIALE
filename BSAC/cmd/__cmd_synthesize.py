@@ -20,11 +20,17 @@
 ## Imports ##
 #############
 
+import os
 import logging
+
+import xarray as xr
+
 from ..__logs import LINE
 from ..__logs import log_start_end
 
 from ..__BSACParams import bsacParams
+
+from ..__XZarr import XZarr
 
 
 ##################
@@ -42,7 +48,20 @@ logger.addHandler(logging.NullHandler())
 ## run_bsac_cmd_synthesize ##{{{
 @log_start_end(logger)
 def run_bsac_cmd_synthesize():
-	raise NotImplementedError
+	
+	## Read the grid
+	grid = xr.open_dataset(bsacParams.config["grid"])
+	grid_name = bsacParams.config["grid_name"]
+	
+	## Temporary files
+	
+	logger.info(grid)
+	##
+	for ifile in bsacParams.input:
+		logger.info( f" * {os.path.basename(ifile)}" )
+	
+	##
+	raise Exception("Stop for dev")
 ##}}}
 
 

@@ -155,7 +155,10 @@ class Climatology:##{{{
 			clim._cov  = np.array(incf.variables["cov"][:])
 			clim._bias = {}
 			for name in clim.names:
-				clim._bias[name] = float(incf.variables[f"bias_{name}"][:])
+				if len(incf.variables[f"bias_{name}"].shape) == 0:
+					clim._bias[name] = float(incf.variables[f"bias_{name}"][:])
+				else:
+					clim._bias[name] = np.array(incf.variables[f"bias_{name}"][:])
 				clim.bper = str(incf.variables[f"bias_{name}"].getncattr("period")).split("/")
 			
 			nctime    = incf.variables["time"]
@@ -179,6 +182,11 @@ class Climatology:##{{{
 				clim._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
 			except:
 				pass
+			
+			if clim._spatial is not None:
+				for name in clim.names:
+					if isinstance(clim._bias[name],np.ndarray):
+						clim._bias[name] = xr.DataArray( clim._bias[name] , dims = list(clim._spatial) , coords = clim._spatial )
 			
 		return clim
 	##}}}
@@ -214,8 +222,12 @@ class Climatology:##{{{
 			       "cov"               : ncf.createVariable(               "cov" , "float32" ,   ("hyper_parameter","hyper_parameter") + spatial ),
 			}
 			for name in self.names:
-				ncvars[f"bias_{name}"]    = ncf.createVariable( f"bias_{name}" , "float32" )
-				ncvars[f"bias_{name}"][:] = float(self._bias[name])
+				if isinstance(self.bias[name],float):
+					ncvars[f"bias_{name}"]    = ncf.createVariable( f"bias_{name}" , "float32" )
+					ncvars[f"bias_{name}"][:] = float(self._bias[name])
+				else:
+					ncvars[f"bias_{name}"]    = ncf.createVariable( f"bias_{name}" , "float32" , spatial )
+					ncvars[f"bias_{name}"][:] = self._bias[name][:]
 				ncvars[f"bias_{name}"].setncattr( "period" , "{}/{}".format(*self.bper) )
 			if self._spatial is not None:
 				for d in self._spatial:

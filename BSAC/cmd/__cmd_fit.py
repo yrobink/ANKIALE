@@ -156,7 +156,7 @@ def run_bsac_cmd_fit_Y():
 	
 	## Find the bias, and remove it
 	Y     = idata[name]
-	biasY = float(Y.sel( time = slice(*clim.bias_period) ).mean())
+	biasY = Y.sel( time = slice(*clim.bias_period) ).mean( dim = [d for d in Y.dims if d not in spatial] )
 	Y     = Y - biasY
 	
 	##
@@ -212,7 +212,7 @@ def run_bsac_cmd_fit_Y():
 	clim.mean_ = mean_.values
 	clim.cov_  = cov_.values
 	clim._names.append(name)
-	clim._bias[name] = biasY
+	clim._bias[name]  = biasY
 	clim._nslawid     = nslawid
 	clim._nslaw_class = nslaw_class
 	
