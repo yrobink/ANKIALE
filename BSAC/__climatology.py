@@ -640,6 +640,7 @@ class Climatology:##{{{
 			return 0
 		return len(self._nslaw_class().coef_name)
 	
+	@property
 	def size(self):
 		return self.sizeX * len(self.namesX) + self.sizeY
 	
