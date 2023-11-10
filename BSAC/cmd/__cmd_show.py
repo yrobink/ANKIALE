@@ -55,11 +55,6 @@ def run_bsac_cmd_show_ebm():
 @log_start_end(logger)
 def run_bsac_cmd_show_X():
 	
-	## Read the fit parameters
-	for ifile in bsacParams.input:
-		if "," in ifile:
-			continue
-	
 	## Draw data
 	XFC = bsacParams.clim.rvsX( size = bsacParams.n_samples )
 	

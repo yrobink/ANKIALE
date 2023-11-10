@@ -107,6 +107,9 @@ class XZarr:##{{{
 			if idx == slice(None):
 				dims.append(self.dims[i])
 				coords.append(self.coords[i])
+			elif isinstance(idx,slice):
+				dims.append(self.dims[i])
+				coords.append(self.coords[i][idx])
 			elif isinstance(idx,int):
 				pass
 		
@@ -119,6 +122,14 @@ class XZarr:##{{{
 	
 	def set_orthogonal_selection( self , idxs , X ):##{{{
 		self.zdata.set_orthogonal_selection( idxs , X )
+	##}}}
+	
+	## Properties ##{{{
+	
+	@property
+	def ndim(self):
+		return len(self.shape)
+	
 	##}}}
 	
 ##}}}

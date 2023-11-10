@@ -117,6 +117,7 @@ def plot_covariates( RVS , ofile = None ):
 			
 			## Check if original data are available
 			inputs = bsacParams.input
+			if inputs is None: inputs = []
 			idata  = None
 			bias   = bsacParams.clim.bias[name]
 			for inp in inputs:

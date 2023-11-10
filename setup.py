@@ -36,7 +36,8 @@ requires    = [
                "cftime",
                "matplotlib",
                "SDFC (>=0.8.0)",
-               "statsmodels (>= 0.14)"
+               "statsmodels (>= 0.14)",
+               "xesmf"
               ]
 scripts     = ["scripts/bsac"]
 keywords    = []

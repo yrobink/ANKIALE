@@ -29,6 +29,7 @@ import numpy as np
 import xarray as xr
 import netCDF4
 import cftime
+import scipy.stats as sc
 import statsmodels.gam.api as smg
 import zarr
 
@@ -42,6 +43,7 @@ from .stats.__rvs   import rvs_multivariate_normal
 from .__XZarr import XZarr
 from .__XZarr import random_zfile
 
+from .stats.__rvs import rvs_multivariate_normal
 
 ##################
 ## Init logging ##
@@ -91,7 +93,7 @@ class Climatology:##{{{
 			## Build strings
 			hpar = ', '.join(self.hpar_names[:3]+['...']+self.hpar_names[-3:])
 			bper = '/'.join([str(i) for i in self.bper])
-			bias = ", ".join( [f"{name}: {self.bias[name]:.2f}" for name in self.names] )
+			bias = ", ".join( [f"{name}: {self.bias[name]:.2f}" for name in self.namesX] )
 			time = ', '.join( [ str(y) for y in self.time.tolist()[:3]+['...']+self.time.tolist()[-3:] ] )
 			mshape = "" if self._mean is None else str(self._mean.shape)
 			cshape = "" if self._cov  is None else str(self._cov.shape)
@@ -316,10 +318,12 @@ class Climatology:##{{{
 		designC_    = xr.DataArray( np.hstack( (np.zeros_like(spl),lin) ) , dims = ["time","hpar"] , coords = [time,hpar_coords] )
 		
 		## Extract parameters of the distribution
-		idxM = (slice(None),)            + tuple([0 for _ in range(self.mean_.ndim-1)])
-		idxC = (slice(None),slice(None)) + tuple([0 for _ in range(self.cov_.ndim-2)])
-		coef_ = self.mean_[idxM]
-		cov_  = self.cov_[idxC]
+		if not self.onlyX:
+			coef_ = np.nanmean( self.mean_ , axis = tuple([i+1 for i in range(self.mean_.ndim-1)]) )
+			cov_  = np.nanmean( self.cov_  , axis = tuple([i+2 for i in range(self.mean_.ndim-1)]) )
+		else:
+			coef_ = self.mean_
+			cov_  = self.cov_
 		
 		## if add BE
 		samples = coords_samples(size)
@@ -327,7 +331,7 @@ class Climatology:##{{{
 			size    = size + 1
 			samples = ["BE"] + samples
 		
-		coefs = xr.DataArray( np.random.multivariate_normal( mean = coef_ , cov = cov_ , size = size ) , dims = ["sample","hpar"] , coords = [samples,self.hpar_names] )
+		coefs = xr.DataArray( rvs_multivariate_normal( size , coef_ , cov_ ) , dims = ["sample","hpar"] , coords = [samples,self.hpar_names] )
 		if add_BE:
 			coefs[0,:] = coef_
 		
@@ -495,6 +499,27 @@ class Climatology:##{{{
 		return self._XN
 	
 	@property
+	def d_spatial(self):
+		if self._spatial is None:
+			return ()
+		else:
+			return tuple(list(self._spatial))
+	
+	@property
+	def c_spatial(self):
+		if self._spatial is None:
+			return {}
+		else:
+			return self._spatial
+	
+	@property
+	def s_spatial(self):
+		if self._spatial is None:
+			return ()
+		else:
+			return tuple([self._spatial[d].size for d in self.d_spatial])
+	
+	@property
 	def mean_(self):
 		return self._mean
 	
@@ -503,8 +528,22 @@ class Climatology:##{{{
 		self._mean = value
 	
 	@property
+	def xmean_(self):
+		dims   = ("hpar",) + self.d_spatial
+		coords = { **{ "hpar" : self.hpar_names } , **self.c_spatial }
+		xmean  = xr.DataArray( self._mean , dims = dims , coords = coords )
+		return xmean
+	
+	@property
 	def cov_(self):
 		return self._cov
+	
+	@property
+	def xcov_(self):
+		dims   = ("hpar0","hpar1") + self.d_spatial
+		coords = { **{ "hpar0" : self.hpar_names , "hpar1" : self.hpar_names } , **self.c_spatial }
+		xcov   = xr.DataArray( self._cov , dims = dims , coords = coords )
+		return xcov
 	
 	@cov_.setter
 	def cov_( self , value ):
