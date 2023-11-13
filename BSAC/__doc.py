@@ -86,6 +86,19 @@ The 'show' command
         grid: a value of the form 'nrowxncol', to have a plot with nrow subplots
               and ncol subplots.
         ci: Level of the confidence interval. Default is 0.05 (95% C.I.)
+* show CX (dont forgive the --load-clim parameter)
+    Plot the covariates constrained and the initial climatology.
+    --input synthesis
+        Climatology of the synthesis.
+    --output ofile.pdf
+        A file to save the figure. The file must be a pdf file because multiple
+        figures are produced. If not given the function
+        matplotlib.pyplot.show() is called.
+    --config param0=value0,param1=value1,...
+        Parameters to custumize the plot. Currently:
+        grid: a value of the form 'nrowxncol', to have a plot with nrow subplots
+              and ncol subplots.
+        ci: Level of the confidence interval. Default is 0.05 (95% C.I.)
 * show Y
     Not implemented
 
@@ -97,7 +110,7 @@ The 'fit' command
     --n-samples int
         Numbers of resamples used for the bootstrap
     --input ifile0, ifile1,...
-        Data used to fit the climatology.
+        Data used to fit the climatology, in the form 'name,file'
     --common-period per
         Name of the common period between scenarios (typically the historical)
     --different-periods per0,per1,...
@@ -125,13 +138,33 @@ Not implemented
 
 The 'synthesize' command
 ------------------------
-Not implemented
+* synthesize
+    --input clim0.nc, clim1.nc,...
+        Climatology fitted to synthesize
+    --common-period per
+        Name of the common period between scenarios (typically the historical)
+    --different-periods per0,per1,...
+        Names of the differents periods (typically the scenarios)
+    --config param0=value0,param1=value1,...
+        GAM_dof: Number of degree of freedom of the GAM model, default = 7
+        GAM_degree: Degree of the splines in the GAM model, default = 3
+        grid: a file describing the grid of the synthesize (clim will be remap
+              on this grid)
+        grid_name: name of the variable for the grid
+        nslaw: Identifier of the non-stationary distribution
+        spatial: Names of the spatial coordinates (if exists), separated by a ':'
+        names: Names of the covariate, followed by the variable, with ':' as separator
 
 
 The 'constrain' command
 -----------------------
-Not implemented
-
+* constrain X
+    --input ifile0, ifile1,...
+        Observations used for the constraint, in the form 'name,file' The file
+        can be a single time series, applied to all grid point, or a spatial
+        observations for differentes covariates.
+* constrain Y
+    Not implemented
 
 The 'attribution' command
 -------------------------

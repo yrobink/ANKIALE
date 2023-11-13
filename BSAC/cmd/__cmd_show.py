@@ -28,9 +28,11 @@ import numpy as np
 import xarray as xr
 
 from ..__BSACParams import bsacParams
+from ..__climatology import Climatology
 
 from ..plot.__ebm        import plot_EBM
 from ..plot.__covariates import plot_covariates
+from ..plot.__covariates import plot_constrain_CX
 
 
 ##################
@@ -63,6 +65,23 @@ def run_bsac_cmd_show_X():
 	
 ##}}}
 
+## run_bsac_cmd_show_CX ##{{{
+@log_start_end(logger)
+def run_bsac_cmd_show_CX():
+	
+	## Read 
+	ifileS = bsacParams.input[0]
+	climS  = Climatology.init_from_file(ifileS)
+	
+	## Draw data
+	XFC = bsacParams.clim.rvsX( size = bsacParams.n_samples )
+	SFC = climS.rvsX( size = bsacParams.n_samples )
+	
+	## And plot it
+	plot_constrain_CX( XFC , SFC , ofile = bsacParams.output )
+	
+##}}}
+
 ## run_bsac_cmd_show_Y ##{{{
 @log_start_end(logger)
 def run_bsac_cmd_show_Y():
@@ -77,7 +96,7 @@ def run_bsac_cmd_show():
 	if not len(bsacParams.arg) == 1:
 		raise ValueError(f"Bad numbers of arguments of the show command: {', '.join(bsacParams.arg)}")
 	
-	available_commands = ["EBM","X","Y"]
+	available_commands = ["EBM","X","Y","CX"]
 	if not bsacParams.arg[0] in available_commands:
 		raise ValueError(f"Bad argument of the show command ({bsacParams.arg[0]}), must be: {', '.join(available_commands)}")
 	
@@ -86,6 +105,8 @@ def run_bsac_cmd_show():
 		run_bsac_cmd_show_ebm()
 	if bsacParams.arg[0] == "X":
 		run_bsac_cmd_show_X()
+	if bsacParams.arg[0] == "CX":
+		run_bsac_cmd_show_CX()
 	if bsacParams.arg[0] == "Y":
 		run_bsac_cmd_show_Y()
 	
