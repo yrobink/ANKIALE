@@ -113,7 +113,7 @@ def run_bsac_cmd_constrain_X():
 				xXo  = xXo.values.squeeze() - anom
 				Xo.set_orthogonal_selection( (slice(None),) + idx , xXo )
 				bias[idx] = anom
-		clim._birs[name] = bias
+		clim._bias[name] = bias
 		
 		## Store zarr file
 		zXo[name] = Xo

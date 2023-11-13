@@ -56,7 +56,6 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-
 def _synthesis_array( hpars , covs ):##{{{
 	
 	if np.all( ~np.isfinite(hpars)) or np.all( ~np.isfinite(covs)):
@@ -65,14 +64,16 @@ def _synthesis_array( hpars , covs ):##{{{
 		return hpar_S,cov_S
 	
 	n_mod = hpars.shape[0]
-	cov_S = np.nansum( covs , axis = 0 )
+	Si    = np.nansum( covs , axis = 0 ) ## Sum of covariance matrix of the models
+#	Se    =             nancov(hpars)    ## Inter-model covariance matrix
+	Se    = (n_mod-1) * nancov(hpars)    ## Inter-model covariance matrix
 	
-	SSM = nancov(hpars)
-	CMU = SSM / (n_mod - 1) - cov_S / n_mod
-	CMU = matrix_positive_part(CMU)
+	Su    = ( Se - (1 - 1 / n_mod) * Si ) / (n_mod - 1) ## Climate model uncertainty
+	Su    = matrix_positive_part(Su)
 	
 	hpar_S = np.nanmean( hpars , axis = 0 )
-	cov_S  = cov_S / n_mod**2 + ( 1 + 1 / n_mod ) * CMU
+	cov_S  = (1 + 1 / n_mod) * Su + Si / n_mod**2
+	cov_S  = matrix_positive_part(cov_S)
 	
 	return hpar_S,cov_S
 ##}}}
