@@ -34,6 +34,8 @@ from ..__XZarr import XZarr
 from ..__linalg import matrix_positive_part
 from ..__linalg import nancov
 
+from .__rvs import rvs_multivariate_normal
+
 import numpy as np
 import xarray as xr
 import itertools as itt
@@ -65,9 +67,7 @@ def _synthesis_array( hpars , covs ):##{{{
 	
 	n_mod = hpars.shape[0]
 	Si    = np.nansum( covs , axis = 0 ) ## Sum of covariance matrix of the models
-#	Se    =             nancov(hpars)    ## Inter-model covariance matrix
 	Se    = (n_mod-1) * nancov(hpars)    ## Inter-model covariance matrix
-	
 	Su    = ( Se - (1 - 1 / n_mod) * Si ) / (n_mod - 1) ## Climate model uncertainty
 	Su    = matrix_positive_part(Su)
 	
