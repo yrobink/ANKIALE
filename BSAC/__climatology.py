@@ -93,7 +93,10 @@ class Climatology:##{{{
 			## Build strings
 			hpar = ', '.join(self.hpar_names[:3]+['...']+self.hpar_names[-3:])
 			bper = '/'.join([str(i) for i in self.bper])
-			bias = ", ".join( [f"{name}: {self.bias[name]:.2f}" for name in self.namesX] )
+			try:
+				bias = ", ".join( [f"{name}: {self.bias[name]:.2f}" for name in self.namesX] )
+			except:
+				bias = ""
 			time = ', '.join( [ str(y) for y in self.time.tolist()[:3]+['...']+self.time.tolist()[-3:] ] )
 			mshape = "" if self._mean is None else str(self._mean.shape)
 			cshape = "" if self._cov  is None else str(self._cov.shape)
@@ -304,9 +307,8 @@ class Climatology:##{{{
 	
 	## Statistics of X ##{{{ 
 	
-	def rvsX( self , size , add_BE = False , return_hpar = False ):##{{{
+	def build_design_XFC(self):##{{{
 		
-		##
 		dof  = self.GAM_dof + 1
 		time = self.time
 		
@@ -316,6 +318,19 @@ class Climatology:##{{{
 		hpar_coords = [f"s{i}" for i in range(dof-2)] + ["cst","slope"]
 		designF_    = xr.DataArray( np.hstack( (spl,lin) )                , dims = ["time","hpar"] , coords = [time,hpar_coords] )
 		designC_    = xr.DataArray( np.hstack( (np.zeros_like(spl),lin) ) , dims = ["time","hpar"] , coords = [time,hpar_coords] )
+		
+		return spl,lin,designF_,designC_
+	##}}}
+	
+	def rvsX( self , size , add_BE = False , return_hpar = False ):##{{{
+		
+		##
+		dof  = self.GAM_dof + 1
+		time = self.time
+		
+		## Build the design matrix
+		hpar_coords = [f"s{i}" for i in range(dof-2)] + ["cst","slope"]
+		spl,lin,designF_,designC_ = self.build_design_XFC()
 		
 		## Extract parameters of the distribution
 		if not self.onlyX:
@@ -422,11 +437,8 @@ class Climatology:##{{{
 				out[c+K] = znspar
 		
 		## Build design matrix of XF and XC
-		spl         = smg.BSplines( time , df = self.GAM_dof + 1 - 1 , degree = self.GAM_degree , include_intercept = False ).basis
-		lin         = np.stack( [np.ones(time.size),self.XN.loc[time].values] ).T.copy()
 		hpar_coords = [f"s{i}" for i in range(self.GAM_dof+1-2)] + ["cst","slope"]
-		designF_    = xr.DataArray( np.hstack( (spl,lin) )                , dims = ["time","hpar"] , coords = [time,hpar_coords] )
-		designC_    = xr.DataArray( np.hstack( (np.zeros_like(spl),lin) ) , dims = ["time","hpar"] , coords = [time,hpar_coords] )
+		spl,lin,designF_,designC_ = self.build_design_XFC()
 		
 		## Loop on spatial coordinates
 		for spatial_idx in itt.product(*[range(self._spatial[s].size) for s in self._spatial]):

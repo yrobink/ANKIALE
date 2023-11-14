@@ -31,9 +31,14 @@ from ..__BSACParams import bsacParams
 import numpy  as np
 import xarray as xr
 import statsmodels.gam.api as smg
+import scipy.stats as sc
 
 from ..__XZarr import XZarr
 from ..__XZarr import random_zfile
+
+from ..__sys     import coords_samples
+from ..stats.__tools import nslawid_to_class
+from ..stats.__rvs   import rvs_multivariate_normal
 
 
 ##################
@@ -47,8 +52,6 @@ logger.addHandler(logging.NullHandler())
 ###############
 ## Functions ##
 ###############
-
-#TODO Bias CX
 
 def _constrain_X_parallel( hpar , cov , Xo , A ):##{{{
 	
@@ -185,11 +188,122 @@ def run_bsac_cmd_constrain_X():
 	bsacParams.clim = clim
 ##}}}
 
+
+def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , n_mcmc_min , n_mcmc_max ):##{{{
+	
+	## Build output
+	ohpar = hpar.copy() + np.nan
+	ohcov = hcov.copy() + np.nan
+	
+	##
+	if np.any(~np.isfinite(hpar)):
+		return ohpar,ohcov
+	
+	## Draw hpars
+	samples = coords_samples(size)
+	hpars   = xr.DataArray( rvs_multivariate_normal( size , hpar , hcov ) , dims = ["sample","hpar"] , coords = [samples,clim.hpar_names] )
+	
+	## Draw XF
+	spl,lin,designF_,_ = clim.build_design_XFC()
+	hpar_coords = designF_.hpar.values.tolist()
+	name        = clim.namesX[-1]
+	XF = xr.concat(
+	        [
+	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
+	         for per in clim.dpers
+	        ],
+	        dim = "period"
+	    ).assign_coords( { "period" : clim.dpers } ).transpose("sample","period","time")
+	
+	## Build the prior
+	prior_hpar = hpar[-clim.sizeY:]
+	prior_hcov = hcov[-clim.sizeY:,-clim.sizeY:]
+	prior      = sc.multivariate_normal( mean = prior_hpar , cov = prior_hcov , allow_singular = True )
+	
+	##
+	Yf     = Yo
+	nslaw  = clim._nslaw_class()
+	for s in samples:
+		
+		## Extract
+		Xf = XF.loc[s,:,timeYo].mean( dim = "period" ).values
+		
+		## MCMC
+		n_mcmc_drawn = np.random.choice( range(n_mcmc_min,n_mcmc_max) , replace = False )
+		nslaw.fit_bayesian( Yf , Xf , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
+		hpars[:,-clim.sizeY:].loc[s,:] = nslaw.coef_.copy()
+	
+	##
+	ohpar  = np.mean( hpars.values , axis = 0 )
+	ohcov  = np.cov(  hpars.values.T )
+	
+	return ohpar,ohcov
+##}}}
+
 ## run_bsac_cmd_constrain_Y ##{{{
 @log_start_end(logger)
 def run_bsac_cmd_constrain_Y():
-	raise NotImplementedError
+	
+	##
+	clim = bsacParams.clim
+	size = bsacParams.n_samples
+	n_mcmc_min = int(bsacParams.config.get("n-mcmc-min", 5000))
+	n_mcmc_max = int(bsacParams.config.get("n-mcmc-max",10000))
+	
+	## Load observations
+	name,ifile = bsacParams.input[0].split(",")
+	Yo = xr.open_dataset(ifile)[name]
+	Yo = xr.DataArray( Yo.values , dims = Yo.dims , coords = [Yo.time.dt.year.values] + [Yo.coords[d] for d in Yo.dims[1:]] )
+	
+	## Bias
+	bias = Yo.sel( time = slice(*[str(y) for y in clim.bper]) ).mean( dim = "time" )
+	Yo   = Yo - bias
+	clim._bias[name] = bias
+	
+	## Extract parameters
+	d_spatial = clim.d_spatial
+	c_spatial = clim.c_spatial
+	chpar     = clim.hpar_names
+	ihpar     = xr.DataArray( clim.mean_.copy() , dims = ("hpar",)         + d_spatial , coords = { **{ "hpar"  : chpar }                   , **c_spatial } )
+	ihcov     = xr.DataArray( clim.cov_.copy()  , dims = ("hpar0","hpar1") + d_spatial , coords = { **{ "hpar0" : chpar , "hpar1" : chpar } , **c_spatial } )
+	ohpar     = xr.zeros_like(ihpar) + np.nan
+	ohcov     = xr.zeros_like(ihcov) + np.nan
+	
+	## Loop on spatial variables
+	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
+	for idx in itt.product(*[range(0,s,jump) for s in clim.s_spatial]):
+		
+		##
+		s_idx = tuple([slice(s,s+jump,1) for s in idx])
+		idx1d = (slice(None),) + s_idx
+		idx2d = (slice(None),slice(None)) + s_idx
+		
+		## Extract data
+		shpar = ihpar[idx1d].chunk( { d : 1 for d in ihpar.dims[1:] } )
+		shcov = ihcov[idx2d].chunk( { d : 1 for d in ihpar.dims[1:] } )
+		sYo   = Yo[(slice(None),) + s_idx].chunk({ d : 1 for d in ihpar.dims[1:] })
+		
+		##
+		h,c = xr.apply_ufunc( _constrain_Y_parallel , shpar , shcov , sYo ,
+		                    input_core_dims  = [["hpar"],["hpar0","hpar1"],["time"]],
+		                    output_core_dims = [["hpar"],["hpar0","hpar1"]],
+		                    output_dtypes    = [shpar.dtype,shcov.dtype],
+		                    vectorize        = True,
+		                    dask             = "parallelized",
+		                    kwargs           = { "timeYo" : Yo.time.values , "clim" : clim , "size" : size , "n_mcmc_min" : n_mcmc_min , "n_mcmc_max" : n_mcmc_max }
+		                    )
+		h = h.transpose( *shpar.dims ).compute()
+		c = c.transpose( *shcov.dims ).compute()
+		
+		ohpar[idx1d] = h.values
+		ohcov[idx2d] = c.values
+	
+	## And save
+	clim.mean_ = ohpar.values
+	clim.cov_  = ohcov.values
+	
 ##}}}
+
 
 ## run_bsac_cmd_constrain ##{{{
 @log_start_end(logger)
