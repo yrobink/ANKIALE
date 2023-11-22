@@ -47,12 +47,12 @@ from .__logs import log_start_end
 from .__release    import version
 from .__curses_doc import print_doc
 
-from .cmd.__cmd_attribution import run_bsac_cmd_attribution
-from .cmd.__cmd_constrain   import run_bsac_cmd_constrain 
-from .cmd.__cmd_fit         import run_bsac_cmd_fit       
-from .cmd.__cmd_draw        import run_bsac_cmd_draw       
-from .cmd.__cmd_show        import run_bsac_cmd_show      
-from .cmd.__cmd_synthesize  import run_bsac_cmd_synthesize
+from .cmd.__cmd_attribute  import run_bsac_cmd_attribute
+from .cmd.__cmd_constrain  import run_bsac_cmd_constrain 
+from .cmd.__cmd_fit        import run_bsac_cmd_fit       
+from .cmd.__cmd_draw       import run_bsac_cmd_draw       
+from .cmd.__cmd_show       import run_bsac_cmd_show      
+from .cmd.__cmd_synthesize import run_bsac_cmd_synthesize
 
 
 ##################
@@ -101,8 +101,8 @@ def run_bsac():
 			run_bsac_cmd_synthesize()
 		elif cmd.lower() == "constrain":
 			run_bsac_cmd_constrain()
-		elif cmd.lower() == "attribution":
-			run_bsac_cmd_attribution()
+		elif cmd.lower() == "attribute":
+			run_bsac_cmd_attribute()
 		
 		## And save clim ?
 		logger.info(LINE)

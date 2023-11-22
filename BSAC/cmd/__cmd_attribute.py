@@ -92,7 +92,7 @@ def _attribution_parallel( *args , ovars , nslaw_class , it_attr , side ):##{{{
 
 ## run_bsac_cmd_attribution ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_attribution():
+def run_bsac_cmd_attribute():
 	
 	## Parameters
 	clim      = bsacParams.clim
