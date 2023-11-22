@@ -53,7 +53,7 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def _attribution_parallel( *args , ovars , nslaw_class , it_attr , side ):##{{{
+def _attribute_event_parallel( *args , ovars , nslaw_class , it_attr , side ):##{{{
 	
 	## Extract
 	pars    = { ovar : arg for ovar,arg in zip(ovars,args) } ## Parameters
@@ -90,9 +90,9 @@ def _attribution_parallel( *args , ovars , nslaw_class , it_attr , side ):##{{{
 	return tuple([pF,pC,RF,RC,IF,IC,dI,PR])
 ##}}}
 
-## run_bsac_cmd_attribution ##{{{
+## run_bsac_cmd_attribution_event ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_attribute():
+def run_bsac_cmd_attribute_event():
 	
 	## Parameters
 	clim      = bsacParams.clim
@@ -145,7 +145,7 @@ def run_bsac_cmd_attribute():
 		
 		
 		#
-		res = xr.apply_ufunc( _attribution_parallel , *[draw[ovar] for ovar in ovars] , sYo ,
+		res = xr.apply_ufunc( _attribute_event_parallel , *[draw[ovar] for ovar in ovars] , sYo ,
 		                    input_core_dims  = [["sample","time","period"] for _ in range(len(draw))] + [[]],
 		                    output_core_dims = [["sample","time","period"] for _ in range(8)],
 		                    output_dtypes    = [draw[ovars[0]].dtype for _ in range(8)],
@@ -247,6 +247,25 @@ def run_bsac_cmd_attribute():
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
 		ncf.setncattr( "BSAC_version"  , version )
+	
+##}}}
+
+
+## run_bsac_cmd_attribution ##{{{
+@log_start_end(logger)
+def run_bsac_cmd_attribute():
+	
+	avail_arg = ["event"]
+	try:
+		arg = bsacParams.arg[0]
+	except:
+		raise ValueError( "A argument must be given for the attribute command ({', '.join(avail_arg)})" )
+	
+	if not arg in avail_arg:
+		raise ValueError( "Bad argument for the attribute command ({', '.join(avail_arg)})" )
+	
+	if arg == "event":
+		run_bsac_cmd_attribute_event()
 	
 ##}}}
 
