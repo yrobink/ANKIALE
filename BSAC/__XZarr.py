@@ -99,15 +99,29 @@ class XZarr:##{{{
 		return xzarr
 	##}}}
 	
+	## static.like ##{{{
+	@staticmethod
+	def like( xzarr , zfile , value = 0 , dtype = "float32" ):
+		
+		copy = XZarr()
+		
+		copy.dims   = xzarr.dims
+		copy.coords = xzarr.coords
+		copy.shape  = xzarr.shape
+		copy.zfile  = zfile
+		copy.zdata  = zarr.open( copy.zfile , mode = "w" , shape = copy.shape , dtype = dtype )
+		
+		copy.zdata[:] = value
+		
+		return copy
+	##}}}
+	
 	def get_orthogonal_selection( self , idxs ):##{{{
 		
 		dims   = []
 		coords = []
 		for i,idx in enumerate(idxs):
-			if idx == slice(None):
-				dims.append(self.dims[i])
-				coords.append(self.coords[i])
-			elif isinstance(idx,slice):
+			if isinstance(idx,slice):
 				dims.append(self.dims[i])
 				coords.append(self.coords[i][idx])
 			elif isinstance(idx,int):
@@ -129,6 +143,14 @@ class XZarr:##{{{
 	@property
 	def ndim(self):
 		return len(self.shape)
+	
+	@property
+	def xdata(self):
+		out = xr.DataArray( self.zdata[:],
+		                    dims   = self.dims,
+		                    coords = self.coords
+		                    )
+		return out
 	
 	##}}}
 	
