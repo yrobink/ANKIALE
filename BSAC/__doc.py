@@ -164,12 +164,65 @@ The 'constrain' command
         can be a single time series, applied to all grid point, or a spatial
         observations for differentes covariates.
 * constrain Y
-    Not implemented
+    --input ifile
+        Observations used for the constraint, in the form 'name,file'.
+    --n-samples int
+        Numbers of samples drawn to find the posterior
+    --config param0=value0,param1=value1,...
+        n-mcmc-min: Minimal number of MCMC drawn.
+        n-mcmc-max: Maximal number of MCMC drawn.
 
-The 'attribution' command
--------------------------
-Not implemented
 
+The 'attribute' command
+-----------------------
+* attribute event
+    Perform the attribution of the event with intensity 'ifile' occuring at year
+    'time'.
+    --input ifile
+        Observations of the event, in the form 'name,file'.
+    --output ofile
+        Output file to save the result of the attribution
+    --n-samples int
+        Numbers of samples drawn
+    --config param0=value0,param1=value1,...
+        time: Year of the event
+* attribute freturnt
+    Perform the attribution of the event with factual return time '--input'
+    occuring at year 'time'.
+    --input float
+        Factual return time of the event.
+    --output ofile
+        Output file to save the result of the attribution
+    --n-samples int
+        Numbers of samples drawn
+    --config param0=value0,param1=value1,...
+        time: Year of the event
+* attribute creturnt
+    Perform the attribution of the event with counter factual return time
+    '--input' occuring at year 'time'.
+    --input float
+        Counter-factual return time of the event.
+    --output ofile
+        Output file to save the result of the attribution
+    --n-samples int
+        Numbers of samples drawn
+    --config param0=value0,param1=value1,...
+        time: Year of the event
+
+
+The 'misc' command
+------------------
+* misc bpc
+    bpc: Best Possible Case. Find the smallest extreme event occuring at least
+    one time between 'year0' and 'year1' with probabilities 'prob'.
+    --output ofile
+        Output file to save the event.
+    --n-samples int
+        Numbers of samples drawn
+    --config param0=value0,param1=value1,...
+        period: year0/year1
+        prob: a list of probabilities separated by ':', or 'IPCC', which means
+              prob = [0.01,0.1,0.33,0.5,0.66,0.9,0.99]
 
 
 Examples
