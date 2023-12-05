@@ -67,7 +67,7 @@ class GEVModel(AbstractModel):##{{{
 		return { "loc" : loc , "scale" : scale , "shape" : shape }
 	##}}}
 	
-	def cdf_sf( self , x , side , **kwargs ):##{{{
+	def _cdf_sf( self , x , side , **kwargs ):##{{{
 		
 		sckwargs = { "loc" : kwargs["loc"] , "scale" : kwargs["scale"] , "c" : - kwargs["shape"] }
 		
@@ -77,7 +77,7 @@ class GEVModel(AbstractModel):##{{{
 			return sc.genextreme.cdf( x , **sckwargs )
 	##}}}
 	
-	def icdf_sf( self , p , side , **kwargs ):##{{{
+	def _icdf_sf( self , p , side , **kwargs ):##{{{
 		
 		sckwargs = { "loc" : kwargs["loc"] , "scale" : kwargs["scale"] , "c" : - kwargs["shape"] }
 		if side == "right":

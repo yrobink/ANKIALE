@@ -53,6 +53,7 @@ from .cmd.__cmd_fit        import run_bsac_cmd_fit
 from .cmd.__cmd_draw       import run_bsac_cmd_draw       
 from .cmd.__cmd_show       import run_bsac_cmd_show      
 from .cmd.__cmd_synthesize import run_bsac_cmd_synthesize
+from .cmd.__cmd_misc       import run_bsac_cmd_misc
 
 
 ##################
@@ -66,6 +67,8 @@ logger.addHandler(logging.NullHandler())
 ###############
 ## Functions ##
 ###############
+
+##TODO add bsac attribute flevel 
 
 ## run_bsac ##{{{
 
@@ -103,6 +106,8 @@ def run_bsac():
 			run_bsac_cmd_constrain()
 		elif cmd.lower() == "attribute":
 			run_bsac_cmd_attribute()
+		elif cmd.lower() == "misc":
+			run_bsac_cmd_misc()
 		
 		## And save clim ?
 		logger.info(LINE)

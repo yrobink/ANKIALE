@@ -44,6 +44,18 @@ class AbstractModel:##{{{
 	
 	##}}}
 	
+	def cdf_sf( self , x , side , **kwargs ):##{{{
+		with warnings.catch_warnings():
+			warnings.simplefilter("ignore")
+			return self._cdf_sf( x , side , **kwargs )
+	##}}}
+	
+	def icdf_sf( self , p , side , **kwargs ):##{{{
+		with warnings.catch_warnings():
+			warnings.simplefilter("ignore")
+			return self._icdf_sf( p , side , **kwargs )
+	##}}}
+	
 ##}}}
 
 

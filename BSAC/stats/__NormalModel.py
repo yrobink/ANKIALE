@@ -66,7 +66,7 @@ class NormalModel(AbstractModel):##{{{
 		return { "loc" : loc , "scale" : scale }
 	##}}}
 	
-	def cdf_sf( self , x , side , **kwargs ):##{{{
+	def _cdf_sf( self , x , side , **kwargs ):##{{{
 		
 		if side == "right":
 			return sc.norm.sf( x , **kwargs )
@@ -74,7 +74,7 @@ class NormalModel(AbstractModel):##{{{
 			return sc.norm.cdf( x , **kwargs )
 	##}}}
 	
-	def icdf_sf( self , p , side , **kwargs ):##{{{
+	def _icdf_sf( self , p , side , **kwargs ):##{{{
 		
 		if side == "right":
 			return sc.norm.isf( p , **kwargs )

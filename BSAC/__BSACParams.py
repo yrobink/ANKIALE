@@ -244,7 +244,7 @@ class BSACParams:
 				raise AbortForHelpException
 			
 			## Check the CMD
-			list_cmd = ["show","fit","draw","synthesize","constrain","attribute"]
+			list_cmd = ["show","fit","draw","synthesize","constrain","attribute","misc"]
 			if self.cmd is None or not self.cmd.lower() in list_cmd:
 				raise Exception(f"Bad command arguments, must be one of {', '.join(list_cmd)}")
 			
