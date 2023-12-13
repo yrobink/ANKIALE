@@ -208,6 +208,10 @@ def run_bsac_cmd_fit_Y():
 		mean_[idx1d] = xhpar.reshape(xhpar.shape[0],-1).mean( axis = 1 )
 		cov_[idx2d]  = np.cov( xhpar.reshape(xhpar.shape[0],-1) )
 	
+	## Mask
+	mean_ = mean_.where( np.isfinite(  mean_[-1,:,:]) )
+	cov_  =  cov_.where( np.isfinite(cov_[-1,-1,:,:]) )
+	
 	## Update the climatology
 	clim.mean_ = mean_.values
 	clim.cov_  = cov_.values

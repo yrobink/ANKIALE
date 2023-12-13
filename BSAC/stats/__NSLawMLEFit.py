@@ -72,6 +72,10 @@ def _nslaw_fit_bootstrap( idxs , xY , X , per , nslaw_class , init_ ):##{{{
 		Yf = Yf[mask]
 		Xf = Xf[mask]
 		
+		if not np.any(mask):
+			out.append( np.zeros(len(nslaw.coef_name)) + np.nan )
+			continue
+		
 		## Resample
 		idxbs = np.random.choice( Yf.size , Yf.size , replace = True )
 		Yf = Yf[idxbs]
