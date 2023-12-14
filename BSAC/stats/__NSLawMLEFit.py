@@ -106,7 +106,11 @@ def nslaw_fit_bootstrap( Y , X , hparY , nslawid , n_bootstrap , n_jobs ):
 	nslaw       = nslaw_class()
 	
 	## Loop on spatial dimension
+	i = 0
 	for spatial_idx in itt.product(*[range(s) for s in spatial]):
+		
+		i += 1
+		print( f"{100*i / np.prod(spatial)}%" )
 		
 		## Indexes to extract data
 		iidx = (slice(None),slice(None),slice(None))
@@ -124,6 +128,9 @@ def nslaw_fit_bootstrap( Y , X , hparY , nslawid , n_bootstrap , n_jobs ):
 			Xf = xX.values.ravel()
 			
 			mask = np.isfinite(Yf)
+			
+			if not mask.sum() / mask.size > 0.95:
+				continue
 			Yf = Yf[mask]
 			Xf = Xf[mask]
 			
@@ -135,7 +142,7 @@ def nslaw_fit_bootstrap( Y , X , hparY , nslawid , n_bootstrap , n_jobs ):
 			hparY.set_orthogonal_selection( oidx , init_ )
 			
 			## Prepare dimension for parallelization
-			idxs = xr.DataArray( [i+1 for i in range(n_bootstrap)] , dims = ["bootstrap"] , coords = [range(n_bootstrap)] ).chunk( { "bootstrap" : n_bootstrap // n_jobs } )
+			idxs = xr.DataArray( [i+1 for i in range(n_bootstrap)] , dims = ["bootstrap"] , coords = [range(n_bootstrap)] ).chunk( { "bootstrap" : max( n_bootstrap // n_jobs , 1 ) } )
 			
 			## Parallelization of the bootstrap
 			coef_bs = xr.apply_ufunc(
