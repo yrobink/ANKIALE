@@ -106,11 +106,7 @@ def nslaw_fit_bootstrap( Y , X , hparY , nslawid , n_bootstrap , n_jobs ):
 	nslaw       = nslaw_class()
 	
 	## Loop on spatial dimension
-	i = 0
 	for spatial_idx in itt.product(*[range(s) for s in spatial]):
-		
-		i += 1
-		print( f"{100*i / np.prod(spatial)}%" )
 		
 		## Indexes to extract data
 		iidx = (slice(None),slice(None),slice(None))
