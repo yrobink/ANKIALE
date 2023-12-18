@@ -106,7 +106,14 @@ def nslaw_fit_bootstrap( Y , X , hparY , nslawid , n_bootstrap , n_jobs ):
 	nslaw       = nslaw_class()
 	
 	## Loop on spatial dimension
+	s_iter = 0
+	t_iter = int(np.prod(spatial))
 	for spatial_idx in itt.product(*[range(s) for s in spatial]):
+		
+		##
+		if s_iter % int(0.05 * t_iter) == 0:
+			logger.info( " * {:{fill}{align}{n}}%".format( int( 100 * s_iter / t_iter ) + 1 , fill = " " , align = ">" , n = 4 ) + " " * 16 )
+		s_iter += 1
 		
 		## Indexes to extract data
 		iidx = (slice(None),slice(None),slice(None))
@@ -120,13 +127,15 @@ def nslaw_fit_bootstrap( Y , X , hparY , nslawid , n_bootstrap , n_jobs ):
 			xY = Y[iidx].sel( period = [cper,per] ).mean( dim = "period" )
 			xX = xr.DataArray( np.array( [X.loc["BE",per,xY.time].values for _ in range(xY.run.size)] ).T , dims = ["time","run"] , coords = xY.coords )
 			
+			valid = np.isfinite(xY.mean( dim = "run" ))
+			if valid.size < 50:
+				continue
+			
 			Yf = xY.values.ravel()
 			Xf = xX.values.ravel()
 			
 			mask = np.isfinite(Yf)
 			
-			if not mask.sum() / mask.size > 0.95:
-				continue
 			Yf = Yf[mask]
 			Xf = Xf[mask]
 			
