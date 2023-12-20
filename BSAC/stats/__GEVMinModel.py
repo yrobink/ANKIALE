@@ -31,7 +31,7 @@ from .__AbstractModel import AbstractModel
 ## Classes
 ##########
 
-class GEVModel(AbstractModel):##{{{
+class GEVMinModel(AbstractModel):##{{{
 	
 	def __init__( self ):##{{{
 		
@@ -47,14 +47,14 @@ class GEVModel(AbstractModel):##{{{
 	##}}}
 	
 	def __str__(self):##{{{
-		return "BSAC.stats.GEVModel"
+		return "BSAC.stats.GEVMinModel"
 	##}}}
 	
 	def fit_mle( self , Y , X , **kwargs ):##{{{
 		self.law = self.sd( method = "mle" )
 		with warnings.catch_warnings():
 			warnings.simplefilter("ignore")
-			self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , **kwargs )
+			self.law.fit( -Y , c_loc = -X , c_scale = -X , l_scale = sd.link.ULExponential() , **kwargs )
 		self.coef_ = self.law.coef_
 	##}}}
 	
@@ -62,15 +62,15 @@ class GEVModel(AbstractModel):##{{{
 		self.law = self.sd( method = "bayesian" )
 		with warnings.catch_warnings():
 			warnings.simplefilter("ignore")
-			self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
+			self.law.fit( -Y , c_loc = -X , c_scale = -X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
 		self.coef_ = self.law.info_.draw[-1,:]
 	##}}}
 	
 	def draw_params( self , X , coef ):##{{{
 		
-		loc   = coef.loc[:,"loc0"] + coef.loc[:,"loc1"] * X
-		scale = np.exp( coef.loc[:,"scale0"] + coef.loc[:,"scale1"] * X )
-		shape = coef.loc[:,"shape0"] + 0 * X
+		loc   = (coef.loc[:,"loc0"] - coef.loc[:,"loc1"] * X)
+		scale = np.exp( coef.loc[:,"scale0"] - coef.loc[:,"scale1"] * X )
+		shape = coef.loc[:,"shape0"] - 0 * X
 		
 		return { "loc" : loc , "scale" : scale , "shape" : shape }
 	##}}}
@@ -80,18 +80,18 @@ class GEVModel(AbstractModel):##{{{
 		sckwargs = { "loc" : kwargs["loc"] , "scale" : kwargs["scale"] , "c" : - kwargs["shape"] }
 		
 		if side == "right":
-			return sc.genextreme.sf( x , **sckwargs )
+			return sc.genextreme.sf( -x , **sckwargs )
 		else:
-			return sc.genextreme.cdf( x , **sckwargs )
+			return sc.genextreme.cdf( -x , **sckwargs )
 	##}}}
 	
 	def _icdf_sf( self , p , side , **kwargs ):##{{{
 		
 		sckwargs = { "loc" : kwargs["loc"] , "scale" : kwargs["scale"] , "c" : - kwargs["shape"] }
 		if side == "right":
-			return sc.genextreme.isf( p , **sckwargs )
+			return -sc.genextreme.isf( p , **sckwargs )
 		else:
-			return sc.genextreme.ppf( p , **sckwargs )
+			return -sc.genextreme.ppf( p , **sckwargs )
 	##}}}
 	
 ##}}}

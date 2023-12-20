@@ -431,6 +431,6 @@ def as_list( x ):##{{{
 ##}}}
 
 def coords_samples( size ):##{{{
-	return [ "S{:{fill}{align}{n}}".format( i , fill = "0" , align = ">" , n = int(np.log10(size-2)) + 1 ) for i in range(size) ]
+	return [ "S{:{fill}{align}{n}}".format( i , fill = "0" , align = ">" , n = int(np.log10(max(1,size-2))) + 1 ) for i in range(size) ]
 ##}}}
 

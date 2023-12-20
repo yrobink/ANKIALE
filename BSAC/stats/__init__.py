@@ -21,4 +21,5 @@ from .__MultiGAM      import MultiGAM
 from .__AbstractModel import AbstractModel
 from .__NormalModel   import NormalModel
 from .__GEVModel      import GEVModel
+from .__GEVMinModel   import GEVMinModel
 
