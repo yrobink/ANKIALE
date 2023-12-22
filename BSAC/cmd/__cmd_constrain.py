@@ -23,6 +23,7 @@
 import os
 import logging
 import itertools as itt
+import gc
 from ..__logs import LINE
 from ..__logs import log_start_end
 
@@ -127,7 +128,7 @@ def run_bsac_cmd_constrain_X():
 	lin  = np.stack( [np.ones(time.size),clim.XN.loc[time].values] ).T.copy()
 	
 	I = np.identity(clim.size)
-	for name in clim.names:
+	for name in clim.namesX:
 		I[clim.isel("lin",name),clim.isel("lin",name)] *= len(clim.dpers)
 	
 	d_spatial = clim.d_spatial
@@ -232,6 +233,9 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , n_mcmc_min 
 		n_mcmc_drawn = np.random.choice( range(n_mcmc_min,n_mcmc_max) , replace = False )
 		nslaw.fit_bayesian( Yf , Xf , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
 		hpars[:,-clim.sizeY:].loc[s,:] = nslaw.coef_.copy()
+	
+	del XF
+	gc.collect()
 	
 	##
 	ohpar  = np.mean( hpars.values , axis = 0 )
