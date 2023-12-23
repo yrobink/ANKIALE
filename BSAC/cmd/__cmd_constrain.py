@@ -234,12 +234,15 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , n_mcmc_min 
 		nslaw.fit_bayesian( Yf , Xf , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
 		hpars[:,-clim.sizeY:].loc[s,:] = nslaw.coef_.copy()
 	
-	del XF
-	gc.collect()
 	
 	##
 	ohpar  = np.mean( hpars.values , axis = 0 )
 	ohcov  = np.cov(  hpars.values.T )
+	
+	## Clean memory
+	del hpars
+	del XF
+	gc.collect()
 	
 	return ohpar,ohcov
 ##}}}
@@ -278,6 +281,9 @@ def run_bsac_cmd_constrain_Y():
 	for idx in itt.product(*[range(0,s,jump) for s in clim.s_spatial]):
 		
 		##
+		logger.info( f" * {idx} + {jump} / {clim.s_spatial}" )
+		
+		##
 		s_idx = tuple([slice(s,s+jump,1) for s in idx])
 		idx1d = (slice(None),) + s_idx
 		idx2d = (slice(None),slice(None)) + s_idx
@@ -301,6 +307,12 @@ def run_bsac_cmd_constrain_Y():
 		
 		ohpar[idx1d] = h.values
 		ohcov[idx2d] = c.values
+		
+		## Clean memory
+		del h
+		del c
+		gc.collect()
+		
 	
 	## And save
 	clim.mean_ = ohpar.values
