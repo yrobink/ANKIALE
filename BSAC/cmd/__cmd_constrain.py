@@ -204,17 +204,10 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , n_mcmc_min 
 	samples = coords_samples(size)
 	hpars   = xr.DataArray( rvs_multivariate_normal( size , hpar , hcov ) , dims = ["sample","hpar"] , coords = [samples,clim.hpar_names] )
 	
-	## Draw XF
-	spl,lin,designF_,_ = clim.build_design_XFC()
+	## 
+	_,_,designF_,_ = clim.build_design_XFC()
 	hpar_coords = designF_.hpar.values.tolist()
 	name        = clim.namesX[-1]
-	XF = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).assign_coords( { "period" : clim.dpers } ).transpose("sample","period","time")
 	
 	## Build the prior
 	prior_hpar = hpar[-clim.sizeY:]
@@ -226,8 +219,14 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , n_mcmc_min 
 	nslaw  = clim._nslaw_class()
 	for s in samples:
 		
-		## Extract
-		Xf = XF.loc[s,:,timeYo].mean( dim = "period" ).values
+		## Build XF
+		Xf = xr.concat(
+		        [
+		         xr.concat( [hpars.loc[s,:][clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
+		         for per in clim.dpers
+		        ],
+		        dim = "period"
+		    ).mean( dim = "period" ).values
 		
 		## MCMC
 		n_mcmc_drawn = np.random.choice( range(n_mcmc_min,n_mcmc_max) , replace = False )
@@ -241,7 +240,6 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , n_mcmc_min 
 	
 	## Clean memory
 	del hpars
-	del XF
 	gc.collect()
 	
 	return ohpar,ohcov
@@ -280,8 +278,6 @@ def run_bsac_cmd_constrain_Y():
 	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
 	for idx in itt.product(*[range(0,s,jump) for s in clim.s_spatial]):
 		
-		##
-		logger.info( f" * {idx} + {jump} / {clim.s_spatial}" )
 		
 		##
 		s_idx = tuple([slice(s,s+jump,1) for s in idx])
@@ -292,6 +288,10 @@ def run_bsac_cmd_constrain_Y():
 		shpar = ihpar[idx1d].chunk( { d : 1 for d in ihpar.dims[1:] } )
 		shcov = ihcov[idx2d].chunk( { d : 1 for d in ihpar.dims[1:] } )
 		sYo   = Yo[(slice(None),) + s_idx].chunk({ d : 1 for d in ihpar.dims[1:] })
+		
+		##
+		isfin = np.all( np.isfinite(sYo) , axis = 0 ).values
+		logger.info( f" * {idx} + {jump} / {clim.s_spatial} ({round( 100 * isfin.sum() / isfin.size , 2 )}%)" )
 		
 		##
 		h,c = xr.apply_ufunc( _constrain_Y_parallel , shpar , shcov , sYo ,
