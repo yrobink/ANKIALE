@@ -64,6 +64,9 @@ Common arguments
 --save-clim ofile
     Save a climatology to the disk.
 
+--set-seed int
+    Set the seed for reproductibility
+
 
 The 'show' command
 ------------------

@@ -176,7 +176,7 @@ def start_bsac(*argv):##{{{
 	
 	## Set (or not) the seed
 	if bsacParams.set_seed is not None:
-		np.random.seed(bsacParams.set_seed)
+		np.random.seed(int(bsacParams.set_seed))
 	
 	## Serious functions start here
 	try:
