@@ -136,7 +136,9 @@ The 'fit' command
 
 The 'draw' command
 ------------------
-Not implemented
+* Y
+    --output ofile
+        Output file to save data drawn
 
 
 The 'synthesize' command

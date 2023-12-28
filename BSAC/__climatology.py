@@ -485,6 +485,9 @@ class Climatology:##{{{
 				out[c+"F"].set_orthogonal_selection( (slice(None),slice(None),slice(None)) + spatial_idx , xnsparF[c].values )
 				out[c+"C"].set_orthogonal_selection( (slice(None),slice(None),slice(None)) + spatial_idx , xnsparC[c].values )
 		
+		if return_hpar:
+			out["hpar"] = zhpar
+		
 		return out
 	##}}}
 	
