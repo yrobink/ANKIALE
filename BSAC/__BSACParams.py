@@ -83,6 +83,7 @@ class BSACParams:
 	clim      : Climatology | None = None
 	load_clim :         str | None = None
 	save_clim :         str | None = None
+	set_seed  :         int | None = None
 	
 	def init_from_user_input( self , *argv ):##{{{
 		
@@ -111,6 +112,7 @@ class BSACParams:
 		
 		parser.add_argument( "--load-clim" , default = None )
 		parser.add_argument( "--save-clim" , default = None )
+		parser.add_argument( "--set-seed"  , default = None )
 		
 		parser.add_argument( "--common-period"     , default = None )
 		parser.add_argument( "--different-periods" , default = None )

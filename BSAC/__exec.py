@@ -174,6 +174,10 @@ def start_bsac(*argv):##{{{
 		logger.info( " * {:{fill}{align}{n}}".format( name_pkg , fill = " " , align = "<" , n = 12 ) +  f"version {pkg.__version__}" )
 	logger.info(LINE)
 	
+	## Set (or not) the seed
+	if bsacParams.set_seed is not None:
+		np.random.seed(bsacParams.set_seed)
+	
 	## Serious functions start here
 	try:
 		
