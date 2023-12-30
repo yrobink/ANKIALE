@@ -21,6 +21,7 @@
 #############
 
 import os
+import gc
 import logging
 import datetime as dt
 import itertools as itt
@@ -334,77 +335,6 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , p = None , side = None , c
 	return eventM.mean( axis = 1 )
 ##}}}
 
-def _run_bsac_cmd_misc_wpe_save_netcdf():##{{{
-	with netCDF4.Dataset( bsacParams.output , "w" ) as ncf:
-		
-		## Define dimensions
-		ncdims = {
-		       "prob"   : ncf.createDimension( "prob"   , len(pwpe) ),
-		       "sample" : ncf.createDimension( "sample" , n_samples ),
-		       "period" : ncf.createDimension( "period" , len(periods) )
-		}
-		spatial = ()
-		if clim._spatial is not None:
-			for d in clim._spatial:
-				ncdims[d] = ncf.createDimension( d , clim._spatial[d].size )
-			spatial = tuple([d for d in clim._spatial])
-		
-		## Define variables
-		ncvars = {
-		       "prob"   : ncf.createVariable( "prob"   , "float32" , ("prob",) ),
-		       "sample" : ncf.createVariable( "sample" , str       , ("sample",) ),
-		       "period" : ncf.createVariable( "period" , str       , ("period",) )
-		}
-		ncvars["prob"][:]   = pwpe
-		ncvars["sample"][:] = samples
-		ncvars["period"][:] = periods
-		if clim._spatial is not None:
-			for d in clim._spatial:
-				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
-				ncvars[d][:] = np.array(clim._spatial[d]).ravel()
-		
-		## Variables
-		ncvars = ncf.createVariable( "wpe" , "float32" , ("prob","sample","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
-		
-		## Attributes
-		ncvars.setncattr( "description" , "Best Possible Case of the Probability prob" )
-		
-		## Find the blocks to write netcdf
-		blocks  = [1,1,1]
-		sizes   = [len(pwpe),n_samples,len(periods)]
-		nsizes  = [len(pwpe),n_samples,len(periods)]
-		sp_mem  = SizeOf( n = int(np.prod(clim.s_spatial) * np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) , unit = "o" )
-		tot_mem = SizeOf( n = int(min( 0.8 , 3 * bsacParams.frac_memory_per_array ) * bsacParams.total_memory.o) , unit = "o" )
-		nfind   = [True,True,True]
-		while any(nfind):
-			i = np.argmin(nsizes)
-			blocks[i] = sizes[i]
-			while int(np.prod(blocks)) * sp_mem > tot_mem:
-				if blocks[i] < 2:
-					blocks[i] = 1
-					break
-				blocks[i] = blocks[i] // 2
-			nfind[i]  = False
-			nsizes[i] = np.inf
-		logger.info( f"   => Blocks size {blocks}" )
-		
-		## Fill
-		bias   = clim.bias[clim.names[-1]]
-		idx_sp = tuple([slice(None) for _ in range(len(clim._spatial))])
-		for idx in itt.product(*[range(0,s,block) for s,block in zip(sizes,blocks)]):
-			
-			s_idx = tuple([slice(s,s+block,1) for s,block in zip(idx,blocks)])
-			idxs = s_idx + idx_sp
-			
-			xdata = event.get_orthogonal_selection(idxs)
-			ncvars[idxs] = ( xdata + bias ).values
-		
-		## Global attributes
-		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
-		ncf.setncattr( "BSAC_version"  , version )
-		ncf.setncattr( "description" , f"Best Possible Case" )
-##}}}
-
 ## run_bsac_cmd_misc_wpe ##{{{
 @log_start_end(logger)
 def run_bsac_cmd_misc_wpe():
@@ -493,6 +423,10 @@ def run_bsac_cmd_misc_wpe():
 #			sel = (ip,) + sample_idx + (slice(None),) + spatial_idx
 			sel = (ip,) + (slice(None),) + (slice(None),) + spatial_idx
 			event.set_orthogonal_selection( sel , xevent.values )
+			
+			## Clean memory
+			del xevent
+			gc.collect()
 	
 	## And save in netcdf
 	logger.info( " * Save in netcdf" )
