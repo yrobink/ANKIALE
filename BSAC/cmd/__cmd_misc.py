@@ -199,7 +199,7 @@ def run_bsac_cmd_misc_wpe():
 	while any(nfind):
 		i = np.argmin(nsizes)
 		while mem_use > bsacParams.total_memory:
-			mem_use = 10 * np.prod(blocks) * (np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) * pwpe.size * (perwpe[1] - perwpe[0]+1) * ( len(clim.dpers) + 1 ) * SizeOf("1o")
+			mem_use = 50 * np.prod(blocks) * (np.finfo('float64').bits // SizeOf(n = 0).bits_per_octet) * pwpe.size * (perwpe[1] - perwpe[0]+1) * ( len(clim.dpers) + 1 ) * SizeOf("1o")
 			if blocks[i] < 2:
 				blocks[i] = 1
 				break
