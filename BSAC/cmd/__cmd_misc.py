@@ -227,7 +227,7 @@ def run_bsac_cmd_misc_wpe():
 		##
 		isfin = np.all( np.isfinite(shpar[1:]) , axis = 0 ).values
 		valid = 100 * isfin.sum() / isfin.size
-		logger.info( f"   => {idx} + {blocks} / {clim.s_spatial + (n_samples,)} ({round( valid , 2 )}%)" )
+		logger.info( f"   => {idx} + {blocks} / {clim.s_spatial + (n_samples,)} ({round( valid , 3 )}%)" )
 		if not valid > 0:
 			continue
 		
