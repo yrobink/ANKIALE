@@ -138,6 +138,13 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None 
 			
 		output[:,:,ip] = eventM.mean( axis = 1 )
 	
+	del eventL
+	del eventH
+	del eventM
+	del dpars
+	del pM
+	gc.collect()
+	
 	return output
 ##}}}
 
@@ -195,11 +202,12 @@ def run_bsac_cmd_misc_wpe():
 	nsizes  = list(clim.s_spatial + (n_samples,))
 	blocks  = list(sizes)
 	nfind   = [True,True,True]
-	mem_use = 10 * np.prod(blocks) * (np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) * pwpe.size * (perwpe[1] - perwpe[0]+1) * ( len(clim.dpers) + 1 ) * SizeOf("1o")
+	fmem_use = lambda b: 50 * np.prod(blocks) * (np.finfo('float64').bits // SizeOf(n = 0).bits_per_octet) * pwpe.size * (perwpe[1] - perwpe[0]+1) * ( len(clim.dpers) + 1 ) * SizeOf("1o")
+	mem_use = fmem_use(blocks)
 	while any(nfind):
 		i = np.argmin(nsizes)
 		while mem_use > bsacParams.total_memory:
-			mem_use = 50 * np.prod(blocks) * (np.finfo('float64').bits // SizeOf(n = 0).bits_per_octet) * pwpe.size * (perwpe[1] - perwpe[0]+1) * ( len(clim.dpers) + 1 ) * SizeOf("1o")
+			mem_use = fmem_use(blocks)
 			if blocks[i] < 2:
 				blocks[i] = 1
 				break
