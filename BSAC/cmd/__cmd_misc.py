@@ -143,8 +143,6 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None 
 	del eventM
 	del dpars
 	del pM
-	gc.collect()
-	
 	return output
 ##}}}
 
@@ -204,9 +202,10 @@ def run_bsac_cmd_misc_wpe():
 	nfind   = [True,True,True]
 	fmem_use = lambda b: 50 * np.prod(blocks) * (np.finfo('float64').bits // SizeOf(n = 0).bits_per_octet) * pwpe.size * (perwpe[1] - perwpe[0]+1) * ( len(clim.dpers) + 1 ) * SizeOf("1o")
 	mem_use = fmem_use(blocks)
+	
 	while any(nfind):
 		i = np.argmin(nsizes)
-		while mem_use > bsacParams.total_memory:
+		while mem_use > bsacParams.total_memory or np.prod(blocks) > bsacParams.n_workers * bsacParams.threads_per_worker:
 			mem_use = fmem_use(blocks)
 			if blocks[i] < 2:
 				blocks[i] = 1
