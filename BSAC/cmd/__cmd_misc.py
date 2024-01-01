@@ -29,7 +29,7 @@ from ..__logs import LINE
 from ..__logs import log_start_end
 
 from ..__BSACParams import bsacParams
-
+from ..__climatology import Climatology
 
 import numpy  as np
 import xarray as xr
@@ -55,7 +55,11 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None , clim = None , perwpe = None ):##{{{
+def array_size(arr):##{{{
+	return int(np.prod(arr.shape)) * (np.finfo(arr.dtype).bits // SizeOf(n = 0).bits_per_octet) * SizeOf("1o")
+##}}}
+
+def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None , perwpe = None , clim = None ):##{{{
 	
 	## Extract parameters from clim
 	_,_,designF_,designC_ = clim.build_design_XFC()
@@ -100,13 +104,9 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None 
 	        dim = "period"
 	    ).assign_coords( period = ["cfactual"] + [f"cfactual{i}" for i in range(len(clim.dpers)-1)] ).sel( period = "cfactual" )
 	XFC = xr.concat( (XC,XF) , dim = "period" )
-	del XF
-	del XC
 	
 	## Build params
 	dpars = nslaw.draw_params( XFC , hpars )
-	del XFC
-	del hpars
 	
 	## Loop on probs
 	for ip,p in enumerate(pwpe):
@@ -137,12 +137,6 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None 
 			res = float(np.nanmax(np.abs(eventH - eventL)))
 			
 		output[:,:,ip] = eventM.mean( axis = 1 )
-	
-	del eventL
-	del eventH
-	del eventM
-	del dpars
-	del pM
 	
 	return output
 ##}}}
@@ -206,7 +200,7 @@ def run_bsac_cmd_misc_wpe():
 	
 	while any(nfind):
 		i = np.argmin(nsizes)
-		while mem_use > bsacParams.total_memory or np.prod(blocks) > 10 * bsacParams.n_workers * bsacParams.threads_per_worker:
+		while mem_use > bsacParams.total_memory:# or np.prod(blocks) > 10 * bsacParams.n_workers * bsacParams.threads_per_worker:
 			mem_use = fmem_use(blocks)
 			if blocks[i] < 2:
 				blocks[i] = 1
@@ -216,6 +210,13 @@ def run_bsac_cmd_misc_wpe():
 		nsizes[i] = np.inf
 	logger.info( f"   => Block size: {blocks}" )
 	logger.info( f"   => Memory: {mem_use} / {bsacParams.total_memory}" )
+	
+	## Build a 'small' climatology
+	## climatology must be pass at each threads, but duplication of mean, cov bias implies a memory leak
+	climB = Climatology.init_from_file( bsacParams.load_clim )
+	del climB._mean
+	del climB._cov
+	del climB._bias
 	
 	## Loop on samples and spatial variables for parallelisation
 	logger.info( " * Find wpe" )
@@ -246,7 +247,7 @@ def run_bsac_cmd_misc_wpe():
 		                    output_dtypes    = [shpar.dtype],
 		                    vectorize        = True,
 		                    dask             = "parallelized",
-		                    kwargs           = { "n_samples" : len(ssamples) , "pwpe" : pwpe , "side" : side , "clim" : clim , "perwpe" : perwpe },
+		                    kwargs           = { "n_samples" : len(ssamples) , "pwpe" : pwpe , "side" : side , "perwpe" : perwpe , "clim" : climB },
 		                    dask_gufunc_kwargs = { "output_sizes" : { "pwpe" : pwpe.size , "sample" : len(ssamples) , "period" : len(periods) } }
 		                    ).assign_coords( { "sample" : ssamples , "period" : periods , "pwpe" : pwpe } ).transpose( *(("pwpe","sample","period") + d_spatial) ).compute()
 		
