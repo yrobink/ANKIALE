@@ -84,7 +84,7 @@ class XZarr:##{{{
 	
 	## static.from_value ##{{{
 	@staticmethod
-	def from_value( value , shape, dims , coords , zfile , dtype = np.float32 ):
+	def from_value( value , shape, dims , coords , zfile , dtype = np.float32 , zarr_kwargs = {} ):
 		
 		xzarr = XZarr()
 		
@@ -92,7 +92,7 @@ class XZarr:##{{{
 		xzarr.coords = coords
 		xzarr.shape  = shape
 		xzarr.zfile  = zfile
-		xzarr.zdata  = zarr.open( xzarr.zfile , mode = "w" , shape = xzarr.shape , dtype = dtype )
+		xzarr.zdata  = zarr.open( xzarr.zfile , mode = "w" , shape = xzarr.shape , dtype = dtype , **zarr_kwargs )
 		
 		xzarr.zdata[:] = value
 		
