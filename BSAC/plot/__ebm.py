@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -58,22 +58,24 @@ def plot_EBM( ofile = None ):
 	
 	## Data
 	time = np.arange( 1850 , 2101 , 1 )
-	XN   = xr.DataArray( EBM().run( t = time ).values.squeeze() , dims = ["time"] , coords = [time] )
+	XN5  = EBM("CMIP5").run( t = time )
+	XN6  = EBM("CMIP6").run( t = time )
 	now  = dt.datetime.utcnow().year
 	
 	## Figure
 	mm  = 1. / 25.4
 	fig = plt.figure( figsize = (120*mm,80*mm) , dpi = 120 )
 	ax  = fig.add_subplot(1,1,1)
-	ax.plot( time , XN , color = "red" )
+	ax.plot( time , XN5 , color = "red"  , label = "CMIP5" )
+	ax.plot( time , XN6 , color = "blue" , label = "CMIP6" )
 	ax.axhline( 0 , color = "grey" , linestyle = "-" )
 	ax.axvline( now , color = "black" , linestyle = ":" )
 	ax.set_xticks([1850,1900,1950,2000,2050,2100])
-	ax.set_yticks([-1,-0.5,0,0.5,1])
+	ax.set_yticks([-2,-1.5,-1,-0.5,0,0.5,1])
 	ax.set_xlim(1840,2110)
-	ax.set_ylim(-1,1)
 	ax.set_xlabel("Year")
 	ax.set_ylabel("EBM response (K)")
+	ax.legend( loc = "upper right" )
 	plt.tight_layout()
 	
 	if ofile is None:

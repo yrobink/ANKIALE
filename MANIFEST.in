@@ -1,1 +1,2 @@
-include BSAC/data/EBM_param.nc
+include BSAC/data/EBM_CMIP5.nc
+include BSAC/data/EBM_CMIP6.csv
