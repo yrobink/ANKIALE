@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -49,11 +49,9 @@ logger.addHandler(logging.NullHandler())
 #############
 
 
-
 ###############
 ## Functions ##
 ###############
-
 
 def _nslaw_fit_bootstrap( idxs , xY , X , per , nslaw_class , init_ ):##{{{
 	
@@ -111,7 +109,7 @@ def nslaw_fit_bootstrap( Y , X , hparY , nslawid , n_bootstrap , n_jobs ):
 	for spatial_idx in itt.product(*[range(s) for s in spatial]):
 		
 		##
-		if s_iter % int(0.05 * t_iter) == 0:
+		if s_iter % max(int(0.05 * t_iter),1) == 0:
 			logger.info( " * {:{fill}{align}{n}}%".format( int( 100 * s_iter / t_iter ) + 1 , fill = " " , align = ">" , n = 4 ) + " " * 16 )
 		s_iter += 1
 		
@@ -167,4 +165,5 @@ def nslaw_fit_bootstrap( Y , X , hparY , nslawid , n_bootstrap , n_jobs ):
 			hparY.set_orthogonal_selection( oidx , coef_bs.values.T )
 	
 ##}}}
+
 

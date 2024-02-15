@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -49,7 +49,6 @@ logger.addHandler(logging.NullHandler())
 ###############
 ## Functions ##
 ###############
-
 
 ## run_bsac_cmd_fit_X ##{{{
 @log_start_end(logger)
@@ -158,6 +157,9 @@ def run_bsac_cmd_fit_Y():
 	Y     = idata[name]
 	biasY = Y.sel( time = slice(*clim.bias_period) ).mean( dim = [d for d in Y.dims if d not in spatial] )
 	Y     = Y - biasY
+	
+	## Restrict the time axis
+	Y = Y.sel( time = X.time )
 	
 	##
 	nslaw_class = nslawid_to_class(nslawid)
