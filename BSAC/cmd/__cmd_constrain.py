@@ -54,11 +54,16 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def _constrain_X_parallel( hpar , cov , Xo , A ):##{{{
+def _constrain_X_parallel( hpar , cov , Xo , A , sXo ):##{{{
 	
 	## Variance of obs
-	X     = A @ hpar
-	cov_o = np.identity(Xo.size) * float(np.std(Xo-X))**2
+	R     = Xo - A @ hpar
+	cov_o = []
+	i     = 0
+	for s in sXo:
+		cov_o.append( np.ones(s) * float(np.std(R[i:(i+s)]))**2 )
+		i += s
+	cov_o = np.diag( np.hstack(cov_o) )
 	
 	## gaussian conditionning theorem
 	K0 = A @ cov
@@ -127,10 +132,7 @@ def run_bsac_cmd_constrain_X():
 	time = clim.time
 	spl  = smg.BSplines( time , df = clim.GAM_dof + 1 - 1 , degree = clim.GAM_degree , include_intercept = False ).basis
 	lin  = np.stack( [np.ones(time.size),clim.XN.loc[time].values] ).T.copy()
-	
-	I = np.identity(clim.size)
-	for name in clim.namesX:
-		I[clim.isel("lin",name),clim.isel("lin",name)] *= len(clim.dpers)
+	nper = len(clim.dpers)
 	
 	d_spatial = clim.d_spatial
 	c_spatial = clim.c_spatial
@@ -138,6 +140,8 @@ def run_bsac_cmd_constrain_X():
 	hpar_CX = xr.DataArray( clim.mean_.copy() , dims = ("hpar",)         + d_spatial , coords = { **{ "hpar" : chpar } , **c_spatial } )
 	cov_CX  = xr.DataArray( clim.cov_.copy()  , dims = ("hpar0","hpar1") + d_spatial , coords = { **{ "hpar0" : chpar , "hpar1" : chpar } , **c_spatial } )
 	
+	
+	proj = []
 	for name in zXo:
 		
 		##
@@ -147,43 +151,49 @@ def run_bsac_cmd_constrain_X():
 		design_ = []
 		for nameX in clim.namesX:
 			if nameX == name:
-				design_ = design_ + [spl for _ in range(len(clim.dpers))]
+				design_ = design_ + [spl for _ in range(nper)] + [nper * lin]
 			else:
-				design_ = design_ + [np.zeros_like(spl) for _ in range(len(clim.dpers))]
-			design_ = design_ + [lin]
+				design_ = design_ + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
 		design_ = design_ + [np.zeros( (time.size,clim.sizeY) )]
 		design_ = np.hstack(design_)
 		
-		T = xr.DataArray( np.identity(design_.shape[0]) , dims = ["time0","time1"] , coords = [time,time] ).loc[Xo.coords[0],time].values
-		A = T @ design_ @ I / len(clim.dpers)
 		
-		## Loop on spatial
-		jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
-		for idx in itt.product(*[range(0,s,jump) for s in clim.s_spatial]):
-			
-			##
-			s_idx = tuple([slice(s,s+jump,1) for s in idx])
-			idx1d = (slice(None),) + s_idx
-			idx2d = (slice(None),slice(None)) + s_idx
-			
-			## Extract data
-			hpar = hpar_CX[idx1d].chunk( { d : 1 for d in hpar_CX.dims[1:] } )
-			cov  =  cov_CX[idx2d].chunk( { d : 1 for d in hpar_CX.dims[1:] } )
-			xXo  = Xo.get_orthogonal_selection( (slice(None),) + s_idx ).chunk( { d : 1 for d in hpar_CX.dims[1:] } )
-			
-			h,c = xr.apply_ufunc( _constrain_X_parallel , hpar , cov , xXo ,
-			                    input_core_dims  = [["hpar"],["hpar0","hpar1"],["time"]],
-			                    output_core_dims = [["hpar"],["hpar0","hpar1"]],
-			                    output_dtypes    = [hpar.dtype,cov.dtype],
-			                    vectorize        = True,
-			                    dask             = "parallelized",
-			                    kwargs           = { "A" : A }
-			                    )
-			h = h.transpose( *hpar.dims ).compute()
-			c = c.transpose(  *cov.dims ).compute()
-			
-			hpar_CX[idx1d] = h.values
-			cov_CX[idx2d]  = c.values
+		T = xr.DataArray( np.identity(design_.shape[0]) , dims = ["time0","time1"] , coords = [time,time] ).loc[Xo.coords[0],time].values
+		A = T @ design_ / nper
+		
+		proj.append(A)
+	
+	A = np.vstack(proj)
+	
+	## Loop on spatial
+	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
+	for idx in itt.product(*[range(0,s,jump) for s in clim.s_spatial]):
+		
+		##
+		s_idx = tuple([slice(s,s+jump,1) for s in idx])
+		idx1d = (slice(None),) + s_idx
+		idx2d = (slice(None),slice(None)) + s_idx
+		
+		## Extract data
+		hpar = hpar_CX[idx1d].chunk( { d : 1 for d in hpar_CX.dims[1:] } )
+		cov  =  cov_CX[idx2d].chunk( { d : 1 for d in hpar_CX.dims[1:] } )
+		xXo  = xr.concat( [zXo[name].get_orthogonal_selection( (slice(None),) + s_idx ) for name in zXo] , dim = "time" )
+		xXo  = xXo.assign_coords( time = np.arange(0,xXo.time.size) ).chunk( { d : 1 for d in hpar_CX.dims[1:] } )
+		sXo = [zXo[name].coords[zXo[name].dims.index("time")].size for name in zXo]
+		
+		h,c = xr.apply_ufunc( _constrain_X_parallel , hpar , cov , xXo ,
+		                    input_core_dims  = [["hpar"],["hpar0","hpar1"],["time"]],
+		                    output_core_dims = [["hpar"],["hpar0","hpar1"]],
+		                    output_dtypes    = [hpar.dtype,cov.dtype],
+		                    vectorize        = True,
+		                    dask             = "parallelized",
+		                    kwargs           = { "A" : A , "sXo" : sXo }
+		                    )
+		h = h.transpose( *hpar.dims ).compute()
+		c = c.transpose(  *cov.dims ).compute()
+		
+		hpar_CX[idx1d] = h.values
+		cov_CX[idx2d]  = c.values
 	
 	clim.mean_ = hpar_CX.values
 	clim.cov_  = cov_CX.values
