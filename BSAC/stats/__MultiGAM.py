@@ -173,9 +173,8 @@ def mgam_multiple_fit_bootstrap( X , XN , n_bootstrap , names , dof , degree , n
 	
 	## If one covariate, just return parameters fitted
 	if len(names) == 1:
+		logger.info( "Only one covariate, no bootstrap required" )
 		return coef_be[name],cov_be[name]
-	
-	## Now the bootstrap for the correlation between covariates
 	
 	## Find dtype
 	for name in names:
