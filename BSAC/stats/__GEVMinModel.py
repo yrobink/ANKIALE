@@ -64,6 +64,7 @@ class GEVMinModel(AbstractModel):##{{{
 			warnings.simplefilter("ignore")
 			self.law.fit( -Y , c_loc = -X , c_scale = -X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
 		self.coef_ = self.law.info_.draw[-1,:]
+		return self.law.info_.draw
 	##}}}
 	
 	def draw_params( self , X , coef ):##{{{

@@ -201,7 +201,7 @@ def run_bsac_cmd_constrain_X():
 ##}}}
 
 
-def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , n_mcmc_min , n_mcmc_max ):##{{{
+def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain ):##{{{
 	
 	## Build output
 	ohpar = hpar.copy() + np.nan
@@ -228,6 +228,7 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , n_mcmc_min 
 	##
 	Yf     = Yo
 	nslaw  = clim._nslaw_class()
+	draw   = []
 	for s in samples:
 		
 		## Build XF
@@ -240,14 +241,14 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , n_mcmc_min 
 		    ).mean( dim = "period" ).values
 		
 		## MCMC
-		n_mcmc_drawn = np.random.choice( range(n_mcmc_min,n_mcmc_max) , replace = False )
-		nslaw.fit_bayesian( Yf , Xf , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
-		hpars[:,-clim.sizeY:].loc[s,:] = nslaw.coef_.copy()
+		chain = nslaw.fit_bayesian( Yf , Xf , prior = prior , n_mcmc_drawn = size_chain )
+		draw.append( np.zeros( (hpars.hpar.size,size_chain) ) )
+		draw[-1][:-clim.sizeY,:] = hpars.loc[s,:][:-clim.sizeY].values.reshape(-1,1)
+		draw[-1][-clim.sizeY:,:]  = chain.T
 	
-	
-	##
-	ohpar  = np.mean( hpars.values , axis = 0 )
-	ohcov  = np.cov(  hpars.values.T )
+	draw  = np.hstack(draw)
+	ohpar = draw.mean(1)
+	ohcov = np.cov(draw)
 	
 	## Clean memory
 	del hpars
@@ -263,8 +264,7 @@ def run_bsac_cmd_constrain_Y():
 	##
 	clim = bsacParams.clim
 	size = bsacParams.n_samples
-	n_mcmc_min = int(bsacParams.config.get("n-mcmc-min", 5000))
-	n_mcmc_max = int(bsacParams.config.get("n-mcmc-max",10000))
+	size_chain = int(bsacParams.config.get("size-chain", 100))
 	
 	## Load observations
 	name,ifile = bsacParams.input[0].split(",")
@@ -311,7 +311,7 @@ def run_bsac_cmd_constrain_Y():
 		                    output_dtypes    = [shpar.dtype,shcov.dtype],
 		                    vectorize        = True,
 		                    dask             = "parallelized",
-		                    kwargs           = { "timeYo" : Yo.time.values , "clim" : clim , "size" : size , "n_mcmc_min" : n_mcmc_min , "n_mcmc_max" : n_mcmc_max }
+		                    kwargs           = { "timeYo" : Yo.time.values , "clim" : clim , "size" : size , "size_chain" : size_chain }
 		                    )
 		h = h.transpose( *shpar.dims ).compute()
 		c = c.transpose( *shcov.dims ).compute()
