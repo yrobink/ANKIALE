@@ -57,7 +57,8 @@ logger.addHandler(logging.NullHandler())
 def _constrain_X_parallel( hpar , cov , Xo , A ):##{{{
 	
 	## Variance of obs
-	cov_o = np.identity(Xo.size) * float(np.std(Xo))**2
+	X     = A @ hpar
+	cov_o = np.identity(Xo.size) * float(np.std(Xo-X))**2
 	
 	## gaussian conditionning theorem
 	K0 = A @ cov
