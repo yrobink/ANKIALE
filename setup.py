@@ -35,7 +35,7 @@ requires    = [
                "netCDF4",
                "cftime",
                "matplotlib",
-               "SDFC (>=0.8.0)",
+               "SDFC (>=0.9.0)",
                "statsmodels (>= 0.14)",
                "xesmf"
               ]
