@@ -58,15 +58,26 @@ def run_bsac_cmd_synthesize():
 	clim = bsacParams.clim
 	
 	## Read the grid
-	grid = xr.open_dataset(bsacParams.config["grid"])
-	grid_name = bsacParams.config["grid_name"]
-	mask = grid[grid_name] > 0
-	ny,nx = grid[grid_name].shape
-	clim._spatial = { d : grid[d] for d in bsacParams.config["spatial"].split(":") }
-	d_spatial = clim.d_spatial
-	s_spatial = clim.s_spatial
-	c_spatial = tuple([clim._spatial[d]      for d in clim._spatial])
-	i_spatial = tuple([slice(None) for _ in d_spatial])
+	try:
+		regrid   = True
+		gridfile = bsacParams.config.get["grid"]
+		gridname = bsacParams.config.get["grid_name"] #, bsacParams.config["names"].split(":")[-1] )
+		
+		grid = xr.open_dataset(gridfile)
+		mask = grid[gridname] > 0
+		clim._spatial = { d : grid[d] for d in bsacParams.config["spatial"].split(":") }
+		d_spatial = clim.d_spatial
+		s_spatial = clim.s_spatial
+		c_spatial = tuple([clim._spatial[d]      for d in clim._spatial])
+		i_spatial = tuple([slice(None) for _ in d_spatial])
+	except:
+		regrid    = False
+		clim_grid = Climatology.init_from_file( bsacParams.input[0] )
+		clim._spatial = clim_grid._spatial
+		d_spatial = clim_grid.d_spatial
+		s_spatial = clim_grid.s_spatial
+		c_spatial = tuple([clim_grid._spatial[d]      for d in clim_grid._spatial])
+		i_spatial = tuple([slice(None) for _ in d_spatial])
 	
 	## Parameters
 	ifiles      = bsacParams.input
@@ -110,21 +121,26 @@ def run_bsac_cmd_synthesize():
 		mean_ = iclim.xmean_
 		cov_  = iclim.xcov_
 		
-		## Grid
-		igrid     = xr.Dataset( iclim._spatial )
-		regridder = xesmf.Regridder( igrid , grid , "nearest_s2d" )
-		
-		## Regrid
-		bias = regridder(bias_).where( mask , np.nan )
-		mean = regridder(mean_).where( mask , np.nan )
-		cov  = regridder(cov_ ).where( mask , np.nan )
+		if regrid:
+			## Grid
+			igrid     = xr.Dataset( iclim._spatial )
+			regridder = xesmf.Regridder( igrid , grid , "nearest_s2d" )
+			
+			## Regrid
+			bias = regridder(bias_).where( mask , np.nan )
+			mean = regridder(mean_).where( mask , np.nan )
+			cov  = regridder(cov_ ).where( mask , np.nan )
+		else:
+			bias = bias_
+			mean = mean_
+			cov  = cov_ 
 		
 		## Special case, miss scenario(s) in the clim 
 		if mean.hpar.size < s_hpar:
 			nmean = xr.DataArray( np.nan , dims = (d_hpar,) + d_spatial , coords = (c_hpar,) + c_spatial )
 			ncov  = xr.DataArray( np.nan , dims = (d_hpar+"0",d_hpar+"1") + d_spatial , coords = (c_hpar,c_hpar) + c_spatial )
-			nmean.loc[mean.hpar,:,:] = mean
-			ncov.loc[cov.hpar0,cov.hpar1,:,:] = cov
+			nmean.loc[(mean.hpar,)+i_spatial] = mean
+			ncov.loc[(cov.hpar0,cov.hpar1)+i_spatial] = cov
 			mean = nmean
 			cov  = ncov
 		

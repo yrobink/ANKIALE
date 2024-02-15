@@ -18,7 +18,7 @@
 
 version_major = 0
 version_minor = 11
-version_patch = 8
+version_patch = 10
 version_extra = ""
 version      = f"{version_major}.{version_minor}.{version_patch}{version_extra}"
 
@@ -36,7 +36,7 @@ Bayesian Statistical Analysis of the Climatology
 
 authors_doc = author
 license_txt = """\
-Copyright(c) 2023 Yoann Robin
+Copyright(c) 2023 / 2024 Yoann Robin
 
 This file is part of BSAC.
 
