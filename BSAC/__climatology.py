@@ -278,6 +278,26 @@ class Climatology:##{{{
 			ncf.setncattr( "BSAC_version"  , version )
 	##}}}
 	
+	def restrict_dpers( self , periods ):##{{{
+		hpar_names = self.hpar_names
+		idx = []
+		for ih,h in enumerate(hpar_names):
+			spl = False
+			for p0 in self._dpers:
+				if p0 in h:
+					if p0 in periods:
+						idx.append(ih)
+					spl = True
+			if not spl:
+				idx.append(ih)
+		new_hpar_names = [self.hpar_names[i] for i in idx]
+		
+		self._mean = self._mean[idx]
+		self._cov  = self._cov[idx,:][:,idx]
+		self._dpers = periods
+		return self
+	##}}}
+	
 	##}}}
 	
 	def isel( self , per , name ):##{{{

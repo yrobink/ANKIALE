@@ -149,14 +149,21 @@ def run_bsac_cmd_fit_Y():
 	if nslawid is None:
 		raise ValueError( f"nslaw must be set" )
 	
-	## Draw X
-	X,hparX  = clim.rvsX( bsacParams.n_samples , add_BE = True , return_hpar = True )
-	XF = X.XF.loc[:,cname,:,:]
-	
 	## Find the bias, and remove it
 	Y     = idata[name]
 	biasY = Y.sel( time = slice(*clim.bias_period) ).mean( dim = [d for d in Y.dims if d not in spatial] )
 	Y     = Y - biasY
+	
+	## Check periods
+	periods = list(set(clim.dpers) & set(Y.period.values.tolist()))
+	periods.sort()
+	
+	## And restrict its
+	clim = clim.restrict_dpers(periods)
+	
+	## Draw X
+	X,hparX  = clim.rvsX( bsacParams.n_samples , add_BE = True , return_hpar = True )
+	XF = X.XF.loc[:,cname,:,:]
 	
 	## Restrict the time axis
 	Y = Y.sel( time = X.time )
@@ -165,9 +172,9 @@ def run_bsac_cmd_fit_Y():
 	nslaw_class = nslawid_to_class(nslawid)
 	nslaw       = nslaw_class()
 	if Y.ndim == 3:
-		hparYshape = [nslaw.coef_name,X.period,X.sample]
+		hparYshape = [nslaw.coef_name,periods,X.sample]
 	else:
-		hparYshape = [nslaw.coef_name,X.period,X.sample] + [Y.coords[d] for d in Y.dims[3:]]
+		hparYshape = [nslaw.coef_name,periods,X.sample] + [Y.coords[d] for d in Y.dims[3:]]
 	hparYshape = [len(s) for s in hparYshape]
 	
 	## Create the zarr file of hyperparameter of Y
@@ -194,7 +201,7 @@ def run_bsac_cmd_fit_Y():
 		spatial = [Y[d].size for d in Y.dims[3:]]
 	
 	## Loop on spatial dimension to build mean and cov
-	xhpar = np.zeros( (hparX.shape[1]+hparYshape[0],X.period.size,X.sample.size) )
+	xhpar = np.zeros( (hparX.shape[1]+hparYshape[0],len(periods),X.sample.size) )
 	xhpar[:hparX.shape[1],:,:] = hparX.values.T.reshape(hparX.shape[1],1,X.sample.size)
 	for spatial_idx in itt.product(*[range(s) for s in spatial]):
 		
