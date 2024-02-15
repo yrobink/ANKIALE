@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -69,16 +69,24 @@ def run_bsac_cmd_show_X():
 @log_start_end(logger)
 def run_bsac_cmd_show_CX():
 	
-	## Read 
+	## Read climatology for comparison
 	ifileS = bsacParams.input[0]
 	climS  = Climatology.init_from_file(ifileS)
+	
+	## Read observations
+	Xo = {}
+	for inp in bsacParams.input[1:]:
+		key     = inp.split(",")[0]
+		ifile   = inp.split(",")[1]
+		Xo[key] = xr.open_dataset(ifile)[key]
+		Xo[key] = Xo[key] - Xo[key].sel( time = slice(*[str(y) for y in bsacParams.bias_period]) ).mean()
 	
 	## Draw data
 	XFC = bsacParams.clim.rvsX( size = bsacParams.n_samples )
 	SFC = climS.rvsX( size = bsacParams.n_samples )
 	
 	## And plot it
-	plot_constrain_CX( XFC , SFC , ofile = bsacParams.output )
+	plot_constrain_CX( XFC , SFC , Xo , ofile = bsacParams.output )
 	
 ##}}}
 
