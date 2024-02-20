@@ -31,6 +31,7 @@ from ..__logs import LINE
 from ..__logs import log_start_end
 
 from .__GEVModel    import GEVModel
+from .__GEVMinModel import GEVMinModel
 from .__NormalModel import NormalModel
 
 
@@ -55,6 +56,8 @@ logger.addHandler(logging.NullHandler())
 def nslawid_to_class( nslawid ):
 	if nslawid == "GEV":
 		return GEVModel
+	if nslawid == "GEVMin":
+		return GEVMinModel
 	if nslawid == "Normal":
 		return NormalModel
 	

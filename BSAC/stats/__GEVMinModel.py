@@ -81,18 +81,18 @@ class GEVMinModel(AbstractModel):##{{{
 		sckwargs = { "loc" : kwargs["loc"] , "scale" : kwargs["scale"] , "c" : - kwargs["shape"] }
 		
 		if side == "right":
-			return sc.genextreme.sf( -x , **sckwargs )
-		else:
 			return sc.genextreme.cdf( -x , **sckwargs )
+		else:
+			return sc.genextreme.ppf( -x , **sckwargs )
 	##}}}
 	
 	def _icdf_sf( self , p , side , **kwargs ):##{{{
 		
 		sckwargs = { "loc" : kwargs["loc"] , "scale" : kwargs["scale"] , "c" : - kwargs["shape"] }
 		if side == "right":
-			return -sc.genextreme.isf( p , **sckwargs )
-		else:
 			return -sc.genextreme.ppf( p , **sckwargs )
+		else:
+			return -sc.genextreme.isf( p , **sckwargs )
 	##}}}
 	
 ##}}}
