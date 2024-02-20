@@ -24,6 +24,7 @@ import os
 import itertools as itt
 import datetime as dt
 import logging
+import warnings
 from ..__logs import LINE
 from ..__logs import log_start_end
 from ..__release import version
@@ -252,58 +253,152 @@ def run_bsac_cmd_attribute_event():
 ##}}}
 
 
-def _attribute_freturnt_parallel( *args , rt , ovars , nslaw_class , it_attr , side ):##{{{
+def _attribute_freturnt_parallel( *args , RT , ovars , nslaw_class , side , mode , ci ):##{{{
 	
 	## Extract
 	pars    = { ovar : arg for ovar,arg in zip(ovars,args) } ## Parameters
+	bias    = args[-1]
 	nslaw   = nslaw_class()
 	kwargsF = { p : pars[p+"F"] for p in nslaw.coef_kind }
 	kwargsC = { p : pars[p+"C"] for p in nslaw.coef_kind }
 	
-	## Set output
-	pF  = np.zeros_like( pars[ovars[0]] ) + rt
-	pC  = np.zeros_like( pars[ovars[0]] ) + np.nan
-	IF  = np.zeros_like( pars[ovars[0]] ) + np.nan
-	IC  = np.zeros_like( pars[ovars[0]] ) + np.nan
+	## Output
+	lpF = []
+	lpC = []
+	lRF = []
+	lRC = []
+	lIF = []
+	lIC = []
+	ldI = []
+	lPR = []
 	
-	## Attribution
-	IF = nslaw.icdf_sf( pF , side = side , **kwargsF )
-	IC = nslaw.icdf_sf( pF , side = side , **kwargsC )
-	pC = nslaw.cdf_sf(  IF , side = side , **kwargsC )
+	## Loop on return time
+	for rt in RT:
+		
+		## Set output
+		pF  = np.zeros_like( pars[ovars[0]] ) + 1. / rt
+		pC  = np.zeros_like( pars[ovars[0]] ) + np.nan
+		IF  = np.zeros_like( pars[ovars[0]] ) + np.nan
+		IC  = np.zeros_like( pars[ovars[0]] ) + np.nan
+		
+		## Attribution
+		IF = nslaw.icdf_sf( pF , side = side , **kwargsF ) + bias
+		IC = nslaw.icdf_sf( pF , side = side , **kwargsC ) + bias
+		pC = nslaw.cdf_sf(  IF , side = side , **kwargsC )
+		
+		## Others variables
+		with warnings.catch_warnings():
+			warnings.simplefilter("ignore")
+			RF  = 1. / pF
+			RC  = 1. / pC
+			dI  = IF - IC
+			PR  = pF / pC
+		
+		## Compute CI
+		if mode == "quantile":
+			with warnings.catch_warnings():
+				warnings.simplefilter("ignore")
+				pF = np.quantile( pF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				pC = np.quantile( pC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				RF = np.quantile( RF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				RC = np.quantile( RC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				IF = np.quantile( IF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				IC = np.quantile( IC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				dI = np.quantile( dI , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				PR = np.quantile( PR , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+		
+		lpF.append(pF)
+		lpC.append(pC)
+		lRF.append(RF)
+		lRC.append(RC)
+		lIF.append(IF)
+		lIC.append(IC)
+		ldI.append(dI)
+		lPR.append(PR)
 	
-	## Others variables
-	RF  = 1. / pF
-	RC  = 1. / pC
-	dI  = IF - IC
-	PR  = pF / pC
+	pF = np.stack( lpF , axis = 0 )
+	pC = np.stack( lpC , axis = 0 )
+	RF = np.stack( lRF , axis = 0 )
+	RC = np.stack( lRC , axis = 0 )
+	IF = np.stack( lIF , axis = 0 )
+	IC = np.stack( lIC , axis = 0 )
+	dI = np.stack( ldI , axis = 0 )
+	PR = np.stack( lPR , axis = 0 )
 	
 	return tuple([pF,pC,RF,RC,IF,IC,dI,PR])
 ##}}}
 
-def _attribute_creturnt_parallel( *args , rt , ovars , nslaw_class , it_attr , side ):##{{{
+def _attribute_creturnt_parallel( *args , RT , ovars , nslaw_class , side , mode , ci ):##{{{
 	
 	## Extract
 	pars    = { ovar : arg for ovar,arg in zip(ovars,args) } ## Parameters
+	bias    = args[-1]
 	nslaw   = nslaw_class()
 	kwargsF = { p : pars[p+"F"] for p in nslaw.coef_kind }
 	kwargsC = { p : pars[p+"C"] for p in nslaw.coef_kind }
 	
-	## Set output
-	pF  = np.zeros_like( pars[ovars[0]] ) + np.nan
-	pC  = np.zeros_like( pars[ovars[0]] ) + rt
-	IF  = np.zeros_like( pars[ovars[0]] ) + np.nan
-	IC  = np.zeros_like( pars[ovars[0]] ) + np.nan
+	## Output
+	lpF = []
+	lpC = []
+	lRF = []
+	lRC = []
+	lIF = []
+	lIC = []
+	ldI = []
+	lPR = []
 	
-	## Attribution
-	IF = nslaw.icdf_sf( pC , side = side , **kwargsF )
-	IC = nslaw.icdf_sf( pC , side = side , **kwargsC )
-	pF = nslaw.cdf_sf(  IC , side = side , **kwargsF )
+	## Loop on return time
+	for rt in RT:
+		
+		## Set output
+		pF  = np.zeros_like( pars[ovars[0]] ) + np.nan
+		pC  = np.zeros_like( pars[ovars[0]] ) + 1. / rt
+		IF  = np.zeros_like( pars[ovars[0]] ) + np.nan
+		IC  = np.zeros_like( pars[ovars[0]] ) + np.nan
+		
+		## Attribution
+		IF = nslaw.icdf_sf( pC , side = side , **kwargsF ) + bias
+		IC = nslaw.icdf_sf( pC , side = side , **kwargsC ) + bias
+		pF = nslaw.cdf_sf(  IC , side = side , **kwargsF )
+		
+		## Others variables
+		with warnings.catch_warnings():
+			warnings.simplefilter("ignore")
+			RF  = 1. / pF
+			RC  = 1. / pC
+			dI  = IF - IC
+			PR  = pF / pC
+		
+		## Compute CI
+		if mode == "quantile":
+			with warnings.catch_warnings():
+				warnings.simplefilter("ignore")
+				pF = np.quantile( pF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				pC = np.quantile( pC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				RF = np.quantile( RF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				RC = np.quantile( RC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				IF = np.quantile( IF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				IC = np.quantile( IC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				dI = np.quantile( dI , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+				PR = np.quantile( PR , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+		
+		lpF.append(pF)
+		lpC.append(pC)
+		lRF.append(RF)
+		lRC.append(RC)
+		lIF.append(IF)
+		lIC.append(IC)
+		ldI.append(dI)
+		lPR.append(PR)
 	
-	## Others variables
-	RF  = 1. / pF
-	RC  = 1. / pC
-	dI  = IF - IC
-	PR  = pF / pC
+	pF = np.stack( lpF , axis = 0 )
+	pC = np.stack( lpC , axis = 0 )
+	RF = np.stack( lRF , axis = 0 )
+	RC = np.stack( lRC , axis = 0 )
+	IF = np.stack( lIF , axis = 0 )
+	IC = np.stack( lIC , axis = 0 )
+	dI = np.stack( ldI , axis = 0 )
+	PR = np.stack( lPR , axis = 0 )
 	
 	return tuple([pF,pC,RF,RC,IF,IC,dI,PR])
 ##}}}
@@ -318,39 +413,66 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	n_samples = bsacParams.n_samples
 	tmp       = bsacParams.tmp
 	side      = bsacParams.config.get("side","right")
-	t_attr    = int(bsacParams.config.get("time"))
-	it_attr   = int(np.argwhere( time == t_attr ).ravel())
+	mode      = bsacParams.config.get("mode","sample")
+	ci        = bsacParams.config.get("ci",0.05)
 	nslaw     = clim._nslaw_class()
 	sp_dims   = clim.d_spatial
+	
+	## Logs
+	logger.info(  " * Configuration" )
+	logger.info( f"   => mode: {mode}" )
+	logger.info( f"   => side: {side}" )
+	logger.info( f"   => ci  : {ci}" )
 	
 	## Draw parameters for the attribution
 	logger.info( " * Draw parameters" )
 	zdraw   = clim.rvsY(n_samples)
 	ovars   = [key for key in zdraw if key not in ["XF","XC","XA"]]
-	samples = np.array(zdraw[ovars[0]].coords[zdraw[ovars[0]].dims.index("sample")])
 	periods = np.array(zdraw[ovars[0]].coords[zdraw[ovars[0]].dims.index("period")])
+	if mode == "sample":
+		modes = np.array(zdraw[ovars[0]].coords[zdraw[ovars[0]].dims.index("sample")])
+	elif mode == "quantile":
+		modes = np.array(["QL","BE","QU"])
+	else:
+		raise ValueError( f"Invalid mode ({mode})" )
+	n_modes = modes.size
 	
 	## Read return time
-	rt = float(bsacParams.input[0])
-	logger.info( f" * Return time: {rt}" )
+	inp = bsacParams.input[0]
+	if ":" in inp:
+		rp = [float(x) for x in inp.split(":")]
+		RT = np.arange( rp[0] , rp[1] + rp[2] / 2 , rp[2] , dtype = float ) 
+	else:
+		RT = np.array([float(x) for x in inp.split(",")]).ravel()
+	n_RT = RT.size
+	
+	logger.info( f" * Return time: {RT}" )
 	
 	## Output
+	dims   = ["RT",mode   ] + list(zdraw[ovars[0]].dims)[1:]
+	coords = [ RT ,modes  ] + list(zdraw[ovars[0]].coords)[1:]
+	shape  = [n_RT,n_modes] + list(zdraw[ovars[0]].shape)[1:]
 	out = {
-	    "pF" : XZarr.like( zdraw[ovars[0]] , random_zfile( os.path.join( tmp , "pF" ) ) ),
-	    "pC" : XZarr.like( zdraw[ovars[0]] , random_zfile( os.path.join( tmp , "pC" ) ) ),
-	    "RF" : XZarr.like( zdraw[ovars[0]] , random_zfile( os.path.join( tmp , "RF" ) ) ),
-	    "RC" : XZarr.like( zdraw[ovars[0]] , random_zfile( os.path.join( tmp , "RC" ) ) ),
-	    "IF" : XZarr.like( zdraw[ovars[0]] , random_zfile( os.path.join( tmp , "IF" ) ) ),
-	    "IC" : XZarr.like( zdraw[ovars[0]] , random_zfile( os.path.join( tmp , "IC" ) ) ),
-	    "dI" : XZarr.like( zdraw[ovars[0]] , random_zfile( os.path.join( tmp , "dI" ) ) ),
-	    "PR" : XZarr.like( zdraw[ovars[0]] , random_zfile( os.path.join( tmp , "PR" ) ) )
+	    "pF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "pF" ) ) ),
+	    "pC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "pC" ) ) ),
+	    "RF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "RF" ) ) ),
+	    "RC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "RC" ) ) ),
+	    "IF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "IF" ) ) ),
+	    "IC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "IC" ) ) ),
+	    "dI" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "dI" ) ) ),
+	    "PR" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "PR" ) ) )
 	}
 	
-	##
+	## Select the good function
 	if arg == "freturnt":
 		_attribute_fcreturnt_parallel = _attribute_freturnt_parallel
 	else:
 		_attribute_fcreturnt_parallel = _attribute_creturnt_parallel
+	
+	## Dask parameters
+	dask_gufunc_kwargs = { "output_sizes" : { "RT" : n_RT } }
+	if mode == "quantile":
+		dask_gufunc_kwargs["output_sizes"] = { "RT" : n_RT , mode : modes.size }
 	
 	## Loop on spatial variables
 	block = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
@@ -363,15 +485,17 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		
 		##
 		draw = { ovar : zdraw[ovar].get_orthogonal_selection(f_idx).chunk( { d : 1 for d in sp_dims } )  for ovar in ovars }
+		bias = clim.bias[clim.names[-1]][s_idx]
 		
 		#
-		res = xr.apply_ufunc( _attribute_fcreturnt_parallel , *[draw[ovar] for ovar in ovars] ,
-		                    input_core_dims  = [["sample","time","period"] for _ in range(len(draw))],
-		                    output_core_dims = [["sample","time","period"] for _ in range(8)],
-		                    output_dtypes    = [draw[ovars[0]].dtype for _ in range(8)],
-		                    vectorize        = True,
-		                    dask             = "parallelized",
-		                    kwargs           = { "rt" : rt , "ovars" : ovars , "nslaw_class" : clim._nslaw_class , "it_attr" : it_attr , "side" : side }
+		res = xr.apply_ufunc( _attribute_fcreturnt_parallel , *[draw[ovar] for ovar in ovars] , bias ,
+		                    input_core_dims    = [[ "sample","time","period"] for _ in range(len(draw))] + [[]],
+		                    output_core_dims   = [["RT",mode,"time","period"] for _ in range(8)],
+		                    output_dtypes      = [draw[ovars[0]].dtype for _ in range(8)],
+		                    vectorize          = True,
+		                    dask               = "parallelized",
+		                    kwargs             = { "RT" : RT , "ovars" : ovars , "nslaw_class" : clim._nslaw_class , "side" : side , "mode" : mode , "ci" : ci },
+		                    dask_gufunc_kwargs = dask_gufunc_kwargs
 		                    )
 		
 		res = [ r.transpose( *out["pF"].dims ).compute() for r in res ]
@@ -385,8 +509,9 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		
 		## Define dimensions
 		ncdims = {
-		       "sample" : ncf.createDimension( "sample" , n_samples ),
-		       "period" : ncf.createDimension( "period" , len(clim.dpers) ),
+		  "return_time" : ncf.createDimension( "return_time" , n_RT ),
+		           mode : ncf.createDimension(     mode      , n_modes ),
+		       "period" : ncf.createDimension( "period"      , len(clim.dpers) ),
 		       "time"   : ncf.createDimension(   "time" ),
 		}
 		spatial = ()
@@ -397,16 +522,23 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		
 		## Define variables
 		ncvars = {
-		       "sample" : ncf.createVariable( "sample" , str       , ("sample",) ),
-		       "period" : ncf.createVariable( "period" , str       , ("period",) ),
-		       "time"   : ncf.createVariable( "time"   , "float32" , ("time"  ,) )
+		  "return_time" : ncf.createVariable( "return_time" , "float32" , ("return_time",) ),
+		           mode : ncf.createVariable(     mode      , str       , (mode,)     ),
+		       "period" : ncf.createVariable( "period"      , str       , ("period",) ),
+		       "time"   : ncf.createVariable( "time"        , "float32" , ("time"  ,) )
 		}
-		ncvars["sample"][:] = samples
-		ncvars["period"][:] = periods
+		ncvars["return_time"][:] = RT
+		ncvars[mode    ][:]      = modes
+		ncvars["period"][:]      = periods
 		if clim._spatial is not None:
 			for d in clim._spatial:
 				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
 				ncvars[d][:] = np.array(clim._spatial[d]).ravel()
+		
+		if mode == "quantile":
+			ncvars[mode].setncattr( "confidence_level" , ci )
+			ncvars["quantile_level"] = ncf.createVariable( "quantile_levels" , "float32" , ("quantile") )
+			ncvars["quantile_level"][:] = np.array([ci/2,0.5,1-ci/2])
 		
 		## Fill time axis
 		calendar = "standard"
@@ -420,7 +552,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		
 		## Variables
 		for key in out:
-			ncvars[key] = ncf.createVariable( key , "float32" , ("sample","time","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
+			ncvars[key] = ncf.createVariable( key , "float32" , ("return_time",mode,"time","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + clim.s_spatial )
 		
 		## Attributes
 		ncvars["pF"].setncattr( "description" , "Probability in the Factual world" )
@@ -433,12 +565,12 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		ncvars["dI"].setncattr( "description" , "Change in intensity between Factual and Counter factual world" )
 		
 		## Find the blocks to write netcdf
-		blocks  = [1,1,1]
-		sizes   = [n_samples,time.size,len(clim.dpers)]
-		nsizes  = [n_samples,time.size,len(clim.dpers)]
+		blocks  = [1,1,1,1]
+		sizes   = [n_RT,n_modes,time.size,len(clim.dpers)]
+		nsizes  = [n_RT,n_modes,time.size,len(clim.dpers)]
 		sp_mem  = SizeOf( n = int(np.prod(clim.s_spatial) * np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) , unit = "o" )
 		tot_mem = SizeOf( n = int(min( 0.8 , 3 * bsacParams.frac_memory_per_array ) * bsacParams.total_memory.o) , unit = "o" )
-		nfind   = [True,True,True]
+		nfind   = [True,True,True,True]
 		while any(nfind):
 			i = np.argmin(nsizes)
 			blocks[i] = sizes[i]
@@ -460,6 +592,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 			for key in out:
 				xdata = out[key].get_orthogonal_selection(idxs)
 				ncvars[key][idxs] = xdata.values
+		logger.info("A")
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )

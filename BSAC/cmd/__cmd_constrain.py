@@ -274,7 +274,7 @@ def run_bsac_cmd_constrain_Y():
 	## Bias
 	bias = Yo.sel( time = slice(*[str(y) for y in clim.bper]) ).mean( dim = "time" )
 	Yo   = Yo - bias
-	clim._bias[name] = bias
+	clim._bias[clim.names[-1]] = bias
 	
 	## Extract parameters
 	d_spatial = clim.d_spatial
@@ -328,7 +328,7 @@ def run_bsac_cmd_constrain_Y():
 	## And save
 	clim.mean_ = ohpar.values
 	clim.cov_  = ohcov.values
-	
+	bsacParams.clim = clim
 ##}}}
 
 
