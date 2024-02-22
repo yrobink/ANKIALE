@@ -108,8 +108,9 @@ def run_bsac_cmd_constrain_X():
 		## Now copy data
 		ndimXo = len([s for s in idata[name].shape if s > 1])
 		bias   = xr.DataArray( np.nan , dims = d_spatial , coords = c_spatial )
+		if bias.ndim == 0:
+			bias = xr.DataArray( [np.nan] )
 		if ndimXo == 1:
-			
 			xXo  = idata[name]
 			anom = float(xXo.sel( time = slice(*[str(y) for y in clim.bper]) ).mean( dim = "time" ))
 			xXo  = xXo.values.squeeze() - anom
@@ -166,7 +167,7 @@ def run_bsac_cmd_constrain_X():
 	A = np.vstack(proj)
 	
 	## Loop on spatial
-	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
+	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / max( len(clim.s_spatial) , 1 ) ) ) ) + 1
 	for idx in itt.product(*[range(0,s,jump) for s in clim.s_spatial]):
 		
 		##

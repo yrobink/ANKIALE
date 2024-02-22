@@ -76,21 +76,28 @@ def run_bsac_cmd_synthesize():
 		clim._spatial = clim_grid._spatial
 		d_spatial = clim_grid.d_spatial
 		s_spatial = clim_grid.s_spatial
-		c_spatial = tuple([clim_grid._spatial[d]      for d in clim_grid._spatial])
-		i_spatial = tuple([slice(None) for _ in d_spatial])
+		if clim_grid._spatial is not None:
+			c_spatial = tuple([clim_grid._spatial[d]      for d in clim_grid._spatial])
+			i_spatial = tuple([slice(None) for _ in d_spatial])
+		else:
+			c_spatial = tuple()
+			i_spatial = tuple()
 	
 	## Parameters
 	ifiles      = bsacParams.input
 	d_clim      = "clim"
 	s_clim      = len(ifiles)
 	c_clim      = range(s_clim)
-	clim._nslawid     = bsacParams.config["nslaw"]
-	clim._nslaw_class = nslawid_to_class(clim._nslawid)
 	clim._names       = bsacParams.config["names"].split(":")
 	d_hpar            = "hpar"
 	c_hpar            = clim.hpar_names
 	s_hpar            = len(c_hpar)
 	cvar              = clim._names[-1]
+	try:
+		clim._nslawid     = bsacParams.config["nslaw"]
+		clim._nslaw_class = nslawid_to_class(clim._nslawid)
+	except:
+		pass
 	
 	## Temporary files
 	zhpar = XZarr.from_value( np.nan,
