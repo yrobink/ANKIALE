@@ -165,8 +165,11 @@ def run_bsac_cmd_fit_Y():
 	X,hparX  = clim.rvsX( bsacParams.n_samples , add_BE = True , return_hpar = True )
 	XF = X.XF.loc[:,cname,:,:]
 	
-	## Restrict the time axis
-	Y = Y.sel( time = X.time )
+	## Restrict the time axis of Y
+	ctime = list( set(X.time.values.ravel().tolist()) & set(Y.time.values.ravel().tolist()) )
+	ctime.sort()
+	ctime = xr.DataArray( ctime , dims = ["time"] , coords = [ctime] )
+	Y = Y.sel( time = ctime )
 	
 	##
 	nslaw_class = nslawid_to_class(nslawid)
