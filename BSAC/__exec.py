@@ -32,6 +32,7 @@ import dask
 import distributed
 import zarr
 import netCDF4
+import SDFC
 
 #############
 ## Imports ##
@@ -165,7 +166,8 @@ def start_bsac(*argv):##{{{
 	        ("dask"       , dask ),
 	        ("distributed", distributed ),
 	        ("zarr"       , zarr ),
-	        ("netCDF4"    , netCDF4 )
+	        ("netCDF4"    , netCDF4 ),
+	        ("SDFC"       , SDFC )
 	       ]
 	
 	logger.info( "Packages version:" )
