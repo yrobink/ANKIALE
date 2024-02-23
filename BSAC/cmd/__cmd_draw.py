@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -30,6 +30,8 @@ from ..__BSACParams import bsacParams
 
 from ..__sys import SizeOf
 
+from ..stats.__rvs import rvs_climatology
+
 import numpy as np
 import netCDF4
 import cftime
@@ -55,7 +57,8 @@ def run_bsac_cmd_draw_Y():
 	logger.info("Draw parameters...")
 	n_samples = bsacParams.n_samples
 	clim      = bsacParams.clim
-	draw      = clim.rvsY( size = n_samples , add_BE = True , return_hpar = True )
+#	draw      = clim.rvsY( size = n_samples , add_BE = True , return_hpar = True )
+	draw      = rvs_climatology( clim , n_samples , tmp = bsacParams.tmp , add_BE = True , n_jobs = bsacParams.n_jobs , mem_limit = bsacParams.total_memory )
 	logger.info("Draw parameters. Done.")
 	
 	## Extract parameters

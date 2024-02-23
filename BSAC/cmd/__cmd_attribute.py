@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -35,6 +35,9 @@ from ..__XZarr import XZarr
 from ..__XZarr import random_zfile
 
 from ..__sys import SizeOf
+
+from ..stats.__rvs import rvs_climatology
+
 
 import numpy  as np
 import xarray as xr
@@ -114,7 +117,8 @@ def run_bsac_cmd_attribute_event():
 	
 	## Draw parameters for the attribution
 	logger.info( " * Draw parameters" )
-	zdraw   = clim.rvsY(n_samples)
+#	zdraw   = clim.rvsY(n_samples)
+	zdraw   = rvs_climatology( clim , n_samples , tmp = bsacParams.tmp , n_jobs = bsacParams.n_jobs , mem_limit = bsacParams.total_memory )
 	ovars   = [key for key in zdraw if key not in ["XF","XC","XA"]]
 	samples = np.array(zdraw[ovars[0]].coords[zdraw[ovars[0]].dims.index("sample")])
 	periods = np.array(zdraw[ovars[0]].coords[zdraw[ovars[0]].dims.index("period")])
@@ -426,7 +430,8 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	
 	## Draw parameters for the attribution
 	logger.info( " * Draw parameters" )
-	zdraw   = clim.rvsY(n_samples)
+#	zdraw   = clim.rvsY(n_samples)
+	zdraw   = rvs_climatology( clim , n_samples , tmp = bsacParams.tmp , n_jobs = bsacParams.n_jobs , mem_limit = bsacParams.total_memory )
 	ovars   = [key for key in zdraw if key not in ["XF","XC","XA"]]
 	periods = np.array(zdraw[ovars[0]].coords[zdraw[ovars[0]].dims.index("period")])
 	if mode == "sample":
