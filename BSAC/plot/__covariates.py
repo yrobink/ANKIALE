@@ -259,7 +259,8 @@ def plot_constrain_CX( RVS , SRVS , Xo , ofile = None ):
 					axes[-1].fill_between( time , qXF.loc["ql",name,per,:] , qXF.loc["qu",name,per,:] , color = colorsF[iper] , alpha = 0.5 , label = r"$X_t^{\mathrm{F}}$" )
 					axes[-1].plot( time , qXC.loc["BE",name,per,:] , color = colorC )
 					axes[-1].fill_between( time , qXC.loc["ql",name,per,:] , qXC.loc["qu",name,per,:] , color = colorC , alpha = 0.5 , label = r"$X_t^{\mathrm{C}}$" )
-					axes[-1].plot( Xo[name].time.dt.year , Xo[name].values.ravel() , color = "grey" , linestyle = "" , marker = "." , alpha = 0.5 , label = r"$X^o$" )
+					if name in Xo:
+						axes[-1].plot( Xo[name].time.dt.year , Xo[name].values.ravel() , color = "grey" , linestyle = "" , marker = "." , alpha = 0.5 , label = r"$X^o$" )
 				else:
 					axes[-1].plot( time , qSA.loc["BE",name,per,:] , color = colorsF[iper] , linestyle = "--" )
 					axes[-1].fill_between( time , qSA.loc["ql",name,per,:] , qSA.loc["qu",name,per,:] , color = colorsF[iper] , alpha = 0.2 , label = r"$X_t^{\mathrm{A}}$" )
