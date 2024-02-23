@@ -28,6 +28,8 @@ from ..__logs import log_start_end
 
 from ..__BSACParams import bsacParams
 
+from ..__sys import SizeOf
+
 import numpy as np
 import netCDF4
 import cftime
@@ -51,7 +53,9 @@ def run_bsac_cmd_draw_Y():
 	
 	## Draw data
 	logger.info("Draw parameters...")
-	draw = bsacParams.clim.rvsY( size = bsacParams.n_samples , add_BE = True , return_hpar = True )
+	n_samples = bsacParams.n_samples
+	clim      = bsacParams.clim
+	draw      = clim.rvsY( size = n_samples , add_BE = True , return_hpar = True )
 	logger.info("Draw parameters. Done.")
 	
 	## Extract parameters
@@ -115,25 +119,46 @@ def run_bsac_cmd_draw_Y():
 		ncvars["time"].setncattr( "axis"          , "T"         )
 		
 		## Create final variables
-		ncXF   = ncf.createVariable( "XF"   , "float32" , ("sample","time","period","name") + d_spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + s_spatial )
-		ncXC   = ncf.createVariable( "XC"   , "float32" , ("sample","time","period","name") + d_spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + s_spatial )
-		nchpar = ncf.createVariable( "hpar" , "float32" , ("sample","hyper_parameter")      + d_spatial , compression = "zlib" , complevel = 5 , chunksizes =     (1,1) + s_spatial )
-		ncPar  = { key : ncf.createVariable( key , "float32" , ("sample","time","period") + d_spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + s_spatial ) for key in pars }
+		ncXF   = ncf.createVariable( "XF"   , "float32" , ("sample","time","period","name") + d_spatial , fill_value = np.nan , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + s_spatial )
+		ncXC   = ncf.createVariable( "XC"   , "float32" , ("sample","time","period","name") + d_spatial , fill_value = np.nan , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + s_spatial )
+		nchpar = ncf.createVariable( "hpar" , "float32" , ("sample","hyper_parameter")      + d_spatial , fill_value = np.nan , compression = "zlib" , complevel = 5 , chunksizes =     (1,1) + s_spatial )
+		ncPar  = { key : ncf.createVariable( key , "float32" , ("sample","time","period")   + d_spatial , fill_value = np.nan , compression = "zlib" , complevel = 5 , chunksizes =   (1,1,1) + s_spatial ) for key in pars }
 		
-		t_spatial = tuple([slice(None) for _ in range(len(s_spatial))])
-		for s in range(len(samples)):
+		## Find the blocks to write netcdf
+		blocks  = [1,1,1,1]
+		sizes   = [n_samples,len(time),len(periods),len(namesX)]
+		nsizes  = [n_samples,len(time),len(periods),len(namesX)]
+		sp_mem  = SizeOf( n = int(np.prod(clim.s_spatial) * np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) , unit = "o" )
+		tot_mem = SizeOf( n = int(min( 0.8 , 3 * bsacParams.frac_memory_per_array ) * bsacParams.total_memory.o) , unit = "o" )
+		nfind   = [True,True,True,True]
+		while any(nfind):
+			i = np.argmin(nsizes)
+			blocks[i] = sizes[i]
+			while int(np.prod(blocks)) * sp_mem > tot_mem:
+				if blocks[i] < 2:
+					blocks[i] = 1
+					break
+				blocks[i] = blocks[i] // 2
+			nfind[i]  = False
+			nsizes[i] = np.inf
+		logger.info( f"   => Blocks size {blocks}" )
+		
+		## Fill
+		idx_sp = tuple([slice(None) for _ in range(len(s_spatial))])
+		for idx in itt.product(*[range(0,s,block) for s,block in zip(sizes,blocks)]):
 			
-			idxH = (s,slice(None)) + t_spatial
-			nchpar[idxH] = draw["hpar"].get_orthogonal_selection(idxH)
+			s_idx = tuple([slice(s,s+block,1) for s,block in zip(idx,blocks)])
+			idx_hpar = (s_idx[0],slice(None)) + idx_sp
+			idx_X    =  s_idx      + idx_sp
+			idx_P    =  s_idx[:-1] + idx_sp
 			
-			for t,p in itt.product(range(len(time)),range(len(periods))):
-				idxX = (s,t,p,slice(None)) + t_spatial
-				idxP = (s,t,p) + t_spatial
-				
-				ncXF[idxX] = draw["XF"].get_orthogonal_selection(idxX)
-				ncXC[idxX] = draw["XC"].get_orthogonal_selection(idxX)
-				for key in pars:
-					ncPar[key][idxP] = draw[key].get_orthogonal_selection(idxP)
+			K = draw["hpar"].get_orthogonal_selection(idx_hpar)
+			nchpar[idx_hpar] = K
+			ncXF[idx_X]      = draw["XF"].get_orthogonal_selection(idx_X)
+			ncXC[idx_X]      = draw["XC"].get_orthogonal_selection(idx_X)
+			for key in pars:
+				ncPar[key][idx_P] = draw[key].get_orthogonal_selection(idx_P)
+	
 	logger.info("Save in netCDF. Done.")
 	
 ##}}}
