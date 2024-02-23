@@ -58,10 +58,11 @@ def run_bsac_cmd_synthesize():
 	clim = bsacParams.clim
 	
 	## Read the grid
+	logger.info( " * Read the target grid" )
 	try:
 		regrid   = True
-		gridfile = bsacParams.config.get["grid"]
-		gridname = bsacParams.config.get["grid_name"] #, bsacParams.config["names"].split(":")[-1] )
+		gridfile = bsacParams.config.get("grid")
+		gridname = bsacParams.config.get("grid_name") #, bsacParams.config["names"].split(":")[-1] )
 		
 		grid = xr.open_dataset(gridfile)
 		mask = grid[gridname] > 0
@@ -70,6 +71,7 @@ def run_bsac_cmd_synthesize():
 		s_spatial = clim.s_spatial
 		c_spatial = tuple([clim._spatial[d]      for d in clim._spatial])
 		i_spatial = tuple([slice(None) for _ in d_spatial])
+		logger.info( "   => Need regrid" )
 	except:
 		regrid    = False
 		clim_grid = Climatology.init_from_file( bsacParams.input[0] )
@@ -82,24 +84,27 @@ def run_bsac_cmd_synthesize():
 		else:
 			c_spatial = tuple()
 			i_spatial = tuple()
+		logger.info( "   => No regrid needed" )
 	
 	## Parameters
+	logger.info( " * Extract parameters" )
 	ifiles      = bsacParams.input
 	d_clim      = "clim"
 	s_clim      = len(ifiles)
 	c_clim      = range(s_clim)
-	clim._names       = bsacParams.config["names"].split(":")
-	d_hpar            = "hpar"
-	c_hpar            = clim.hpar_names
-	s_hpar            = len(c_hpar)
-	cvar              = clim._names[-1]
+	clim._names = bsacParams.config["names"].split(":")
 	try:
 		clim._nslawid     = bsacParams.config["nslaw"]
 		clim._nslaw_class = nslawid_to_class(clim._nslawid)
 	except:
 		pass
+	d_hpar      = "hpar"
+	c_hpar      = clim.hpar_names
+	s_hpar      = len(c_hpar)
+	cvar        = clim._names[-1]
 	
 	## Temporary files
+	logger.info( " * Create XZarr files" )
 	zhpar = XZarr.from_value( np.nan,
 	                          (s_clim,s_hpar) + s_spatial,
 	                          (d_clim,d_hpar) + d_spatial,
@@ -117,8 +122,11 @@ def run_bsac_cmd_synthesize():
 	clim._bias = { n : 0 for n in clim._names }
 	
 	## Open all clims, and store in zarr files
+	logger.info( " * Open all clims, and store in zarr files" )
 	clims = []
 	for i,ifile in enumerate(ifiles):
+		
+		logger.info( f"   => {os.path.basename(ifile)}" )
 		
 		## Read clim
 		iclim = Climatology.init_from_file(ifile)
@@ -129,6 +137,7 @@ def run_bsac_cmd_synthesize():
 		cov_  = iclim.xcov_
 		
 		if regrid:
+			logger.info( f"    | Regrid" )
 			## Grid
 			igrid     = xr.Dataset( iclim._spatial )
 			regridder = xesmf.Regridder( igrid , grid , "nearest_s2d" )
@@ -144,6 +153,7 @@ def run_bsac_cmd_synthesize():
 		
 		## Special case, miss scenario(s) in the clim 
 		if mean.hpar.size < s_hpar:
+			logger.info( f"    | Scenarios missing, add nan" )
 			nmean = xr.DataArray( np.nan , dims = (d_hpar,) + d_spatial , coords = (c_hpar,) + c_spatial )
 			ncov  = xr.DataArray( np.nan , dims = (d_hpar+"0",d_hpar+"1") + d_spatial , coords = (c_hpar,c_hpar) + c_spatial )
 			nmean.loc[(mean.hpar,)+i_spatial] = mean
@@ -156,6 +166,7 @@ def run_bsac_cmd_synthesize():
 		clim._bias[cvar] += bias
 		
 		## Add to zarr
+		logger.info( f"    | Save to zarr" )
 		zhpar.set_orthogonal_selection( (i,slice(None)) + i_spatial , mean )
 		zcov.set_orthogonal_selection( (i,slice(None),slice(None)) + i_spatial , cov )
 	
@@ -164,8 +175,10 @@ def run_bsac_cmd_synthesize():
 		clim._bias[n] /= s_clim
 	
 	## Now the synthesis
+	logger.info( " * Run synthesis" )
 	hpar_S,cov_S = synthesis( zhpar , zcov , bsacParams.n_jobs )
 	
+	logger.info( " * Copy to the clim" )
 	clim.mean_ = hpar_S
 	clim.cov_  = cov_S
 	clim._time = time
