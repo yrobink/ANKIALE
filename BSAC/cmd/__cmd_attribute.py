@@ -430,10 +430,9 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	
 	## Draw parameters for the attribution
 	logger.info( " * Draw parameters" )
-#	zdraw   = clim.rvsY(n_samples)
 	zdraw   = rvs_climatology( clim , n_samples , tmp = bsacParams.tmp , n_jobs = bsacParams.n_jobs , mem_limit = bsacParams.total_memory )
-	ovars   = [key for key in zdraw if key not in ["XF","XC","XA"]]
-	periods = np.array(zdraw[ovars[0]].coords[zdraw[ovars[0]].dims.index("period")])
+	ovars   = [key for key in zdraw if key not in ["XF","XC","XA","hpar"]]
+	periods = np.array(zdraw["XF"].coords[zdraw["XF"].dims.index("period")])
 	if mode == "sample":
 		modes = np.array(zdraw[ovars[0]].coords[zdraw[ovars[0]].dims.index("sample")])
 	elif mode == "quantile":
@@ -505,7 +504,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		
 		res = [ r.transpose( *out["pF"].dims ).compute() for r in res ]
 		for key,r in zip(out,res):
-			out[key].set_orthogonal_selection( f_idx , r.values )
+			out[key].set_orthogonal_selection( (slice(None),) + f_idx , r.values )
 	
 	## And save
 	logger.info( " * Save in netcdf" )
@@ -597,7 +596,6 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 			for key in out:
 				xdata = out[key].get_orthogonal_selection(idxs)
 				ncvars[key][idxs] = xdata.values
-		logger.info("A")
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
