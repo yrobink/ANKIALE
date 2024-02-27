@@ -148,6 +148,8 @@ def run_bsac_cmd_misc_wpe():
 	n_samples = bsacParams.n_samples
 	tmp       = bsacParams.tmp
 	side      = bsacParams.config.get("side","right")
+	mode      = bsacParams.config.get("mode","sample")
+	ci        = bsacParams.config.get("ci",0.05)
 	nslaw     = clim._nslaw_class()
 	sp_dims   = clim.d_spatial
 	perwpe    = bsacParams.config.get("period")
@@ -290,7 +292,7 @@ def run_bsac_cmd_misc_wpe():
 		ncvars = ncf.createVariable( "wpe" , "float32" , ("prob","sample","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
 		
 		## Attributes
-		ncvars.setncattr( "description" , "Best Possible Case of the Probability prob" )
+		ncvars.setncattr( "description" , "Worst Possible Event with Probability prob" )
 		
 		## Find the blocks to write netcdf
 		blocks  = [1,1,1]
