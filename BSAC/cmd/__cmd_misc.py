@@ -56,7 +56,7 @@ logger.addHandler(logging.NullHandler())
 ###############
 
 
-def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None , perwpe = None , clim = None ):##{{{
+def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None , perwpe = None , clim = None , mode = "sample" , ci = 0.05 ):##{{{
 	
 	## Extract parameters from clim
 	_,_,designF_,designC_ = clim.build_design_XFC()
@@ -68,11 +68,12 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None 
 	nwpe = pwpe.size
 	
 	## Init output
+	n_modes = n_samples if mode == "sample" else 3
 	output = np.zeros( (n_samples,npers,nwpe) ) + np.nan
 	
 	## If nan, return
 	if not np.isfinite(hpar).all():
-		return output
+		return np.zeros( (n_modes,npers,nwpe) ) + np.nan
 	
 	## Draw parameters
 	hpars = xr.DataArray( rvs_multivariate_normal( n_samples , hpar , hcov ) , dims = ["sample","hpar"] , coords = [range(n_samples),clim.hpar_names] )
@@ -135,6 +136,9 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None 
 			
 		output[:,:,ip] = eventM.mean( axis = 1 )
 	
+	if mode == "quantile":
+		output = np.quantile( output , [ci/2,0.5,1-ci/2] , axis = 0 )
+	
 	return output
 ##}}}
 
@@ -149,7 +153,7 @@ def run_bsac_cmd_misc_wpe():
 	tmp       = bsacParams.tmp
 	side      = bsacParams.config.get("side","right")
 	mode      = bsacParams.config.get("mode","sample")
-	ci        = bsacParams.config.get("ci",0.05)
+	ci        = float(bsacParams.config.get("ci",0.05))
 	nslaw     = clim._nslaw_class()
 	sp_dims   = clim.d_spatial
 	perwpe    = bsacParams.config.get("period")
@@ -181,20 +185,27 @@ def run_bsac_cmd_misc_wpe():
 	samples   = np.array(coords_samples(n_samples))
 	periods   = clim.dpers + ["cfactual"]
 	
+	## Modes
+	if mode == "quantile":
+		modes = ["QL","BE","QU"]
+	else:
+		modes = samples
+	n_modes = len(modes)
+	
 	## Init output
 	logger.info( " * Init output" )
-	dims   = ("probs","sample","period") + sp_dims
-	coords = [xr.DataArray( pwpe , dims = ["pwpe"] , coords = [pwpe] ),samples,periods] + [clim.c_spatial[d] for d in sp_dims]
+	dims   = ("probs",mode,"period") + sp_dims
+	coords = [xr.DataArray( pwpe , dims = ["pwpe"] , coords = [pwpe] ),modes,periods] + [clim.c_spatial[d] for d in sp_dims]
 	shape  = [len(c) for c in coords]
 	event  = XZarr.from_value( np.nan , shape, dims , coords , random_zfile( os.path.join( tmp , "eventF" ) ) , zarr_kwargs = { "synchronizer" : zarr.ThreadSynchronizer() } )
 	
 	## Find the block size for parallelization
 	logger.info( " * Find block size...")
-	sizes   = list(clim.s_spatial + (n_samples,))
-	nsizes  = list(clim.s_spatial + (n_samples,))
+	sizes   = list(clim.s_spatial)
+	nsizes  = list(clim.s_spatial)
 	blocks  = list(sizes)
-	nfind   = [True,True,True]
-	fmem_use = lambda b: 5 * np.prod(blocks) * (np.finfo('float64').bits // SizeOf(n = 0).bits_per_octet) * pwpe.size * (perwpe[1] - perwpe[0]+1) * ( len(clim.dpers) + 1 ) * SizeOf("1o")
+	nfind   = [True,True]
+	fmem_use = lambda b: 5 * np.prod(blocks) * (np.finfo('float64').bits // SizeOf(n = 0).bits_per_octet) * pwpe.size * (perwpe[1] - perwpe[0]+1) * ( len(clim.dpers) + 1 ) * n_samples * SizeOf("1o")
 	mem_use = fmem_use(blocks)
 	
 	while any(nfind):
@@ -217,41 +228,39 @@ def run_bsac_cmd_misc_wpe():
 	del climB._cov
 	del climB._bias
 	
-	## Loop on samples and spatial variables for parallelisation
+	## Loop on spatial variables for parallelisation
 	logger.info( " * Find wpe" )
-	for idx in itt.product(*[range(0,s,b) for s,b in zip(clim.s_spatial + (n_samples,),blocks)]):
+	for idx in itt.product(*[range(0,s,b) for s,b in zip(clim.s_spatial,blocks)]):
 		
 		## Indexes
 		spatial_idx = tuple([slice(s,s+b,1) for s,b in zip(idx[:-1],blocks[:-1])])
-		sample_idx  = (slice(idx[-1],idx[-1]+blocks[-1],1),)
 		
 		## Extract data
 		idx1d = (slice(None),)            + spatial_idx
 		idx2d = (slice(None),slice(None)) + spatial_idx
 		shpar = ihpar[idx1d].chunk( { d : 1 for d in ihpar.dims[1:] } )
 		shcov = ihcov[idx2d].chunk( { d : 1 for d in ihpar.dims[1:] } )
-		ssamples = samples[sample_idx[0]]
 		
 		##
 		isfin = np.all( np.isfinite(shpar[1:]) , axis = 0 ).values
 		valid = 100 * isfin.sum() / isfin.size
-		logger.info( f"   => {idx} + {blocks} / {clim.s_spatial + (n_samples,)} ({round( valid , 3 )}%)" )
+		logger.info( f"   => {idx} + {blocks} / {clim.s_spatial} ({round( valid , 3 )}%)" )
 		if not valid > 0:
 			continue
 		
 		## Find event
 		xevent = xr.apply_ufunc( _find_wpe_parallel , shpar , shcov ,
 		                    input_core_dims  = [["hpar"],["hpar0","hpar1"]],
-		                    output_core_dims = [["sample","period","pwpe"],],
+		                    output_core_dims = [[mode,"period","pwpe"],],
 		                    output_dtypes    = [shpar.dtype],
 		                    vectorize        = True,
 		                    dask             = "parallelized",
-		                    kwargs           = { "n_samples" : len(ssamples) , "pwpe" : pwpe , "side" : side , "perwpe" : perwpe , "clim" : climB },
-		                    dask_gufunc_kwargs = { "output_sizes" : { "pwpe" : pwpe.size , "sample" : len(ssamples) , "period" : len(periods) } }
-		                    ).assign_coords( { "sample" : ssamples , "period" : periods , "pwpe" : pwpe } ).transpose( *(("pwpe","sample","period") + d_spatial) ).compute()
+		                    kwargs           = { "n_samples" : n_samples , "pwpe" : pwpe , "side" : side , "perwpe" : perwpe , "clim" : climB , "mode" : mode , "ci" : ci },
+		                    dask_gufunc_kwargs = { "output_sizes" : { "pwpe" : pwpe.size , mode : n_modes , "period" : len(periods) } }
+		                    ).assign_coords( { mode : modes , "period" : periods , "pwpe" : pwpe } ).transpose( *(("pwpe",mode,"period") + d_spatial) ).compute()
 		
 		## And add to zarr
-		sel = (slice(None),) + sample_idx + (slice(None),) + spatial_idx
+		sel = (slice(None),slice(None),slice(None),) + spatial_idx
 		event.set_orthogonal_selection( sel , xevent.values )
 		
 		## Clean memory
@@ -265,7 +274,7 @@ def run_bsac_cmd_misc_wpe():
 		## Define dimensions
 		ncdims = {
 		       "prob"   : ncf.createDimension( "prob"   , len(pwpe) ),
-		       "sample" : ncf.createDimension( "sample" , n_samples ),
+		           mode : ncf.createDimension(  mode    , n_modes   ),
 		       "period" : ncf.createDimension( "period" , len(periods) )
 		}
 		spatial = ()
@@ -277,27 +286,31 @@ def run_bsac_cmd_misc_wpe():
 		## Define variables
 		ncvars = {
 		       "prob"   : ncf.createVariable( "prob"   , "float32" , ("prob",) ),
-		       "sample" : ncf.createVariable( "sample" , str       , ("sample",) ),
+		           mode : ncf.createVariable(     mode , str       , (mode,) ),
 		       "period" : ncf.createVariable( "period" , str       , ("period",) )
 		}
 		ncvars["prob"][:]   = np.array([pwpe]).squeeze()
-		ncvars["sample"][:] = np.array([samples]).squeeze()
+		ncvars[mode][:]     = np.array([modes]).squeeze()
 		ncvars["period"][:] = np.array([periods]).squeeze()
 		if clim._spatial is not None:
 			for d in clim._spatial:
 				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
 				ncvars[d][:] = np.array(clim._spatial[d]).ravel()
+		if mode == "quantile":
+			ncvars[mode].setncattr( "confidence_level" , ci )
+			ncvars["quantile_level"] = ncf.createVariable( "quantile_levels" , "float32" , ("quantile") )
+			ncvars["quantile_level"][:] = np.array([ci/2,0.5,1-ci/2])
 		
 		## Variables
-		ncvars = ncf.createVariable( "wpe" , "float32" , ("prob","sample","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
+		ncvars = ncf.createVariable( "wpe" , "float32" , ("prob",mode,"period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
 		
 		## Attributes
 		ncvars.setncattr( "description" , "Worst Possible Event with Probability prob" )
 		
 		## Find the blocks to write netcdf
 		blocks  = [1,1,1]
-		sizes   = [len(pwpe),n_samples,len(periods)]
-		nsizes  = [len(pwpe),n_samples,len(periods)]
+		sizes   = [len(pwpe),n_modes,len(periods)]
+		nsizes  = [len(pwpe),n_modes,len(periods)]
 		sp_mem  = SizeOf( n = int(np.prod(clim.s_spatial) * np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) , unit = "o" )
 		tot_mem = SizeOf( n = int(min( 0.8 , 3 * bsacParams.frac_memory_per_array ) * bsacParams.total_memory.o) , unit = "o" )
 		nfind   = [True,True,True]
