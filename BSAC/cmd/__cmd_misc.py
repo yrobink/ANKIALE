@@ -183,7 +183,7 @@ def run_bsac_cmd_misc_wpe():
 	ohpar     = xr.zeros_like(ihpar) + np.nan
 	ohcov     = xr.zeros_like(ihcov) + np.nan
 	samples   = np.array(coords_samples(n_samples))
-	periods   = clim.dpers + ["cfactual"]
+	periods   = ["cfactual"] + clim.dpers
 	
 	## Modes
 	if mode == "quantile":
