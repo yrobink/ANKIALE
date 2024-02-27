@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -337,13 +337,11 @@ def run_bsac_cmd_misc():
 	if not len(bsacParams.arg) == 1:
 		raise ValueError(f"Bad numbers of arguments of the fit command: {', '.join(bsacParams.arg)}")
 	
-	available_commands = ["bpc","wpe"]
+	available_commands = ["wpe"]
 	if not bsacParams.arg[0] in available_commands:
 		raise ValueError(f"Bad argument of the fit command ({bsacParams.arg[0]}), must be: {', '.join(available_commands)}")
 	
 	## OK, run the good command
-	if bsacParams.arg[0] == "bpc":
-		run_bsac_cmd_misc_bpc()
 	if bsacParams.arg[0] == "wpe":
 		run_bsac_cmd_misc_wpe()
 ##}}}
