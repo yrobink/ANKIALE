@@ -67,13 +67,15 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None 
 	pwpe = np.array([pwpe]).ravel()
 	nwpe = pwpe.size
 	
-	## Init output
+	## Init IFC
 	n_modes = n_samples if mode == "sample" else 3
-	output = np.zeros( (n_samples,npers,nwpe) ) + np.nan
+	IFC     = np.zeros( (n_samples,npers,nwpe) ) + np.nan
 	
 	## If nan, return
 	if not np.isfinite(hpar).all():
-		return np.zeros( (n_modes,npers,nwpe) ) + np.nan
+		IFC = np.zeros( (n_modes,npers,nwpe) ) + np.nan
+		dI  = np.zeros( (n_modes,npers,nwpe) ) + np.nan
+		return IFC,dI
 	
 	## Draw parameters
 	hpars = xr.DataArray( rvs_multivariate_normal( n_samples , hpar , hcov ) , dims = ["sample","hpar"] , coords = [range(n_samples),clim.hpar_names] )
@@ -134,12 +136,17 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None 
 			##
 			res = float(np.nanmax(np.abs(eventH - eventL)))
 			
-		output[:,:,ip] = eventM.mean( axis = 1 )
+		IFC[:,:,ip] = eventM.mean( axis = 1 )
 	
+	## Find change
+	dI = IFC - IFC[:,:,0].reshape( IFC.shape[:2] + (1,) )
+	
+	## Quantile or samples ?
 	if mode == "quantile":
-		output = np.quantile( output , [ci/2,0.5,1-ci/2] , axis = 0 )
+		IFC = np.quantile( IFC , [ci/2,0.5,1-ci/2] , axis = 0 )
+		dI  = np.quantile(  dI , [ci/2,0.5,1-ci/2] , axis = 0 )
 	
-	return output
+	return IFC,dI
 ##}}}
 
 ## run_bsac_cmd_misc_wpe ##{{{
@@ -197,7 +204,8 @@ def run_bsac_cmd_misc_wpe():
 	dims   = ("probs",mode,"period") + sp_dims
 	coords = [xr.DataArray( pwpe , dims = ["pwpe"] , coords = [pwpe] ),modes,periods] + [clim.c_spatial[d] for d in sp_dims]
 	shape  = [len(c) for c in coords]
-	event  = XZarr.from_value( np.nan , shape, dims , coords , random_zfile( os.path.join( tmp , "eventF" ) ) , zarr_kwargs = { "synchronizer" : zarr.ThreadSynchronizer() } )
+	zIFC   = XZarr.from_value( np.nan , shape, dims , coords , random_zfile( os.path.join( tmp , "IFC" ) ) , zarr_kwargs = { "synchronizer" : zarr.ThreadSynchronizer() } )
+	zdI    = XZarr.from_value( np.nan , shape, dims , coords , random_zfile( os.path.join( tmp ,  "dI" ) ) , zarr_kwargs = { "synchronizer" : zarr.ThreadSynchronizer() } )
 	
 	## Find the block size for parallelization
 	logger.info( " * Find block size...")
@@ -249,22 +257,27 @@ def run_bsac_cmd_misc_wpe():
 			continue
 		
 		## Find event
-		xevent = xr.apply_ufunc( _find_wpe_parallel , shpar , shcov ,
+		xIFC,xdI = xr.apply_ufunc( _find_wpe_parallel , shpar , shcov ,
 		                    input_core_dims  = [["hpar"],["hpar0","hpar1"]],
-		                    output_core_dims = [[mode,"period","pwpe"],],
-		                    output_dtypes    = [shpar.dtype],
+		                    output_core_dims = [[mode,"period","pwpe"],[mode,"period","pwpe"]],
+		                    output_dtypes    = [shpar.dtype,shpar.dtype],
 		                    vectorize        = True,
 		                    dask             = "parallelized",
 		                    kwargs           = { "n_samples" : n_samples , "pwpe" : pwpe , "side" : side , "perwpe" : perwpe , "clim" : climB , "mode" : mode , "ci" : ci },
 		                    dask_gufunc_kwargs = { "output_sizes" : { "pwpe" : pwpe.size , mode : n_modes , "period" : len(periods) } }
-		                    ).assign_coords( { mode : modes , "period" : periods , "pwpe" : pwpe } ).transpose( *(("pwpe",mode,"period") + d_spatial) ).compute()
+		                    )
+		
+		xIFC = xIFC.assign_coords( { mode : modes , "period" : periods , "pwpe" : pwpe } ).transpose( *(("pwpe",mode,"period") + d_spatial) ).compute()
+		xdI  =  xdI.assign_coords( { mode : modes , "period" : periods , "pwpe" : pwpe } ).transpose( *(("pwpe",mode,"period") + d_spatial) ).compute()
 		
 		## And add to zarr
 		sel = (slice(None),slice(None),slice(None),) + spatial_idx
-		event.set_orthogonal_selection( sel , xevent.values )
+		zIFC.set_orthogonal_selection( sel , xIFC.values )
+		zdI.set_orthogonal_selection(  sel ,  xdI.values )
 		
 		## Clean memory
-		del xevent
+		del xIFC
+		del xdI
 		gc.collect()
 	
 	## And save in netcdf
@@ -302,10 +315,12 @@ def run_bsac_cmd_misc_wpe():
 			ncvars["quantile_level"][:] = np.array([ci/2,0.5,1-ci/2])
 		
 		## Variables
-		ncvars = ncf.createVariable( "wpe" , "float32" , ("prob",mode,"period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
+		ncvars["IFC"] = ncf.createVariable( "IFC" , "float32" , ("prob",mode,"period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
+		ncvars["dI"]  = ncf.createVariable( "dI" , "float32" , ("prob",mode,"period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
 		
 		## Attributes
-		ncvars.setncattr( "description" , "Worst Possible Event with Probability prob" )
+		ncvars["IFC"].setncattr( "description" , "Intensity in Factual / Counter factual world of the Worst Possible Event with Probability prob" )
+		ncvars["dI"].setncattr( "description" , "Change in intensity in between factual and counter factual world of the Worst Possible Event with Probability prob" )
 		
 		## Find the blocks to write netcdf
 		blocks  = [1,1,1]
@@ -334,8 +349,10 @@ def run_bsac_cmd_misc_wpe():
 			s_idx = tuple([slice(s,s+block,1) for s,block in zip(idx,blocks)])
 			idxs = s_idx + idx_sp
 			
-			xdata = event.get_orthogonal_selection(idxs)
-			ncvars[idxs] = ( xdata + bias ).values
+			xIFC = zIFC.get_orthogonal_selection(idxs)
+			xdI  = zIFC.get_orthogonal_selection(idxs)
+			ncvars["IFC"][idxs] = ( xIFC + bias ).values
+			ncvars["dI"][idxs] = xdI.values
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
