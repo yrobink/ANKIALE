@@ -139,7 +139,7 @@ def _find_wpe_parallel( hpar , hcov , n_samples = 1 , pwpe = None , side = None 
 		IFC[:,:,ip] = eventM.mean( axis = 1 )
 	
 	## Find change
-	dI = IFC - IFC[:,:,0].reshape( IFC.shape[:2] + (1,) )
+	dI = IFC - IFC[:,0,:].reshape( (IFC.shape[0],1,IFC.shape[2]) )
 	
 	## Quantile or samples ?
 	if mode == "quantile":
@@ -350,7 +350,7 @@ def run_bsac_cmd_misc_wpe():
 			idxs = s_idx + idx_sp
 			
 			xIFC = zIFC.get_orthogonal_selection(idxs)
-			xdI  = zIFC.get_orthogonal_selection(idxs)
+			xdI  =  zdI.get_orthogonal_selection(idxs)
 			ncvars["IFC"][idxs] = ( xIFC + bias ).values
 			ncvars["dI"][idxs] = xdI.values
 		
