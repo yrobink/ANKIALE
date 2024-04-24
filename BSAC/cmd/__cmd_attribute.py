@@ -21,6 +21,7 @@
 #############
 
 import os
+import sys
 import itertools as itt
 import datetime as dt
 import logging
@@ -78,6 +79,13 @@ def _attribute_event_parallel( *args , ovars , nslaw_class , it_attr , side ):##
 		
 		pF = nslaw.cdf_sf( xYo , side = side , **kwargsF )
 		pC = nslaw.cdf_sf( xYo , side = side , **kwargsC )
+		
+		## Remove 0 and 1
+		e  = 10 * sys.float_info.epsilon
+		pF = np.where( pF >     e , pF ,     e )
+		pC = np.where( pC >     e , pC ,     e )
+		pF = np.where( pF < 1 - e , pF , 1 - e )
+		pC = np.where( pC < 1 - e , pC , 1 - e )
 		
 		pf = np.zeros_like(pF) + pF[:,it_attr,:].reshape((pF.shape[0],1,pF.shape[2]))
 		
@@ -290,6 +298,11 @@ def _attribute_freturnt_parallel( *args , RT , ovars , nslaw_class , side , mode
 		IC = nslaw.icdf_sf( pF , side = side , **kwargsC ) + bias
 		pC = nslaw.cdf_sf(  IF , side = side , **kwargsC )
 		
+		## Remove 0 and 1
+		e  = 10 * sys.float_info.epsilon
+		pC = np.where( pC >     e , pC ,     e )
+		pC = np.where( pC < 1 - e , pC , 1 - e )
+		
 		## Others variables
 		with warnings.catch_warnings():
 			warnings.simplefilter("ignore")
@@ -364,6 +377,11 @@ def _attribute_creturnt_parallel( *args , RT , ovars , nslaw_class , side , mode
 		IF = nslaw.icdf_sf( pC , side = side , **kwargsF ) + bias
 		IC = nslaw.icdf_sf( pC , side = side , **kwargsC ) + bias
 		pF = nslaw.cdf_sf(  IC , side = side , **kwargsF )
+		
+		## Remove 0 and 1
+		e  = 10 * sys.float_info.epsilon
+		pF = np.where( pF >     e , pF ,     e )
+		pF = np.where( pF < 1 - e , pF , 1 - e )
 		
 		## Others variables
 		with warnings.catch_warnings():
@@ -621,11 +639,21 @@ def _attribute_fintensity_parallel( *args , ovars , nslaw_class , side , mode , 
 	IF  = np.zeros_like( pars[ovars[0]] ) + xIF
 	IC  = np.zeros_like( pars[ovars[0]] ) + np.nan
 	
-	## Attribution
+	## Factual and counter factual probabilities
 	pF = nslaw.cdf_sf(  IF , side = side , **kwargsF )
 	pC = nslaw.cdf_sf(  IF , side = side , **kwargsC )
-	IC = nslaw.icdf_sf( pF , side = side , **kwargsC ) + bias
+	
+	## Remove 0 and 1
+	e  = 10 * sys.float_info.epsilon
+	pF = np.where( pF >     e , pF ,     e )
+	pC = np.where( pC >     e , pC ,     e )
+	pF = np.where( pF < 1 - e , pF , 1 - e )
+	pC = np.where( pC < 1 - e , pC , 1 - e )
+	
+	## Factual and counter factual intensities
+	IC = nslaw.icdf_sf( pF , side = side , **kwargsC )
 	IF = IF + bias
+	IC = IC + bias
 	
 	## Others variables
 	with warnings.catch_warnings():
