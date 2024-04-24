@@ -325,6 +325,31 @@ class Climatology:##{{{
 		return slice(t0,t1)
 	##}}}
 	
+	def restrict_spatial( self , coords ):##{{{
+		
+		clim = Climatology()
+		
+		clim._mean = self.xmean_.sel( coords ).values
+		clim._cov  = self.xcov_.sel( coords ).values
+		clim._bias = { key : self._bias[key].sel( coords ) for key in self._bias }
+		
+		clim._names = self._names
+		clim._cper  = self._cper
+		clim._bper  = self._bper
+		clim._dpers = self._dpers
+		
+		clim._time = self._time
+		
+		clim._nslawid     = self._nslawid
+		clim._nslaw_class = self._nslaw_class
+		clim._spatial     = coords
+		
+		clim._Xconfig = self._Xconfig
+		clim._Yconfig = self._Yconfig
+		
+		return clim
+	##}}}
+	
 	## Statistics of X ##{{{ 
 	
 	def build_design_XFC(self):##{{{
