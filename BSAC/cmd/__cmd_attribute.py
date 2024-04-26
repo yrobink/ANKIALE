@@ -679,7 +679,6 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		hcov = clim.xcov_[(slice(None),slice(None))+s_idx]
 		
 		#
-		logger.info( "   => Dask" )
 		res = xr.apply_ufunc( _attribute_fcreturnt_parallel , hpar , hcov , bias ,
 		                    input_core_dims    = [["hpar"],["hpar0","hpar1"],[]],
 		                    output_core_dims   = [["RT",mode,"period","time"] for _ in range(8)],
