@@ -153,6 +153,10 @@ def run_bsac_cmd_fit_Y():
 	Y     = idata[name]
 	biasY = Y.sel( time = slice(*clim.bias_period) ).mean( dim = [d for d in Y.dims if d not in spatial] )
 	Y     = Y - biasY
+	try:
+		biasY = float(biasY)
+	except:
+		pass
 	
 	## Check periods
 	periods = list(set(clim.dpers) & set(Y.period.values.tolist()))
@@ -192,7 +196,7 @@ def run_bsac_cmd_fit_Y():
 	
 	if Y.ndim == 3:
 		mean_ = xr.DataArray( np.zeros( (meanX.size + hparYshape[0],) ) , dims = ["hpar"] , coords = [hparX.hpar.values.tolist()+nslaw.coef_name] )
-		cov_  = xr.DataArray( np.zeros( (meanX.size + hparYshape[0] for _ in range(2)) ) , dims = ["hpar0","hpar1"] , coords = [hparX.hpar.values.tolist()+nslaw.coef_name for _ in range(2)] )
+		cov_  = xr.DataArray( np.zeros( [meanX.size + hparYshape[0] for _ in range(2)] ) , dims = ["hpar0","hpar1"] , coords = [hparX.hpar.values.tolist()+nslaw.coef_name for _ in range(2)] )
 	else:
 		mean_ = xr.DataArray( np.zeros( [meanX.size + hparYshape[0]] + hparYshape[3:] ) , dims = ["hpar"] + list(Y.dims[3:]) , coords = [hparX.hpar.values.tolist()+nslaw.coef_name] + [Y.coords[d] for d in Y.dims[3:]] )
 		cov_  = xr.DataArray( np.zeros( [meanX.size + hparYshape[0] for _ in range(2)] + hparYshape[3:] ) , dims = ["hpar0","hpar1"] + list(Y.dims[3:]) , coords = [hparX.hpar.values.tolist()+nslaw.coef_name for _ in range(2)] + [Y.coords[d] for d in Y.dims[3:]] )
@@ -221,8 +225,11 @@ def run_bsac_cmd_fit_Y():
 		cov_[idx2d]  = np.cov( xhpar.reshape(xhpar.shape[0],-1) )
 	
 	## Mask
-	mean_ = mean_.where( np.isfinite(biasY) , np.nan )
-	cov_  =  cov_.where( np.isfinite(biasY) , np.nan )
+	try:
+		mean_ = mean_.where( np.isfinite(biasY) , np.nan )
+		cov_  =  cov_.where( np.isfinite(biasY) , np.nan )
+	except:
+		pass
 	
 	## Update the climatology
 	clim.mean_ = mean_.values

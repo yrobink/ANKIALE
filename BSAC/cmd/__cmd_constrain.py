@@ -275,6 +275,10 @@ def run_bsac_cmd_constrain_Y():
 	## Bias
 	bias = Yo.sel( time = slice(*[str(y) for y in clim.bper]) ).mean( dim = "time" )
 	Yo   = Yo - bias
+	try:
+		bias = float(bias)
+	except:
+		pass
 	clim._bias[clim.names[-1]] = bias
 	
 	## Extract parameters
@@ -287,9 +291,8 @@ def run_bsac_cmd_constrain_Y():
 	ohcov     = xr.zeros_like(ihcov) + np.nan
 	
 	## Loop on spatial variables
-	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
+	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / max( len(clim.s_spatial) , 1 ) ) ) ) + 1
 	for idx in itt.product(*[range(0,s,jump) for s in clim.s_spatial]):
-		
 		
 		##
 		s_idx = tuple([slice(s,s+jump,1) for s in idx])
@@ -324,7 +327,6 @@ def run_bsac_cmd_constrain_Y():
 		del h
 		del c
 		gc.collect()
-		
 	
 	## And save
 	clim.mean_ = ohpar.values

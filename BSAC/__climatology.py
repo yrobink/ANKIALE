@@ -199,9 +199,11 @@ class Climatology:##{{{
 	def save( self , ofile ):##{{{
 		
 		##
+		logger.info( f"Save clim in {ofile}" )
 		with netCDF4.Dataset( ofile , "w" ) as ncf:
 			
 			## Define dimensions
+			logger.info(" * Define dimensions")
 			ncdims = {
 			       "hyper_parameter"   : ncf.createDimension(   "hyper_parameter" , self._mean.shape[0] ),
 			       "names"             : ncf.createDimension(             "names" , len(self.names) ),
@@ -209,13 +211,15 @@ class Climatology:##{{{
 			       "different_periods" : ncf.createDimension( "different_periods" , len(self.dpers) ),
 			       "time"              : ncf.createDimension(              "time" , len(self.time)  ),
 			}
-			spatial = ()
+			spatial = tuple()
 			if self._spatial is not None:
 				for d in self._spatial:
 					ncdims[d] = ncf.createDimension( d , self._spatial[d].size )
 				spatial = tuple([d for d in self._spatial])
+			logger.info( f"   => spatial: {spatial}" )
 			
 			## Define variables
+			logger.info(" * Define variables")
 			ncvars = {
 			       "hyper_parameter"   : ncf.createVariable(   "hyper_parameter" , str       ,   ("hyper_parameter",) ),
 			       "names"             : ncf.createVariable(             "names" , str       ,             ("names",) ),
@@ -243,12 +247,14 @@ class Climatology:##{{{
 				ncvars["Y"] = ncf.createVariable( "Y" , "int32" )
 			
 			## Fill variables of dimension
+			logger.info(" * Fill variables of dimensions")
 			ncvars[  "hyper_parameter"][:] = np.array( self.hpar_names , dtype = str )
 			ncvars[            "names"][:] = np.array( self.names      , dtype = str )
 			ncvars[    "common_period"][:] = np.array( self.cper       , dtype = str )
 			ncvars["different_periods"][:] = np.array( self.dpers      , dtype = str )
 			
 			## Fill time axis
+			logger.info(" * Fill time axis")
 			calendar = "standard"
 			units    = "days since 1750-01-01 00:00"
 			ncvars["time"][:]  = cftime.date2num( [cftime.DatetimeGregorian( int(y) , 1 , 1 ) for y in self.time] , units = units , calendar = calendar )
@@ -259,10 +265,12 @@ class Climatology:##{{{
 			ncvars["time"].setncattr( "axis"          , "T"         )
 			
 			## Fill variables
+			logger.info(" * Fill variables")
 			ncvars["mean"][:] = self.mean_
 			ncvars["cov"][:]  = self.cov_
 			
 			## Fill informations variables
+			logger.info(" * Fill informations variables")
 			ncvars["X"][:] = 1
 			ncvars["X"].setncattr( "GAM_dof"    , self.GAM_dof    )
 			ncvars["X"].setncattr( "GAM_degree" , self.GAM_degree )
@@ -274,6 +282,7 @@ class Climatology:##{{{
 					ncvars["Y"].setncattr( "spatial" , ":".join(self._spatial) )
 			
 			## Global attributes
+			logger.info(" * Add global attributes")
 			ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
 			ncf.setncattr( "BSAC_version"  , version )
 	##}}}
