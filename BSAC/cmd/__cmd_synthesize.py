@@ -130,6 +130,7 @@ def run_bsac_cmd_synthesize():
 		
 		## Read clim
 		iclim = Climatology.init_from_file(ifile)
+		logger.info(iclim)
 		time  = iclim.time
 		bper  = iclim._bper
 		bias_ = iclim.bias[cvar]

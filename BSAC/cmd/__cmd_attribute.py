@@ -176,7 +176,7 @@ def run_bsac_cmd_attribute_event():
 	
 	## Mode dimension
 	if mode == "sample":
-		modes = coords_samples( n_samples )
+		modes = np.array(coords_samples( n_samples ))
 	elif mode == "quantile":
 		modes = np.array(["QL","BE","QU"])
 	else:
@@ -227,7 +227,7 @@ def run_bsac_cmd_attribute_event():
 	dask_gufunc_kwargs["output_sizes"] = { mode : modes.size , "period" : period.size , "time" : time.size }
 	
 	## Loop on spatial variables
-	block = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
+	block = max( 0 , int( np.power( bsacParams.n_jobs , 1. / max( len(clim.s_spatial) , 1 ) ) ) ) + 1
 	logger.info( " * Loop on spatial variables" )
 	for idx in itt.product(*[range(0,s,block) for s in clim.s_spatial]):
 		
@@ -237,7 +237,9 @@ def run_bsac_cmd_attribute_event():
 		
 		##
 		sYo  = Yo[s_idx].chunk( { d : 1 for d in sp_dims } )
-		bias = clim.bias[clim.names[-1]][s_idx]
+		bias = clim.bias[clim.names[-1]]
+		if not isinstance(bias,float):
+			bias = clim.bias[clim.names[-1]][s_idx]
 		
 		hpar = clim.xmean_[(slice(None),)+s_idx]
 		hcov = clim.xcov_[(slice(None),slice(None))+s_idx]
@@ -263,6 +265,7 @@ def run_bsac_cmd_attribute_event():
 	with netCDF4.Dataset( ofile , "w" ) as ncf:
 		
 		## Define dimensions
+		logger.info( "   => Define dimensions" )
 		ncdims = {
 		           mode : ncf.createDimension( mode , n_modes ),
 		       "period" : ncf.createDimension( "period" , len(clim.dpers) ),
@@ -275,6 +278,7 @@ def run_bsac_cmd_attribute_event():
 			spatial = tuple([d for d in clim._spatial])
 		
 		## Define variables
+		logger.info( "   => Define variables dimensions" )
 		ncvars = {
 		           mode : ncf.createVariable(     mode , str       , (mode,)     ),
 		       "period" : ncf.createVariable( "period" , str       , ("period",) ),
@@ -288,6 +292,7 @@ def run_bsac_cmd_attribute_event():
 				ncvars[d][:] = np.array(clim._spatial[d]).ravel()
 		
 		## Fill time axis
+		logger.info( "   => Fill time axis" )
 		calendar = "standard"
 		units    = "days since 1750-01-01 00:00"
 		ncvars["time"][:]  = cftime.date2num( [cftime.DatetimeGregorian( int(y) , 1 , 1 ) for y in time] , units = units , calendar = calendar )
@@ -298,10 +303,12 @@ def run_bsac_cmd_attribute_event():
 		ncvars["time"].setncattr( "axis"          , "T"         )
 		
 		## Variables
+		logger.info( "   => Definie variables" )
 		for key in out:
 			ncvars[key] = ncf.createVariable( key , "float32" , (mode,"time","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
 		
 		## Attributes
+		logger.info( "   => Add attributes" )
 		if mode == "quantile":
 			ncvars[mode].setncattr( "confidence_level" , ci )
 			ncvars["quantile_level"] = ncf.createVariable( "quantile_levels" , "float32" , ("quantile") )
@@ -316,6 +323,7 @@ def run_bsac_cmd_attribute_event():
 		ncvars["dI"].setncattr( "description" , "Change in intensity between Factual and Counter factual world" )
 		
 		## Find the blocks to write netcdf
+		logger.info( "   => Find blocks to write netcdf" )
 		blocks  = [1,1,1]
 		sizes   = [n_modes,time.size,len(clim.dpers)]
 		nsizes  = [n_modes,time.size,len(clim.dpers)]
@@ -332,9 +340,12 @@ def run_bsac_cmd_attribute_event():
 				blocks[i] = blocks[i] // 2
 			nfind[i]  = False
 			nsizes[i] = np.inf
-		logger.info( f"   => Blocks size {blocks}" )
+		logger.info( f"   => Blocks size found: {blocks}" )
+		
 		## Fill
-		idx_sp = tuple([slice(None) for _ in range(len(clim._spatial))])
+		idx_sp = ()
+		if clim._spatial is not None:
+			idx_sp = tuple([slice(None) for _ in range(len(clim._spatial))])
 		for idx in itt.product(*[range(0,s,block) for s,block in zip(sizes,blocks)]):
 			
 			s_idx = tuple([slice(s,s+block,1) for s,block in zip(idx,blocks)])

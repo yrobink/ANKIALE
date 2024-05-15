@@ -117,6 +117,7 @@ def run_bsac():
 		logger.info(LINE)
 		if bsacParams.save_clim is not None:
 			bsacParams.clim.save( bsacParams.save_clim )
+			logger.info(LINE)
 		
 	finally:
 		bsacParams.stop_dask()
