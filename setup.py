@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023, 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -37,7 +37,8 @@ requires    = [
                "matplotlib",
                "SDFC (>=0.9.0)",
                "statsmodels (>= 0.14)",
-               "xesmf"
+               "xesmf",
+               "zxarray (>=0.3.0)",
               ]
 scripts     = ["scripts/bsac"]
 keywords    = []
