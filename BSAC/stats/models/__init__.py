@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023, 2024 Yoann Robin
+## Copyright(c) 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -16,5 +16,9 @@
 ## You should have received a copy of the GNU General Public License
 ## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
 
-from .__MultiGAM      import MultiGAM
+from .__AbstractModel import AbstractModel
+from .__NormalModel   import NormalModel
+from .__GEVModel      import GEVModel
+from .__GEVMinModel   import GEVMinModel
+
 

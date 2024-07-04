@@ -30,9 +30,9 @@ import logging
 from ..__logs import LINE
 from ..__logs import log_start_end
 
-from .__GEVModel    import GEVModel
-from .__GEVMinModel import GEVMinModel
-from .__NormalModel import NormalModel
+from .models.__GEVModel    import GEVModel
+from .models.__GEVMinModel import GEVMinModel
+from .models.__NormalModel import NormalModel
 
 
 ##################
