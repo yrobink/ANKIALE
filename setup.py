@@ -39,6 +39,7 @@ requires    = [
                "statsmodels (>= 0.14)",
                "xesmf",
                "zxarray (>=0.3.0)",
+               "cmdstanpy",
               ]
 scripts     = ["scripts/bsac"]
 keywords    = []
@@ -48,6 +49,7 @@ packages    = [
     "BSAC.cmd",
     "BSAC.plot",
     "BSAC.stats",
+    "BSAC.stats.models",
     ]
 
 ## Now the setup

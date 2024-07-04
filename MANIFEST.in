@@ -1,2 +1,3 @@
 include BSAC/data/EBM_CMIP5.nc
 include BSAC/data/EBM_CMIP6.csv
+include BSAC/data/*.stan

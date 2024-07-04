@@ -19,6 +19,7 @@
 ## Packages
 ###########
 
+import os
 import warnings
 import numpy as np
 import SDFC  as sd
@@ -26,6 +27,13 @@ import SDFC  as sd
 import scipy.stats as sc
 
 from .__AbstractModel import AbstractModel
+
+import cmdstanpy as stan
+
+import logging
+cmdstanpy_logger = logging.getLogger("cmdstanpy")
+cmdstanpy_logger.disabled = True
+
 
 
 ## Classes
@@ -58,13 +66,45 @@ class GEVModel(AbstractModel):##{{{
 		self.coef_ = self.law.coef_
 	##}}}
 	
+	## staticmethod@init_stan ##{{{
+	
+	@staticmethod
+	def init_stan( force_compile = False ):
+		### Define stan model
+		stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" )
+		stan_ifile = os.path.join( stan_path , "GEVModel.stan" )
+		stan_exec  = os.path.join( stan_path , "GEVModel.exec" )
+		stan_model = stan.CmdStanModel( stan_file = stan_ifile , force_compile = force_compile , stanc_options = { "O" : 3 } , cpp_options = { "O" : 3 } )
+		
+		return stan_model
+	##}}}
+	
 	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn ):##{{{
-		self.law = self.sd( method = "bayesian" )
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
-		self.coef_ = self.law.info_.draw[-1,:]
-		return self.law.info_.draw
+		
+		## Load stan model
+		stan_model = self.init_stan()
+		
+		## Fit the model
+		idata  = {
+			"nhpar" : 5,
+			"prior_hpar" : prior.mean,
+			"prior_hcov" : prior.cov,
+			"nXY"        : Y.size,
+			"X"          : X,
+			"Y"          : Y,
+		}
+		fit = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
+		
+		## Draw samples
+		draw = fit.draws_xr("hpar")["hpar"].rename( hpar_dim_0 = "hpar" ).assign_coords( hpar = self.coef_name )
+		return draw[0,:,:].values
+#		###
+#		self.law = self.sd( method = "bayesian" )
+#		with warnings.catch_warnings():
+#			warnings.simplefilter("ignore")
+#			self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
+#		self.coef_ = self.law.info_.draw[-1,:]
+#		return self.law.info_.draw
 	##}}}
 	
 	def draw_params( self , X , coef ):##{{{

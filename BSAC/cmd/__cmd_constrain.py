@@ -265,7 +265,7 @@ def run_bsac_cmd_constrain_Y():
 	##
 	clim = bsacParams.clim
 	size = bsacParams.n_samples
-	size_chain = int(bsacParams.config.get("size-chain", 100))
+	size_chain = int(bsacParams.config.get("size-chain", 10))
 	
 	## Load observations
 	name,ifile = bsacParams.input[0].split(",")
@@ -350,6 +350,7 @@ def run_bsac_cmd_constrain():
 	if bsacParams.arg[0] == "X":
 		run_bsac_cmd_constrain_X()
 	if bsacParams.arg[0] == "Y":
+		bsacParams.clim._nslaw_class.init_stan(True)
 		run_bsac_cmd_constrain_Y()
 ##}}}
 
