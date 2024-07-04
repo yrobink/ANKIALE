@@ -140,14 +140,14 @@ def run_bsac_cmd_synthesize():
 		if regrid:
 			logger.info( f"    | Regrid" )
 			## Grid
-			igrid      = xr.Dataset( iclim._spatial )
-			regridder0 = xesmf.Regridder( igrid , grid , "bilinear" )
-			regridder1 = xesmf.Regridder( igrid , grid , "nearest_s2d" )
+			igrid     = xr.Dataset( iclim._spatial )
+#			regridder = xesmf.Regridder( igrid , grid , "bilinear" )
+			regridder = xesmf.Regridder( igrid , grid , "nearest_s2d" )
 			
 			## Regrid
-			bias = regridder0(bias_).where( mask , np.nan )
-			mean = regridder0(mean_).where( mask , np.nan )
-			cov  = regridder1(cov_ ).where( mask , np.nan )
+			bias = regridder(bias_).where( mask , np.nan )
+			mean = regridder(mean_).where( mask , np.nan )
+			cov  = regridder(cov_ ).where( mask , np.nan )
 		else:
 			bias = bias_
 			mean = mean_
