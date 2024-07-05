@@ -22,6 +22,7 @@
 
 import os
 import logging
+import tempfile
 import itertools as itt
 import gc
 from ..__logs import LINE
@@ -242,7 +243,8 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain 
 		    ).mean( dim = "period" ).values
 		
 		## MCMC
-		chain = nslaw.fit_bayesian( Yf , Xf , prior = prior , n_mcmc_drawn = size_chain )
+		with tempfile.TemporaryDirectory( dir = bsacParams.tmp_stan ) as tmp:
+			chain = nslaw.fit_bayesian( Yf , Xf , prior = prior , n_mcmc_drawn = size_chain , tmp = tmp )
 		draw.append( np.zeros( (hpars.hpar.size,size_chain) ) )
 		draw[-1][:-clim.sizeY,:] = hpars.loc[s,:][:-clim.sizeY].values.reshape(-1,1)
 		draw[-1][-clim.sizeY:,:]  = chain.T

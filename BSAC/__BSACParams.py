@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023, 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -70,6 +70,8 @@ class BSACParams:
 	tmp         : str | None         = None
 	tmp_gen_dask: tempfile.TemporaryDirectory | None = None
 	tmp_dask    : str | None         = None
+	tmp_gen_stan: tempfile.TemporaryDirectory | None = None
+	tmp_stan    : str | None         = None
 	
 	config : str | None = None
 	
@@ -152,6 +154,8 @@ class BSACParams:
 		self.tmp          = self.tmp_gen.name
 		self.tmp_gen_dask = tempfile.TemporaryDirectory( dir = self.tmp_base , prefix = prefix + "DASK_" )
 		self.tmp_dask     = self.tmp_gen_dask.name
+		self.tmp_gen_stan = tempfile.TemporaryDirectory( dir = self.tmp_base , prefix = prefix + "STAN_" )
+		self.tmp_stan     = self.tmp_gen_stan.name
 	##}}}
 	
 	def init_logging(self):##{{{

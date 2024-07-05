@@ -79,7 +79,7 @@ class GEVModel(AbstractModel):##{{{
 		return stan_model
 	##}}}
 	
-	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn ):##{{{
+	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , tmp ):##{{{
 		
 		## Load stan model
 		stan_model = self.init_stan()
@@ -93,7 +93,7 @@ class GEVModel(AbstractModel):##{{{
 			"X"          : X,
 			"Y"          : Y,
 		}
-		fit = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
+		fit = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
 		
 		## Draw samples
 		draw = fit.draws_xr("hpar")["hpar"].rename( hpar_dim_0 = "hpar" ).assign_coords( hpar = self.coef_name )
