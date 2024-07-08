@@ -81,30 +81,56 @@ class GEVModel(AbstractModel):##{{{
 	
 	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , tmp ):##{{{
 		
-		## Load stan model
-		stan_model = self.init_stan()
+		n_try = 10
+		try:
+			for _ in range(n_try):
+				try:
+					## Load stan model
+					stan_model = self.init_stan()
+					
+					## Fit the model
+					idata  = {
+						"nhpar" : prior.mean.size,
+						"prior_hpar" : prior.mean,
+						"prior_hcov" : prior.cov,
+						"nXY"        : Y.size,
+						"X"          : X,
+						"Y"          : Y,
+					}
+					fit = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
+					
+					## Draw samples
+					draw = fit.draws_xr("hpar")["hpar"][0,:,:].values#.rename( hpar_dim_0 = "hpar" ).assign_coords( hpar = self.coef_name )
+					success = True
+					break
+				except:
+					success = False
+			
+			if not success:
+				raise Exception
+			
+		except:
+			
+			for _ in range(n_try):
+				
+				self.law = self.sd( method = "bayesian" )
+				with warnings.catch_warnings():
+					warnings.simplefilter("ignore")
+					self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = 20 * n_mcmc_drawn , burn = 5000 )
+				rate = self.law.info_.rate_accept
+				draw = self.law.info_.draw[self.law.info_.accept,:][::5,:][-n_mcmc_drawn:,:]
+				
+				if draw.shape[0] < n_mcmc_drawn or rate < 0.3:
+					success = False
+					continue
+				else:
+					success = True
+					break
 		
-		## Fit the model
-		idata  = {
-			"nhpar" : 5,
-			"prior_hpar" : prior.mean,
-			"prior_hcov" : prior.cov,
-			"nXY"        : Y.size,
-			"X"          : X,
-			"Y"          : Y,
-		}
-		fit = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
+		if not success:
+			draw = np.zeros( (n_mcmc_drawn,prior.mean.size) ) + np.nan
 		
-		## Draw samples
-		draw = fit.draws_xr("hpar")["hpar"].rename( hpar_dim_0 = "hpar" ).assign_coords( hpar = self.coef_name )
-		return draw[0,:,:].values
-#		###
-#		self.law = self.sd( method = "bayesian" )
-#		with warnings.catch_warnings():
-#			warnings.simplefilter("ignore")
-#			self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
-#		self.coef_ = self.law.info_.draw[-1,:]
-#		return self.law.info_.draw
+		return draw
 	##}}}
 	
 	def draw_params( self , X , coef ):##{{{

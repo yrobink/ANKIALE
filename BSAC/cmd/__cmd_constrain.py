@@ -228,23 +228,32 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain 
 	prior      = sc.multivariate_normal( mean = prior_hpar , cov = prior_hcov , allow_singular = True )
 	
 	##
+	XF = xr.concat(
+	        [
+	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
+	         for per in clim.dpers
+	        ],
+	        dim = "period"
+	    ).mean( dim = "period" )#.values
+	
+	##
 	Yf     = Yo
 	nslaw  = clim._nslaw_class()
 	draw   = []
 	for s in samples:
 		
-		## Build XF
-		Xf = xr.concat(
-		        [
-		         xr.concat( [hpars.loc[s,:][clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
-		         for per in clim.dpers
-		        ],
-		        dim = "period"
-		    ).mean( dim = "period" ).values
+#		## Build XF
+#		Xf = xr.concat(
+#		        [
+#		         xr.concat( [hpars.loc[s,:][clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
+#		         for per in clim.dpers
+#		        ],
+#		        dim = "period"
+#		    ).mean( dim = "period" ).values
 		
 		## MCMC
 		with tempfile.TemporaryDirectory( dir = bsacParams.tmp_stan ) as tmp:
-			chain = nslaw.fit_bayesian( Yf , Xf , prior = prior , n_mcmc_drawn = size_chain , tmp = tmp )
+			chain = nslaw.fit_bayesian( Yf , XF.loc[s,:].values , prior = prior , n_mcmc_drawn = size_chain , tmp = tmp )
 		draw.append( np.zeros( (hpars.hpar.size,size_chain) ) )
 		draw[-1][:-clim.sizeY,:] = hpars.loc[s,:][:-clim.sizeY].values.reshape(-1,1)
 		draw[-1][-clim.sizeY:,:]  = chain.T
@@ -291,6 +300,9 @@ def run_bsac_cmd_constrain_Y():
 	ihcov     = xr.DataArray( clim.cov_.copy()  , dims = ("hpar0","hpar1") + d_spatial , coords = { **{ "hpar0" : chpar , "hpar1" : chpar } , **c_spatial } )
 	ohpar     = xr.zeros_like(ihpar) + np.nan
 	ohcov     = xr.zeros_like(ihcov) + np.nan
+	
+	## Init stan
+	clim._nslaw_class.init_stan(True)
 	
 	## Loop on spatial variables
 	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / max( len(clim.s_spatial) , 1 ) ) ) ) + 1
@@ -352,7 +364,6 @@ def run_bsac_cmd_constrain():
 	if bsacParams.arg[0] == "X":
 		run_bsac_cmd_constrain_X()
 	if bsacParams.arg[0] == "Y":
-		bsacParams.clim._nslaw_class.init_stan(True)
 		run_bsac_cmd_constrain_Y()
 ##}}}
 
