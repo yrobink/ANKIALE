@@ -39,6 +39,7 @@ from ..__XZarr import random_zfile
 
 import numpy  as np
 import xarray as xr
+import scipy.stats as sc
 import zarr
 
 
@@ -79,6 +80,27 @@ def sqrtm( C ):##{{{
 		S[:,:,i] = _sqrtm(C[:,:,i])
 	
 	return S.reshape(shape_nd)
+##}}}
+
+def robust_covariance( X , method = "norm-quantile" , index = slice(None) ):##{{{
+	
+#	if method == "sklearn":
+#		with warnings.catch_warnings():
+#			warnings.simplefilter("ignore")
+#			C = skc.MinCovDet().fit(X).covariance_
+	if method == "norm-quantile":
+		XX = X[:,index]
+		loc   = np.quantile( XX , 0.50 , axis = 0 )
+		scale = np.quantile( XX - loc.reshape(1,-1) , 0.8413447460685429 , axis = 0 )
+		e     = 1 / XX.shape[0] / 2
+		valid = np.ones( XX.shape[0] , dtype = bool )
+		for i in range(XX.shape[1]):
+			p     = sc.norm.cdf( XX[:,i] , loc = loc[i] , scale = scale[i] )
+			valid = valid & (p > e) & (1 - p > e)
+		C = np.cov( X[valid,:].T )
+	else:
+		C = np.cov( X.T )
+	return C
 ##}}}
 
 def rvs_multivariate_normal( size , mean , cov , zfile = None ):##{{{

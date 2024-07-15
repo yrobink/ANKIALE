@@ -41,6 +41,7 @@ from ..__XZarr import random_zfile
 from ..__sys     import coords_samples
 from ..stats.__tools import nslawid_to_class
 from ..stats.__rvs   import rvs_multivariate_normal
+from ..stats.__rvs   import robust_covariance
 
 
 ##################
@@ -260,7 +261,7 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain 
 	
 	draw  = np.hstack(draw)
 	ohpar = draw.mean(1)
-	ohcov = np.cov(draw)
+	ohcov = robust_covariance( draw.T , index = slice(-clim.sizeY,None,1) )
 	
 	## Clean memory
 	del hpars
