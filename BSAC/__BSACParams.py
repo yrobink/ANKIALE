@@ -206,7 +206,8 @@ class BSACParams:
 		if self.disable_dask:
 			return
 		
-		dask_config  = { "temporary_directory" : self.tmp_dask } #, "array.slicing.split_large_chunks" : False }
+		dask_config  = { "temporary_directory" : self.tmp_dask ,
+		                 "logging.distributed" : "error" }
 		client_config = { "n_workers"          :self.n_workers ,
 		                  "threads_per_worker" :self.threads_per_worker ,
 		                  "memory_limit"       : f"{self.memory_per_worker.B}B" }
