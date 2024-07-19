@@ -302,9 +302,9 @@ def run_bsac_cmd_constrain_Y():
 	ohcov     = xr.zeros_like(ihcov) + np.nan
 	
 	## Init stan
-	print("Stan compilation...")
+	logger.info("Stan compilation...")
 	clim._nslaw_class.init_stan( tmp = bsacParams.tmp_stan , force_compile = True )
-	print("Stan compilation. Done.")
+	logger.info("Stan compilation. Done.")
 	
 	## Loop on spatial variables
 	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / max( len(clim.s_spatial) , 1 ) ) ) ) + 1
