@@ -21,11 +21,13 @@
 
 import os
 import warnings
+import tempfile
 import numpy as np
 import SDFC  as sd
 
 import scipy.stats as sc
 
+from ...__sys import copy_files
 from .__AbstractModel import AbstractModel
 
 import cmdstanpy as stan
@@ -69,11 +71,13 @@ class GEVModel(AbstractModel):##{{{
 	## staticmethod@init_stan ##{{{
 	
 	@staticmethod
-	def init_stan( force_compile = False ):
+	def init_stan( tmp , force_compile = False ):
 		### Define stan model
 		stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" )
 		stan_ifile = os.path.join( stan_path , "GEVModel.stan" )
-		stan_exec  = os.path.join( stan_path , "GEVModel.exec" )
+		stan_ofile = os.path.join(       tmp , "GEVModel.stan" )
+		if not os.path.isfile(stan_ofile):
+			copy_files( stan_ifile , stan_ofile )
 		stan_model = stan.CmdStanModel( stan_file = stan_ifile , force_compile = force_compile , stanc_options = { "O" : 3 } , cpp_options = { "O" : 3 } )
 		
 		return stan_model
@@ -86,7 +90,7 @@ class GEVModel(AbstractModel):##{{{
 			for _ in range(n_try):
 				try:
 					## Load stan model
-					stan_model = self.init_stan()
+					stan_model = self.init_stan( tmp )
 					
 					## Fit the model
 					idata  = {
@@ -97,10 +101,10 @@ class GEVModel(AbstractModel):##{{{
 						"X"          : X,
 						"Y"          : Y,
 					}
-					fit = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
+					with tempfile.TemporaryDirectory( dir = tmp ) as tmp_draw:
+						fit  = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp_draw , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
+						draw = fit.draws_xr("hpar")["hpar"][0,:,:].values#.rename( hpar_dim_0 = "hpar" ).assign_coords( hpar = self.coef_name )
 					
-					## Draw samples
-					draw = fit.draws_xr("hpar")["hpar"][0,:,:].values#.rename( hpar_dim_0 = "hpar" ).assign_coords( hpar = self.coef_name )
 					success = True
 					break
 				except:

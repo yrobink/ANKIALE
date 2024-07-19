@@ -253,8 +253,7 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain 
 #		    ).mean( dim = "period" ).values
 		
 		## MCMC
-		with tempfile.TemporaryDirectory( dir = bsacParams.tmp_stan ) as tmp:
-			chain = nslaw.fit_bayesian( Yf , XF.loc[s,:].values , prior = prior , n_mcmc_drawn = size_chain , tmp = tmp )
+		chain = nslaw.fit_bayesian( Yf , XF.loc[s,:].values , prior = prior , n_mcmc_drawn = size_chain , tmp = bsacParams.tmp_stan )
 		draw.append( np.zeros( (hpars.hpar.size,size_chain) ) )
 		draw[-1][:-clim.sizeY,:] = hpars.loc[s,:][:-clim.sizeY].values.reshape(-1,1)
 		draw[-1][-clim.sizeY:,:]  = chain.T
@@ -303,7 +302,9 @@ def run_bsac_cmd_constrain_Y():
 	ohcov     = xr.zeros_like(ihcov) + np.nan
 	
 	## Init stan
-	clim._nslaw_class.init_stan(True)
+	print("Stan compilation...")
+	clim._nslaw_class.init_stan( tmp = bsacParams.tmp_stan , force_compile = True )
+	print("Stan compilation. Done.")
 	
 	## Loop on spatial variables
 	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / max( len(clim.s_spatial) , 1 ) ) ) ) + 1
