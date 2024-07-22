@@ -214,9 +214,6 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain 
 	if np.any(~np.isfinite(hpar)):
 		return ohpar,ohcov
 	
-	## Draw hpars
-	samples = coords_samples(size)
-	hpars   = xr.DataArray( rvs_multivariate_normal( size , hpar , hcov ) , dims = ["sample","hpar"] , coords = [samples,clim.hpar_names] )
 	
 	## 
 	_,_,designF_,_ = clim.build_design_XFC()
@@ -229,36 +226,50 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain 
 	prior      = sc.multivariate_normal( mean = prior_hpar , cov = prior_hcov , allow_singular = True )
 	
 	##
-	XF = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).mean( dim = "period" )#.values
+	total_draw = 0
 	
-	##
-	Yf     = Yo
-	nslaw  = clim._nslaw_class()
-	draw   = []
-	for s in samples:
+	## While loop
+	samples = coords_samples(size)
+	Yf      = Yo
+	nslaw   = clim._nslaw_class()
+	draw    = []
+	for _ in range(10):
 		
-#		## Build XF
-#		Xf = xr.concat(
-#		        [
-#		         xr.concat( [hpars.loc[s,:][clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
-#		         for per in clim.dpers
-#		        ],
-#		        dim = "period"
-#		    ).mean( dim = "period" ).values
+		## Draw hpars
+		hpars = xr.DataArray( rvs_multivariate_normal( size , hpar , hcov ) , dims = ["sample","hpar"] , coords = [samples,clim.hpar_names] )
+		mcmc  = np.zeros( (hpars.hpar.size,size_chain) )
 		
-		## MCMC
-		chain = nslaw.fit_bayesian( Yf , XF.loc[s,:].values , prior = prior , n_mcmc_drawn = size_chain , tmp = bsacParams.tmp_stan )
-		draw.append( np.zeros( (hpars.hpar.size,size_chain) ) )
-		draw[-1][:-clim.sizeY,:] = hpars.loc[s,:][:-clim.sizeY].values.reshape(-1,1)
-		draw[-1][-clim.sizeY:,:]  = chain.T
+		## Build covariates
+		XF = xr.concat(
+		        [
+		         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
+		         for per in clim.dpers
+		        ],
+		        dim = "period"
+		    ).mean( dim = "period" )#.values
+		
+		## and MCMC on all samples
+		for s in samples:
+			## MCMC
+			chain = nslaw.fit_bayesian( Yf , XF.loc[s,:].values , prior = prior , n_mcmc_drawn = size_chain , tmp = bsacParams.tmp_stan )
+			
+			## Build output
+			mcmc[:-clim.sizeY,:] = hpars.loc[s,:][:-clim.sizeY].values.reshape(-1,1)
+			mcmc[-clim.sizeY:,:] = chain.T
+			valid   = np.isfinite(mcmc).all( axis = 0 )
+			n_valid = valid.sum()
+			if n_valid > 0:
+				draw.append( mcmc[:,valid].reshape(-1,n_valid).copy() )
+			total_draw += n_valid
+			if total_draw > size * size_chain:
+				break
+		if total_draw > size * size_chain:
+			break
 	
+	## And merge all drawn
 	draw  = np.hstack(draw)
+	
+	## Compute final parameters
 	ohpar = draw.mean(1)
 	ohcov = robust_covariance( draw.T , index = slice(-clim.sizeY,None,1) )
 	
