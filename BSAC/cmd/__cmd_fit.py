@@ -69,6 +69,7 @@ def run_bsac_cmd_fit_X():
 			names.append(name)
 	bsacParams.clim.names = names
 	
+	
 	## Now open the data
 	logger.info("Open the data")
 	X = {}
@@ -101,16 +102,16 @@ def run_bsac_cmd_fit_X():
 	
 	## Fit MultiGAM model with bootstrap
 	logger.info( f"Fit the MultiGAM model (number of bootstrap: {bsacParams.n_samples})" )
-	coef_,cov_ = mgam_multiple_fit_bootstrap( X , XN ,
-	                                          n_bootstrap = bsacParams.n_samples,
-	                                          names  = bsacParams.clim.names,
-	                                          dof    = bsacParams.clim.GAM_dof,
-	                                          degree = bsacParams.clim.GAM_degree,
-	                                          n_jobs = bsacParams.n_jobs
-	                                          )
+	hpar,hcov = mgam_multiple_fit_bootstrap( X , XN ,
+	                                         n_bootstrap = bsacParams.n_samples,
+	                                         names  = bsacParams.clim.names,
+	                                         dof    = bsacParams.clim.GAM_dof,
+	                                         degree = bsacParams.clim.GAM_degree,
+	                                         n_jobs = bsacParams.n_jobs
+	                                         )
 	
-	bsacParams.clim.mean_ = coef_
-	bsacParams.clim.cov_  = cov_
+	bsacParams.clim.hpar = hpar
+	bsacParams.clim.hcov = hcov
 	
 ##}}}
 

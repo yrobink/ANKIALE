@@ -192,6 +192,7 @@ def start_bsac(*argv):##{{{
 		
 		## Init temporary
 		bsacParams.init_tmp()
+		zr.zxParams.tmp_folder = bsacParams.tmp
 		
 		## List of all input
 		logger.info("Input parameters:")

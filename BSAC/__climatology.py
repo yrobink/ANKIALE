@@ -31,7 +31,8 @@ import netCDF4
 import cftime
 import scipy.stats as sc
 import statsmodels.gam.api as smg
-import zarr
+
+import zxarray as zr
 
 from .__release import version
 from .__sys     import as_list
@@ -40,8 +41,6 @@ from .__ebm     import EBM
 from .stats.__tools import nslawid_to_class
 from .stats.__rvs   import rvs_multivariate_normal
 
-from .__XZarr import XZarr
-from .__XZarr import random_zfile
 
 ##################
 ## Init logging ##
@@ -69,8 +68,8 @@ class Climatology:##{{{
 		self._bper  = None
 		self._dpers = None
 		
-		self._mean = None
-		self._cov  = None
+		self._hpar = None
+		self._hcov = None
 		self._bias = None
 		self._time = None
 		self._XN   = None 
@@ -96,8 +95,8 @@ class Climatology:##{{{
 			except:
 				bias = ""
 			time = ', '.join( [ str(y) for y in self.time.tolist()[:3]+['...']+self.time.tolist()[-3:] ] )
-			mshape = "" if self._mean is None else str(self._mean.shape)
-			cshape = "" if self._cov  is None else str(self._cov.shape)
+			mshape = "" if self._hpar is None else str(self.hpar.shape)
+			cshape = "" if self._hcov is None else str(self.hcov.shape)
 			spatial = "" if self._spatial is None else ", ".join(self._spatial)
 			
 			sns = [
@@ -110,8 +109,8 @@ class Climatology:##{{{
 			       "different_periods",
 			       "bias",
 			       "time",
-			       "mean_shape",
-			       "cov_shape",
+			       "hpar_shape",
+			       "hcov_shape",
 			       "spatial"
 			      ]
 			ss  = [
@@ -154,8 +153,6 @@ class Climatology:##{{{
 			clim.cper       = incf.variables["common_period"][:]
 			clim.dpers      = incf.variables["different_periods"][:]
 			
-			clim._mean = np.array(incf.variables["mean"][:])
-			clim._cov  = np.array(incf.variables["cov"][:])
 			clim._bias = {}
 			for name in clim.names:
 				if len(incf.variables[f"bias_{name}"].shape) == 0:
@@ -191,6 +188,9 @@ class Climatology:##{{{
 					if isinstance(clim._bias[name],np.ndarray):
 						clim._bias[name] = xr.DataArray( clim._bias[name] , dims = list(clim._spatial) , coords = clim._spatial )
 			
+			clim.hpar = np.array(incf.variables["hpar"][:])
+			clim.hcov = np.array(incf.variables["hcov"][:])
+			
 		return clim
 	##}}}
 	
@@ -203,7 +203,7 @@ class Climatology:##{{{
 			## Define dimensions
 			logger.info(" * Define dimensions")
 			ncdims = {
-			       "hyper_parameter"   : ncf.createDimension(   "hyper_parameter" , self._mean.shape[0] ),
+			       "hyper_parameter"   : ncf.createDimension(   "hyper_parameter" , self.hpar.shape[0] ),
 			       "names"             : ncf.createDimension(             "names" , len(self.names) ),
 			       "common_period"     : ncf.createDimension(     "common_period" , len(self.cper)  ),
 			       "different_periods" : ncf.createDimension( "different_periods" , len(self.dpers) ),
@@ -225,8 +225,8 @@ class Climatology:##{{{
 			       "different_periods" : ncf.createVariable( "different_periods" , str       , ("different_periods",) ),
 			       "time"              : ncf.createVariable(              "time" , "float32" ,              ("time",) ),
 			         "X"               : ncf.createVariable(                 "X" , "int32"                            ),
-			       "mean"              : ncf.createVariable(              "mean" , "float32" ,   ("hyper_parameter",) + spatial ),
-			       "cov"               : ncf.createVariable(               "cov" , "float32" ,   ("hyper_parameter","hyper_parameter") + spatial ),
+			       "hpar"              : ncf.createVariable(              "hpar" , "float32" ,   ("hyper_parameter",) + spatial ),
+			       "hcov"              : ncf.createVariable(              "hcov" , "float32" ,   ("hyper_parameter","hyper_parameter") + spatial ),
 			}
 			for name in self.names:
 				if isinstance(self.bias[name],float):
@@ -264,8 +264,8 @@ class Climatology:##{{{
 			
 			## Fill variables
 			logger.info(" * Fill variables")
-			ncvars["mean"][:] = self.mean_
-			ncvars["cov"][:]  = self.cov_
+			ncvars["hpar"][:] = self.hpar.dataarray.values
+			ncvars["hcov"][:] = self.hcov.dataarray.values
 			
 			## Fill informations variables
 			logger.info(" * Fill informations variables")
@@ -386,11 +386,12 @@ class Climatology:##{{{
 		
 		## Extract parameters of the distribution
 		if not self.onlyX:
+			raise Exception("Climatology.rvsX when not onlyX: not implemented")
 			coef_ = np.nanmean( self.mean_ , axis = tuple([i+1 for i in range(self.mean_.ndim-1)]) )
 			cov_  = np.nanmean( self.cov_  , axis = tuple([i+2 for i in range(self.mean_.ndim-1)]) )
 		else:
-			coef_ = self.mean_
-			cov_  = self.cov_
+			hpar = self.hpar.dataarray.values
+			hcov = self.hcov.dataarray.values
 		
 		## if add BE
 		samples = coords_samples(size)
@@ -398,15 +399,15 @@ class Climatology:##{{{
 			size    = size + 1
 			samples = ["BE"] + samples
 		
-		coefs = xr.DataArray( rvs_multivariate_normal( size , coef_ , cov_ ) , dims = ["sample","hpar"] , coords = [samples,self.hpar_names] )
+		hpars = xr.DataArray( rvs_multivariate_normal( size , hpar , hcov ) , dims = ["sample","hpar"] , coords = [samples,self.hpar_names] )
 		if add_BE:
-			coefs[0,:] = coef_
+			hpars[0,:] = hpar
 		
 		XF = xr.concat(
 		    [
 		     xr.concat(
 		        [
-		         xr.concat( [coefs[:,self.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
+		         xr.concat( [hpars[:,self.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
 		         for per in self.dpers
 		        ],
 		        dim = "period"
@@ -419,7 +420,7 @@ class Climatology:##{{{
 		    [
 		     xr.concat(
 		        [
-		         xr.concat( [coefs[:,self.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designC_
+		         xr.concat( [hpars[:,self.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designC_
 		         for per in self.dpers
 		        ],
 		        dim = "period"
@@ -433,7 +434,7 @@ class Climatology:##{{{
 		out = xr.Dataset( { "XF" : XF , "XC" : XC , "XA" : XA } )
 		
 		if return_hpar:
-			return out,coefs
+			return out,hpars
 		else:
 			return out
 	##}}}
@@ -587,34 +588,28 @@ class Climatology:##{{{
 			return tuple([self._spatial[d].size for d in self.d_spatial])
 	
 	@property
-	def mean_(self):
-		return self._mean
+	def hpar(self):
+		return self._hpar
 	
-	@mean_.setter
-	def mean_( self , value ):
-		self._mean = value
-	
-	@property
-	def xmean_(self):
-		dims   = ("hpar",) + self.d_spatial
-		coords = { **{ "hpar" : self.hpar_names } , **self.c_spatial }
-		xmean  = xr.DataArray( self._mean , dims = dims , coords = coords )
-		return xmean
+	@hpar.setter
+	def hpar( self , value ):
+		if isinstance(value,zr.ZXArray):
+			self._hpar = value
+		else:
+			zcoords = { **{ "hpar" : self.hpar_names } , **self.c_spatial }
+			self._hpar = zr.ZXArray( data = value , coords = zcoords )
 	
 	@property
-	def cov_(self):
-		return self._cov
+	def hcov(self):
+		return self._hcov
 	
-	@property
-	def xcov_(self):
-		dims   = ("hpar0","hpar1") + self.d_spatial
-		coords = { **{ "hpar0" : self.hpar_names , "hpar1" : self.hpar_names } , **self.c_spatial }
-		xcov   = xr.DataArray( self._cov , dims = dims , coords = coords )
-		return xcov
-	
-	@cov_.setter
-	def cov_( self , value ):
-		self._cov = value
+	@hcov.setter
+	def hcov( self , value ):
+		if isinstance(value,zr.ZXArray):
+			self._hcov = value
+		else:
+			zcoords = { **{ "hpar0" : self.hpar_names , "hpar1" : self.hpar_names } , **self.c_spatial }
+			self._hcov = zr.ZXArray( data = value , coords = zcoords )
 	
 	@property
 	def onlyX(self):
