@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023, 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -42,8 +42,6 @@ from .stats.__rvs   import rvs_multivariate_normal
 
 from .__XZarr import XZarr
 from .__XZarr import random_zfile
-
-from .stats.__rvs import rvs_multivariate_normal
 
 ##################
 ## Init logging ##

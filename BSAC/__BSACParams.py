@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023, 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -70,6 +70,8 @@ class BSACParams:
 	tmp         : str | None         = None
 	tmp_gen_dask: tempfile.TemporaryDirectory | None = None
 	tmp_dask    : str | None         = None
+	tmp_gen_stan: tempfile.TemporaryDirectory | None = None
+	tmp_stan    : str | None         = None
 	
 	config : str | None = None
 	
@@ -152,6 +154,8 @@ class BSACParams:
 		self.tmp          = self.tmp_gen.name
 		self.tmp_gen_dask = tempfile.TemporaryDirectory( dir = self.tmp_base , prefix = prefix + "DASK_" )
 		self.tmp_dask     = self.tmp_gen_dask.name
+		self.tmp_gen_stan = tempfile.TemporaryDirectory( dir = self.tmp_base , prefix = prefix + "STAN_" )
+		self.tmp_stan     = self.tmp_gen_stan.name
 	##}}}
 	
 	def init_logging(self):##{{{
@@ -202,7 +206,8 @@ class BSACParams:
 		if self.disable_dask:
 			return
 		
-		dask_config  = { "temporary_directory" : self.tmp_dask } #, "array.slicing.split_large_chunks" : False }
+		dask_config  = { "temporary_directory" : self.tmp_dask ,
+		                 "logging.distributed" : "error" }
 		client_config = { "n_workers"          :self.n_workers ,
 		                  "threads_per_worker" :self.threads_per_worker ,
 		                  "memory_limit"       : f"{self.memory_per_worker.B}B" }
@@ -248,7 +253,7 @@ class BSACParams:
 				raise AbortForHelpException
 			
 			## Check the CMD
-			list_cmd = ["show","fit","draw","synthesize","constrain","attribute","misc"]
+			list_cmd = ["show","fit","draw","synthesize","constrain","attribute","misc","example"]
 			if self.cmd is None or not self.cmd.lower() in list_cmd:
 				raise Exception(f"Bad command arguments, must be one of {', '.join(list_cmd)}")
 			

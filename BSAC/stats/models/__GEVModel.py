@@ -19,13 +19,23 @@
 ## Packages
 ###########
 
+import os
 import warnings
+import tempfile
 import numpy as np
 import SDFC  as sd
 
 import scipy.stats as sc
 
+from ...__sys import copy_files
 from .__AbstractModel import AbstractModel
+
+import cmdstanpy as stan
+
+import logging
+cmdstanpy_logger = logging.getLogger("cmdstanpy")
+cmdstanpy_logger.disabled = True
+
 
 
 ## Classes
@@ -58,13 +68,73 @@ class GEVModel(AbstractModel):##{{{
 		self.coef_ = self.law.coef_
 	##}}}
 	
-	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn ):##{{{
-		self.law = self.sd( method = "bayesian" )
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
-		self.coef_ = self.law.info_.draw[-1,:]
-		return self.law.info_.draw
+	## staticmethod@init_stan ##{{{
+	
+	@staticmethod
+	def init_stan( tmp , force_compile = False ):
+		### Define stan model
+		stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" )
+		stan_ifile = os.path.join( stan_path , "GEVModel.stan" )
+		stan_ofile = os.path.join(       tmp , "GEVModel.stan" )
+		if not os.path.isfile(stan_ofile):
+			copy_files( stan_ifile , stan_ofile )
+		stan_model = stan.CmdStanModel( stan_file = stan_ofile , force_compile = force_compile , stanc_options = { "O" : 3 } , cpp_options = { "O" : 3 } )
+		
+		return stan_model
+	##}}}
+	
+	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , tmp ):##{{{
+		
+		n_try = 10
+		try:
+			for _ in range(n_try):
+				try:
+					## Load stan model
+					stan_model = self.init_stan( tmp )
+					
+					## Fit the model
+					idata  = {
+						"nhpar" : prior.mean.size,
+						"prior_hpar" : prior.mean,
+						"prior_hcov" : prior.cov,
+						"nXY"        : Y.size,
+						"X"          : X,
+						"Y"          : Y,
+					}
+					with tempfile.TemporaryDirectory( dir = tmp ) as tmp_draw:
+						fit  = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp_draw , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
+						draw = fit.draws_xr("hpar")["hpar"][0,:,:].values#.rename( hpar_dim_0 = "hpar" ).assign_coords( hpar = self.coef_name )
+					
+					success = True
+					break
+				except:
+					success = False
+			
+			if not success:
+				raise Exception
+			
+		except:
+			
+			for _ in range(n_try):
+				
+				self.law = self.sd( method = "bayesian" )
+				with warnings.catch_warnings():
+					warnings.simplefilter("ignore")
+					self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = 20 * n_mcmc_drawn , burn = 5000 )
+				rate = self.law.info_.rate_accept
+				draw = self.law.info_.draw[self.law.info_.accept,:][::5,:][-n_mcmc_drawn:,:]
+				
+				if draw.shape[0] < n_mcmc_drawn or rate < 0.3:
+					success = False
+					continue
+				else:
+					success = True
+					break
+		
+		if not success:
+			draw = np.zeros( (n_mcmc_drawn,prior.mean.size) ) + np.nan
+		
+		return draw
 	##}}}
 	
 	def draw_params( self , X , coef ):##{{{

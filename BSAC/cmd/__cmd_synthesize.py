@@ -141,6 +141,7 @@ def run_bsac_cmd_synthesize():
 			logger.info( f"    | Regrid" )
 			## Grid
 			igrid     = xr.Dataset( iclim._spatial )
+#			regridder = xesmf.Regridder( igrid , grid , "bilinear" )
 			regridder = xesmf.Regridder( igrid , grid , "nearest_s2d" )
 			
 			## Regrid

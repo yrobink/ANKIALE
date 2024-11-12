@@ -22,6 +22,7 @@
 
 import os
 import logging
+import tempfile
 import itertools as itt
 import gc
 from ..__logs import LINE
@@ -40,7 +41,8 @@ from ..__XZarr import random_zfile
 from ..__sys     import coords_samples
 from ..stats.__tools import nslawid_to_class
 from ..stats.__rvs   import rvs_multivariate_normal
-
+from ..stats.__rvs   import robust_covariance
+from ..stats.__constraint import gaussian_conditionning
 
 ##################
 ## Init logging ##
@@ -66,10 +68,7 @@ def _constrain_X_parallel( hpar , cov , Xo , A , sXo ):##{{{
 	cov_o = np.diag( np.hstack(cov_o) )
 	
 	## gaussian conditionning theorem
-	K0 = A @ cov
-	K1 = ( cov @ A.T ) @ np.linalg.inv( K0 @ A.T + cov_o )
-	hpar = hpar + K1 @ ( Xo.squeeze() - A @ hpar )
-	cov  = cov  - K1 @ K0
+	hpar,cov = gaussian_conditionning( Xo , A , hpar , cov , cov_o )
 	
 	return hpar,cov
 ##}}}
@@ -212,9 +211,6 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain 
 	if np.any(~np.isfinite(hpar)):
 		return ohpar,ohcov
 	
-	## Draw hpars
-	samples = coords_samples(size)
-	hpars   = xr.DataArray( rvs_multivariate_normal( size , hpar , hcov ) , dims = ["sample","hpar"] , coords = [samples,clim.hpar_names] )
 	
 	## 
 	_,_,designF_,_ = clim.build_design_XFC()
@@ -227,29 +223,52 @@ def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain 
 	prior      = sc.multivariate_normal( mean = prior_hpar , cov = prior_hcov , allow_singular = True )
 	
 	##
-	Yf     = Yo
-	nslaw  = clim._nslaw_class()
-	draw   = []
-	for s in samples:
+	total_draw = 0
+	
+	## While loop
+	samples = coords_samples(size)
+	Yf      = Yo
+	nslaw   = clim._nslaw_class()
+	draw    = []
+	for _ in range(10):
 		
-		## Build XF
-		Xf = xr.concat(
+		## Draw hpars
+		hpars = xr.DataArray( rvs_multivariate_normal( size , hpar , hcov ) , dims = ["sample","hpar"] , coords = [samples,clim.hpar_names] )
+		mcmc  = np.zeros( (hpars.hpar.size,size_chain) )
+		
+		## Build covariates
+		XF = xr.concat(
 		        [
-		         xr.concat( [hpars.loc[s,:][clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
+		         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
 		         for per in clim.dpers
 		        ],
 		        dim = "period"
-		    ).mean( dim = "period" ).values
+		    ).mean( dim = "period" )#.values
 		
-		## MCMC
-		chain = nslaw.fit_bayesian( Yf , Xf , prior = prior , n_mcmc_drawn = size_chain )
-		draw.append( np.zeros( (hpars.hpar.size,size_chain) ) )
-		draw[-1][:-clim.sizeY,:] = hpars.loc[s,:][:-clim.sizeY].values.reshape(-1,1)
-		draw[-1][-clim.sizeY:,:]  = chain.T
+		## and MCMC on all samples
+		for s in samples:
+			## MCMC
+			chain = nslaw.fit_bayesian( Yf , XF.loc[s,:].values , prior = prior , n_mcmc_drawn = size_chain , tmp = bsacParams.tmp_stan )
+			
+			## Build output
+			mcmc[:-clim.sizeY,:] = hpars.loc[s,:][:-clim.sizeY].values.reshape(-1,1)
+			mcmc[-clim.sizeY:,:] = chain.T
+			valid   = np.isfinite(mcmc).all( axis = 0 )
+			n_valid = valid.sum()
+			if n_valid > 0:
+				draw.append( mcmc[:,valid].reshape(-1,n_valid).copy() )
+			total_draw += n_valid
+			if total_draw > size * size_chain:
+				break
+		if total_draw > size * size_chain:
+			break
 	
+	## And merge all drawn
 	draw  = np.hstack(draw)
+	
+	## Compute final parameters
 	ohpar = draw.mean(1)
-	ohcov = np.cov(draw)
+	ohcov = robust_covariance( draw.T , index = slice(-clim.sizeY,None,1) )
 	
 	## Clean memory
 	del hpars
@@ -265,7 +284,7 @@ def run_bsac_cmd_constrain_Y():
 	##
 	clim = bsacParams.clim
 	size = bsacParams.n_samples
-	size_chain = int(bsacParams.config.get("size-chain", 100))
+	size_chain = int(bsacParams.config.get("size-chain", 10))
 	
 	## Load observations
 	name,ifile = bsacParams.input[0].split(",")
@@ -289,6 +308,11 @@ def run_bsac_cmd_constrain_Y():
 	ihcov     = xr.DataArray( clim.cov_.copy()  , dims = ("hpar0","hpar1") + d_spatial , coords = { **{ "hpar0" : chpar , "hpar1" : chpar } , **c_spatial } )
 	ohpar     = xr.zeros_like(ihpar) + np.nan
 	ohcov     = xr.zeros_like(ihcov) + np.nan
+	
+	## Init stan
+	logger.info("Stan compilation...")
+	clim._nslaw_class.init_stan( tmp = bsacParams.tmp_stan , force_compile = True )
+	logger.info("Stan compilation. Done.")
 	
 	## Loop on spatial variables
 	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / max( len(clim.s_spatial) , 1 ) ) ) ) + 1

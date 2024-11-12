@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023, 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -25,14 +25,16 @@ import os
 import logging
 import datetime as dt
 
-import numpy as np
-import pandas as pd
-import xarray as xr
+import numpy   as np
+import pandas  as pd
+import xarray  as xr
+import zxarray as zr
 import dask
 import distributed
 import zarr
 import netCDF4
 import SDFC
+
 
 #############
 ## Imports ##
@@ -55,6 +57,7 @@ from .cmd.__cmd_draw       import run_bsac_cmd_draw
 from .cmd.__cmd_show       import run_bsac_cmd_show      
 from .cmd.__cmd_synthesize import run_bsac_cmd_synthesize
 from .cmd.__cmd_misc       import run_bsac_cmd_misc
+from .cmd.__cmd_example    import run_bsac_cmd_example
 
 
 ##################
@@ -68,8 +71,6 @@ logger.addHandler(logging.NullHandler())
 ###############
 ## Functions ##
 ###############
-
-##TODO add bsac attribute flevel 
 
 ## run_bsac ##{{{
 
@@ -109,6 +110,8 @@ def run_bsac():
 			run_bsac_cmd_attribute()
 		elif cmd.lower() == "misc":
 			run_bsac_cmd_misc()
+		elif cmd.lower() == "example":
+			run_bsac_cmd_example()
 		
 		## And save clim ?
 		logger.info(LINE)
@@ -133,8 +136,7 @@ def start_bsac(*argv):##{{{
 	
 	"""
 	## Time counter
-	walltime0 = dt.datetime.utcnow()
-	
+	walltime0 = dt.datetime.now(dt.UTC)
 	## Read input
 	try:
 		bsacParams.init_from_user_input(*argv)
@@ -164,6 +166,7 @@ def start_bsac(*argv):##{{{
 	        ("numpy"      , np ),
 	        ("pandas"     , pd ),
 	        ("xarray"     , xr ),
+	        ("zxarray"    , zr ),
 	        ("dask"       , dask ),
 	        ("distributed", distributed ),
 	        ("zarr"       , zarr ),
@@ -213,7 +216,7 @@ def start_bsac(*argv):##{{{
 		logger.error( f"Error: {e}" )
 	
 	## End
-	walltime1 = dt.datetime.utcnow()
+	walltime1 = dt.datetime.now(dt.UTC)
 	logger.info(LINE)
 	logger.info( "End: {}".format(str(walltime1)[:19] + " (UTC)") )
 	logger.info( "Wall time: {}".format(walltime1 - walltime0) )

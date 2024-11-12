@@ -371,13 +371,14 @@ def _attribute_freturnt_parallel( hpar , hcov , bias , RT , clim , side , mode ,
 	nslaw   = clim._nslaw_class()
 	n_pers  = len(clim.dpers)
 	n_times = len(clim.time)
+	n_RT    = len(RT)
 	
 	## Init output
 	n_modes = n_samples if mode == "sample" else 3
 	
 	## If nan, return
 	if not np.isfinite(hpar).all():
-		return tuple([ np.zeros((n_modes,n_pers,n_times)) for _ in range(8) ])
+		return tuple([ np.zeros((n_RT,n_modes,n_pers,n_times)) for _ in range(8) ])
 	
 	## Draw parameters
 	hpars = xr.DataArray( rvs_multivariate_normal( n_samples , hpar , hcov ) , dims = ["sample","hpar"] , coords = [range(n_samples),clim.hpar_names] )
@@ -494,7 +495,7 @@ def _attribute_creturnt_parallel( hpar , hcov , bias , RT , clim , side , mode ,
 	
 	## If nan, return
 	if not np.isfinite(hpar).all():
-		return tuple([ np.zeros((n_modes,n_pers,n_times)) for _ in range(8) ])
+		return tuple([ np.zeros((n_RT,n_modes,n_pers,n_times)) for _ in range(8) ])
 	
 	## Draw parameters
 	hpars = xr.DataArray( rvs_multivariate_normal( n_samples , hpar , hcov ) , dims = ["sample","hpar"] , coords = [range(n_samples),clim.hpar_names] )

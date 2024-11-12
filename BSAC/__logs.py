@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023, 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -49,9 +49,9 @@ def log_start_end(plog):##{{{
 		@functools.wraps(f)
 		def f_decor(*args,**kwargs):
 			plog.info(f"BSAC:{f.__name__}:start")
-			time0 = dt.datetime.utcnow()
+			time0 = dt.datetime.now(dt.UTC)
 			out = f(*args,**kwargs)
-			time1 = dt.datetime.utcnow()
+			time1 = dt.datetime.now(dt.UTC)
 			plog.info(f"BSAC:{f.__name__}:walltime:{time1-time0}")
 			plog.info(f"BSAC:{f.__name__}:end")
 			return out

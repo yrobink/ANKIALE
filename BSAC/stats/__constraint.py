@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -25,14 +25,11 @@
 ## Imports ##
 #############
 
-import itertools as itt
 import logging
 from ..__logs import LINE
 from ..__logs import log_start_end
 
-from .models.__GEVModel    import GEVModel
-from .models.__GEVMinModel import GEVMinModel
-from .models.__NormalModel import NormalModel
+import numpy as np
 
 
 ##################
@@ -48,17 +45,17 @@ logger.addHandler(logging.NullHandler())
 #############
 
 
-
 ###############
 ## Functions ##
 ###############
 
-def nslawid_to_class( nslawid ):
-	if nslawid == "GEV":
-		return GEVModel
-	if nslawid == "GEVMin":
-		return GEVMinModel
-	if nslawid == "Normal":
-		return NormalModel
+def gaussian_conditionning( Xo , A , hpar , cov , cov_o ):##{{{
+	K0 = A @ cov
+	K1 = ( cov @ A.T ) @ np.linalg.inv( K0 @ A.T + cov_o )
+	hpar = hpar + K1 @ ( Xo.squeeze() - A @ hpar )
+	cov  = cov  - K1 @ K0
 	
-	raise ValueError( f"NSlaw not known (={nslawid})" )
+	return hpar,cov
+##}}}
+
+
