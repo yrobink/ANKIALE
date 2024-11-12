@@ -16,5 +16,8 @@
 ## You should have received a copy of the GNU General Public License
 ## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
 
-from .__MultiGAM      import MultiGAM
+from .__MultiGAM    import MultiGAM
+from .__NSLawMLEFit import nslaw_fit_bootstrap
+from .__synthesis   import synthesis
+from .__constraint  import gaussian_conditionning
 

@@ -42,7 +42,7 @@ from ..__sys     import coords_samples
 from ..stats.__tools import nslawid_to_class
 from ..stats.__rvs   import rvs_multivariate_normal
 from ..stats.__rvs   import robust_covariance
-
+from ..stats.__constraint import gaussian_conditionning
 
 ##################
 ## Init logging ##
@@ -68,10 +68,7 @@ def _constrain_X_parallel( hpar , cov , Xo , A , sXo ):##{{{
 	cov_o = np.diag( np.hstack(cov_o) )
 	
 	## gaussian conditionning theorem
-	K0 = A @ cov
-	K1 = ( cov @ A.T ) @ np.linalg.inv( K0 @ A.T + cov_o )
-	hpar = hpar + K1 @ ( Xo.squeeze() - A @ hpar )
-	cov  = cov  - K1 @ K0
+	hpar,cov = gaussian_conditionning( Xo , A , hpar , cov , cov_o )
 	
 	return hpar,cov
 ##}}}
