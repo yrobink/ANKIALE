@@ -27,13 +27,13 @@ import numpy as np
 import xarray as xr
 import xesmf
 
+import zxarray as zr
+
 from ..__logs import LINE
 from ..__logs import log_start_end
 
 from ..__BSACParams import bsacParams
 from ..__climatology import Climatology
-from ..__XZarr import XZarr
-from ..__XZarr import random_zfile
 from ..stats.__tools import nslawid_to_class
 from ..stats.__synthesis import synthesis
 
@@ -67,78 +67,50 @@ def run_bsac_cmd_synthesize():
 		grid = xr.open_dataset(gridfile)
 		mask = grid[gridname] > 0
 		clim._spatial = { d : grid[d] for d in bsacParams.config["spatial"].split(":") }
-		d_spatial = clim.d_spatial
-		s_spatial = clim.s_spatial
-		c_spatial = tuple([clim._spatial[d]      for d in clim._spatial])
-		i_spatial = tuple([slice(None) for _ in d_spatial])
 		logger.info( "   => Need regrid" )
 	except:
-		regrid    = False
-		clim_grid = Climatology.init_from_file( bsacParams.input[0] )
-		clim._spatial = clim_grid._spatial
-		d_spatial = clim_grid.d_spatial
-		s_spatial = clim_grid.s_spatial
-		if clim_grid._spatial is not None:
-			c_spatial = tuple([clim_grid._spatial[d]      for d in clim_grid._spatial])
-			i_spatial = tuple([slice(None) for _ in d_spatial])
-		else:
-			c_spatial = tuple()
-			i_spatial = tuple()
+		regrid        = False
+		clim._spatial = Climatology.init_from_file( bsacParams.input[0] )._spatial
 		logger.info( "   => No regrid needed" )
 	
 	## Parameters
 	logger.info( " * Extract parameters" )
 	ifiles      = bsacParams.input
-	d_clim      = "clim"
-	s_clim      = len(ifiles)
-	c_clim      = range(s_clim)
 	clim._names = bsacParams.config["names"].split(":")
 	try:
 		clim._nslawid     = bsacParams.config["nslaw"]
 		clim._nslaw_class = nslawid_to_class(clim._nslawid)
 	except:
 		pass
-	d_hpar      = "hpar"
-	c_hpar      = clim.hpar_names
-	s_hpar      = len(c_hpar)
-	cvar        = clim._names[-1]
+	hpar_names = clim.hpar_names
 	
 	## Temporary files
-	logger.info( " * Create XZarr files" )
-	zhpar = XZarr.from_value( np.nan,
-	                          (s_clim,s_hpar) + s_spatial,
-	                          (d_clim,d_hpar) + d_spatial,
-	                          (c_clim,c_hpar) + c_spatial,
-	                          random_zfile( os.path.join( bsacParams.tmp , "zhpar" ) )
-	                        )
-	zcov  = XZarr.from_value( np.nan,
-	                          (s_clim,s_hpar,s_hpar) + s_spatial,
-	                          (d_clim,d_hpar+"0",d_hpar+"1") + d_spatial,
-	                          (c_clim,c_hpar,c_hpar) + c_spatial,
-	                          random_zfile( os.path.join( bsacParams.tmp , "zcov" ) )
-	                        )
+	logger.info( " * Create zxarray files" )
+	hpars_coords = { **{ "clim" : range(len(ifiles)) , "hpar"  : hpar_names                        } , **clim.c_spatial }
+	hcovs_coords = { **{ "clim" : range(len(ifiles)) , "hpar0" : hpar_names , "hpar1" : hpar_names } , **clim.c_spatial }
+	hpars = zr.ZXArray( data = np.nan , coords = hpars_coords )
+	hcovs = zr.ZXArray( data = np.nan , coords = hcovs_coords )
 	
 	##
-	clim._bias = { n : 0 for n in clim._names }
+	clim._bias = { n : 0 for n in clim.names }
 	
 	## Open all clims, and store in zarr files
 	logger.info( " * Open all clims, and store in zarr files" )
-	clims = []
 	for i,ifile in enumerate(ifiles):
 		
 		logger.info( f"   => {os.path.basename(ifile)}" )
 		
 		## Read clim
 		iclim = Climatology.init_from_file(ifile)
-		logger.info(iclim)
 		time  = iclim.time
 		bper  = iclim._bper
-		bias_ = iclim.bias[cvar]
-		mean_ = iclim.xmean_
-		cov_  = iclim.xcov_
+		bias  = iclim.bias
+		hpar  = iclim.hpar.dataarray
+		hcov  = iclim.hcov.dataarray
 		
 		if regrid:
 			logger.info( f"    | Regrid" )
+			raise Exception
 			## Grid
 			igrid     = xr.Dataset( iclim._spatial )
 #			regridder = xesmf.Regridder( igrid , grid , "bilinear" )
@@ -148,41 +120,34 @@ def run_bsac_cmd_synthesize():
 			bias = regridder(bias_).where( mask , np.nan )
 			mean = regridder(mean_).where( mask , np.nan )
 			cov  = regridder(cov_ ).where( mask , np.nan )
-		else:
-			bias = bias_
-			mean = mean_
-			cov  = cov_ 
 		
-		## Special case, miss scenario(s) in the clim 
-		if mean.hpar.size < s_hpar:
-			logger.info( f"    | Scenarios missing, add nan" )
-			nmean = xr.DataArray( np.nan , dims = (d_hpar,) + d_spatial , coords = (c_hpar,) + c_spatial )
-			ncov  = xr.DataArray( np.nan , dims = (d_hpar+"0",d_hpar+"1") + d_spatial , coords = (c_hpar,c_hpar) + c_spatial )
-			nmean.loc[(mean.hpar,)+i_spatial] = mean
-			ncov.loc[(cov.hpar0,cov.hpar1)+i_spatial] = cov
-			mean = nmean
-			cov  = ncov
+		## Store
+		hpars.loc[i,hpar["hpar"]] = hpar.values
+		hcovs.loc[i,hcov["hpar0"],hcov["hpar1"]] = hcov.values
 		
 		for n in clim.namesX:
 			clim._bias[n] += iclim.bias[n]
-		clim._bias[cvar] += bias
-		
-		## Add to zarr
-		logger.info( f"    | Save to zarr" )
-		zhpar.set_orthogonal_selection( (i,slice(None)) + i_spatial , mean )
-		zcov.set_orthogonal_selection( (i,slice(None),slice(None)) + i_spatial , cov )
+		if not clim.onlyX:
+			clim._bias[clim.names[-1]] += iclim.bias[iclim.names[-1]]
 	
 	## Final bias
-	for n in clim._names:
-		clim._bias[n] /= s_clim
+	for n in clim.names:
+		clim._bias[n] /= len(ifiles)
+	
 	
 	## Now the synthesis
 	logger.info( " * Run synthesis" )
-	hpar_S,cov_S = synthesis( zhpar , zcov , bsacParams.n_jobs )
+	if clim.has_spatial:
+		raise Exception("Not implemented error")
+#		hpar,hcov = zr.apply_ufunc( synthesis , bdims = clim.d_spatial , max_mem = bsacParams.total_memory )
+#		hpar,hcov = synthesis( hpars , hcovs , bsacParams.n_jobs )
+#		hpar_S,cov_S = synthesis( zhpar , zcov , bsacParams.n_jobs )
+	else:
+		hpar,hcov = synthesis( hpars.dataarray , hcovs.dataarray )
 	
 	logger.info( " * Copy to the clim" )
-	clim.mean_ = hpar_S
-	clim.cov_  = cov_S
+	clim.hpar = hpar
+	clim.hcov = hcov
 	clim._time = time
 	clim._bper = bper
 	bsacParams.clim = clim

@@ -567,6 +567,10 @@ class Climatology:##{{{
 		return self._XN
 	
 	@property
+	def has_spatial(self):
+		return self._spatial is not None
+	
+	@property
 	def d_spatial(self):
 		if self._spatial is None:
 			return ()
