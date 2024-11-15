@@ -1,4 +1,6 @@
 include BSAC/data/EBM_CMIP5.nc
 include BSAC/data/EBM_CMIP6.csv
-include BSAC/data/*.stan
-include BSAC/data/GMST.tar.gz
+include BSAC/data/STAN_GEV-MODEL.stan
+include BSAC/data/STAN_NORMAL-MODEL.stan
+include BSAC/data/EXAMPLE_GMST.tar.gz
+include BSAC/data/EXAMPLE_GMST.txt

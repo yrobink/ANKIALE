@@ -74,8 +74,8 @@ class GEVModel(AbstractModel):##{{{
 	def init_stan( tmp , force_compile = False ):
 		### Define stan model
 		stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" )
-		stan_ifile = os.path.join( stan_path , "GEVModel.stan" )
-		stan_ofile = os.path.join(       tmp , "GEVModel.stan" )
+		stan_ifile = os.path.join( stan_path , "STAN_GEV-MODEL.stan" )
+		stan_ofile = os.path.join(       tmp , "STAN_GEV-MODEL.stan" )
 		if not os.path.isfile(stan_ofile):
 			copy_files( stan_ifile , stan_ofile )
 		stan_model = stan.CmdStanModel( stan_file = stan_ofile , force_compile = force_compile , stanc_options = { "O" : 3 } , cpp_options = { "O" : 3 } )

@@ -1,0 +1,86 @@
+
+## Clean and build path
+for p in LOG FIT SYNTHESIS CONSTRAIN FIGURES
+do
+    if [[ ! -d $WDIR/$p ]]
+    then
+	    mkdir $WDIR/$p
+	fi
+done
+
+## Find the model list
+MODELS=$(ls $WDIR/INPUT/GMST/X)
+
+## Loop on models to fit the statistical model
+for MODNC in $MODELS
+do
+    MOD=$(basename $MODNC .nc)
+    bsac fit X --n-samples $N_SAMPLES --log info $WDIR/LOG/'FITX_'$MOD.log\
+               --bias-period $BIAS_PERIOD\
+               --input GMST,$WDIR/INPUT/GMST/X/$MODNC\
+               --save-clim $WDIR/FIT/$MOD'_fitX.nc'\
+               --common-period historical --different-periods ssp126,ssp245,ssp370,ssp585\
+               --config GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
+               --total-memory $TOTAL_MEMORY\
+               --n-workers $N_WORKERS\
+               --threads-per-worker $THREADS_PER_WORKER
+
+    bsac show X --n-samples $N_SAMPLES --log info $WDIR/LOG/'SHOWX_'$MOD.log\
+                --bias-period $BIAS_PERIOD\
+                --load-clim $WDIR/FIT/$MOD'_fitX.nc'\
+                --input GMST,$WDIR/INPUT/GMST/X/$MODNC\
+                --output $WDIR/FIGURES/BSAC_SHOW_X_$MOD.pdf\
+                --total-memory $TOTAL_MEMORY\
+                --n-workers $N_WORKERS\
+                --threads-per-worker $THREADS_PER_WORKER
+
+done
+
+## Run synthesis
+bsac synthesize --log info $WDIR/LOG/SYNTHESIS.log\
+                --bias-period $BIAS_PERIOD\
+                --input $WDIR/FIT/*.nc\
+                --common-period historical --different-periods ssp126,ssp245,ssp370,ssp585\
+                --config GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE,names=GMST\
+                --save-clim $WDIR/SYNTHESIS/SYNTHESIS.nc\
+                --total-memory $TOTAL_MEMORY\
+                --n-workers $N_WORKERS\
+                --threads-per-worker $THREADS_PER_WORKER
+
+bsac show X --n-samples $N_SAMPLES --log info $WDIR/LOG/SHOWX_SYNTHESIS.log\
+            --bias-period $BIAS_PERIOD\
+            --load-clim $WDIR/SYNTHESIS/SYNTHESIS.nc\
+            --output $WDIR/FIGURES/BSAC_SHOW_X_SYNTHESIS.pdf\
+            --total-memory $TOTAL_MEMORY\
+            --n-workers $N_WORKERS\
+            --threads-per-worker $THREADS_PER_WORKER
+
+## Run constraint
+bsac constrain X --log info $WDIR/LOG/CONSTRAINX.log\
+                 --bias-period $BIAS_PERIOD\
+                 --load-clim $WDIR/SYNTHESIS/SYNTHESIS.nc\
+                 --save-clim $WDIR/CONSTRAIN/CONSTRAINX.nc\
+                 --input GMST,$WDIR/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
+                 --total-memory $TOTAL_MEMORY\
+                 --n-workers $N_WORKERS\
+                 --threads-per-worker $THREADS_PER_WORKER
+
+bsac show X --n-samples $N_SAMPLES --log info $WDIR/LOG/SHOWX_CONSTRAINX.log\
+            --bias-period $BIAS_PERIOD\
+            --load-clim $WDIR/CONSTRAIN/CONSTRAINX.nc\
+            --input $WDIR/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
+            --output $WDIR/FIGURES/BSAC_SHOW_X_CONSTRAINX.pdf\
+            --total-memory $TOTAL_MEMORY\
+            --n-workers $N_WORKERS\
+            --threads-per-worker $THREADS_PER_WORKER
+
+bsac show CX --n-samples $N_SAMPLES --log info $WDIR/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
+             --bias-period $BIAS_PERIOD\
+             --load-clim $WDIR/CONSTRAIN/CONSTRAINX.nc\
+             --input $WDIR/SYNTHESIS/SYNTHESIS.nc\
+             --output $WDIR/FIGURES/BSAC_SHOW_CX_CONSTRAINX-VS-SYNTHESIS.pdf\
+             --total-memory $TOTAL_MEMORY\
+             --n-workers $N_WORKERS\
+             --threads-per-worker $THREADS_PER_WORKER
+
+## END OF SCRIPT
