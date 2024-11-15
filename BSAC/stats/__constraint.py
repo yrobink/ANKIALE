@@ -49,13 +49,31 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def gaussian_conditionning( Xo , A , hpar , cov , cov_o ):##{{{
-	K0 = A @ cov
-	K1 = ( cov @ A.T ) @ np.linalg.inv( K0 @ A.T + cov_o )
-	hpar = hpar + K1 @ ( Xo.squeeze() - A @ hpar )
-	cov  = cov  - K1 @ K0
+def gaussian_conditionning( *args , A = None ):##{{{
 	
-	return hpar,cov
+	## Extract arguments
+	hpar = args[0]
+	hcov = args[1]
+	lXo  = args[2:]
+	gXo  = np.concatenate( args[2:] , axis = 0 )
+	
+	## Variance of obs
+	R      = gXo - A @ hpar
+	hcov_o = []
+	i      = 0
+	for Xo in lXo:
+		s = Xo.size
+		hcov_o.append( np.ones(s) * float(np.std(R[i:(i+s)]))**2 )
+		i += s
+	hcov_o = np.diag( np.hstack(hcov_o) )
+	
+	## Application
+	K0 = A @ hcov
+	K1 = ( hcov @ A.T ) @ np.linalg.inv( K0 @ A.T + hcov_o )
+	hpar = hpar + K1 @ ( Xo.squeeze() - A @ hpar )
+	hcov = hcov - K1 @ K0
+	
+	return hpar,hcov
 ##}}}
 
 

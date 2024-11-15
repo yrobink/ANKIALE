@@ -33,13 +33,14 @@ import dataclasses
 
 import dask
 import distributed
+import zxarray as zr
 
 import numpy as np
 
 from .__exceptions  import AbortForHelpException
 from .__exceptions  import NoUserInputException
-from .__sys import SizeOf
 from .__climatology import Climatology
+
 
 ###############
 ## Variables ##
@@ -260,12 +261,12 @@ class BSACParams:
 			## Check and set the memory
 			if self.memory_per_worker == "auto":
 				if self.total_memory == "auto":
-					self.total_memory = SizeOf( n = int(0.8 * psutil.virtual_memory().total) , unit = "B" )
+					self.total_memory = zr.DMUnit( n = int(0.8 * psutil.virtual_memory().total) , unit = "B" )
 				else:
-					self.total_memory = SizeOf(self.total_memory)
+					self.total_memory = zr.DMUnit(self.total_memory)
 				self.memory_per_worker = self.total_memory // self.n_workers
 			else:
-				self.memory_per_worker = SizeOf(self.memory_per_worker)
+				self.memory_per_worker = zr.DMUnit(self.memory_per_worker)
 				self.total_memory      = self.memory_per_worker * self.n_workers
 			
 			## Change periods format
