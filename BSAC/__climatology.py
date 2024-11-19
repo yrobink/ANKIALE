@@ -384,9 +384,8 @@ class Climatology:##{{{
 		
 		## Extract parameters of the distribution
 		if not self.onlyX:
-			raise Exception("Climatology.rvsX when not onlyX: not implemented")
-			coef_ = np.nanmean( self.mean_ , axis = tuple([i+1 for i in range(self.mean_.ndim-1)]) )
-			cov_  = np.nanmean( self.cov_  , axis = tuple([i+2 for i in range(self.mean_.ndim-1)]) )
+			hpar = np.nanmean( self.hpar.dataarray.values , axis = tuple([i+1 for i in range(self.hpar.ndim-1)]) )
+			hcov = np.nanmean( self.hcov.dataarray.values , axis = tuple([i+2 for i in range(self.hpar.ndim-1)]) )
 		else:
 			hpar = self.hpar.dataarray.values
 			hcov = self.hcov.dataarray.values
