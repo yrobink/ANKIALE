@@ -182,7 +182,6 @@ def run_bsac_cmd_fit_Y():
 	
 	## And restrict its
 	clim = clim.restrict_dpers(periods)
-	print(clim)
 	
 	## Find the nslaw
 	nslaw_class = nslawid_to_class(nslawid)
