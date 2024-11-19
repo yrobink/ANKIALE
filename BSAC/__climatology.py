@@ -285,26 +285,6 @@ class Climatology:##{{{
 			ncf.setncattr( "BSAC_version"  , version )
 	##}}}
 	
-	def restrict_dpers( self , periods ):##{{{
-		hpar_names = self.hpar_names
-		idx = []
-		for ih,h in enumerate(hpar_names):
-			spl = False
-			for p0 in self._dpers:
-				if p0 in h:
-					if p0 in periods:
-						idx.append(ih)
-					spl = True
-			if not spl:
-				idx.append(ih)
-		
-		self._hpar = self._hpar.zisel( {  "hpar" : idx } )
-		self._hcov = self._hcov.zisel( { "hpar0" : idx , "hpar1" : idx } )
-		self._dpers = periods
-		
-		return self
-	##}}}
-	
 	##}}}
 	
 	def isel( self , per , name ):##{{{
@@ -355,6 +335,24 @@ class Climatology:##{{{
 		clim._Yconfig = self._Yconfig
 		
 		return clim
+	##}}}
+	
+	def restrict_dpers( self , periods ):##{{{
+		hpar_names = self.hpar_names
+		idx = []
+		for ih,h in enumerate(hpar_names):
+			if "cst_" in h or "slope_" in h:
+				idx.append(ih)
+			else:
+				_,_,p = h.split("_")
+				if p in periods:
+					idx.append(ih)
+		
+		self._hpar  = self._hpar.zisel( **{  "hpar" : idx } )
+		self._hcov  = self._hcov.zisel( **{ "hpar0" : idx , "hpar1" : idx } )
+		self._dpers = periods
+		
+		return self
 	##}}}
 	
 	## Statistics of X ##{{{ 
