@@ -29,6 +29,7 @@ import itertools as itt
 import logging
 from ..__logs import LINE
 from ..__logs import log_start_end
+from ..__logs import disable_warnings
 
 import numpy  as np
 import xarray as xr
@@ -53,7 +54,10 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , cname , dpers , time ):##{{{
+## nslaw_fit ##{{{
+
+@disable_warnings
+def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , cname , dpers , time ):
 	
 	## Init law
 	nslaw = nslaw_class()
@@ -85,6 +89,15 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 			## X / Y and re-sampling
 			xX = np.array( [ lxXF[iper][ (slice(None),) + idx0 ].values for _ in range(nrun) ] ).T.ravel().copy()
 			xY = np.nanmean( Y[ idx0 + (slice(None),[0,iper+1],slice(None)) ] , axis = 0 ).ravel().copy()
+			
+			## Keep only finite values
+			idx = np.isfinite(xY)
+			if not idx.any():
+				continue
+			xX  = xX[idx]
+			xY  = xY[idx]
+			
+			## Resampling
 			p  = np.random.choice( xX.size , xX.size , replace = True )
 			
 			## Fit

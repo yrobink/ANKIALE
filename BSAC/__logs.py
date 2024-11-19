@@ -22,6 +22,7 @@
 
 import functools
 import logging
+import warnings
 
 import datetime as dt
 
@@ -61,4 +62,19 @@ def log_start_end(plog):##{{{
 	return _decorator
 ##}}}
 
+def disable_warnings( fun ):##{{{
+	"""
+	BSAC.disable_warnings
+	=====================
+	
+	Decorator to supress warnings
+	"""
+	def fun_without_warnings( *args , **kwargs ):
+		with warnings.catch_warnings():
+			warnings.simplefilter("ignore")
+			res = fun( *args , **kwargs )
+		return res
+	
+	return fun_without_warnings
+##}}}
 
