@@ -32,8 +32,6 @@ from ..__logs import log_start_end
 from ..__linalg import matrix_positive_part
 from ..__linalg import nancov
 
-from .__rvs import rvs_multivariate_normal
-
 import numpy as np
 import xarray as xr
 import itertools as itt
@@ -61,7 +59,7 @@ def synthesis( hpars , hcovs ):##{{{
 	if np.all( ~np.isfinite(hpars)) or np.all( ~np.isfinite(hcovs)):
 		hpar = np.zeros( hpars.shape[1:] ) + np.nan
 		hcov = np.zeros( hcovs.shape[1:] ) + np.nan
-		return hpar_S,cov_S
+		return hpar,hcov
 	
 	n_mod = hpars.shape[0]
 	Si    = np.nansum( hcovs , axis = 0 ) ## Sum of covariance matrix of the models

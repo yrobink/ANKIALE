@@ -22,6 +22,7 @@
 
 import os
 import logging
+import itertools as itt
 
 import numpy as np
 import xarray as xr
@@ -49,6 +50,28 @@ logger.addHandler(logging.NullHandler())
 ###############
 ## Functions ##
 ###############
+
+def zsynthesis( hpars , hcovs ):##{{{
+	
+	ssp   = hpars.shape[:-2]
+	nmod  = hpars.shape[-2]
+	nhpar = hpars.shape[-1]
+	
+	hpar = np.zeros( ssp + (nhpar,)      ) + np.nan
+	hcov = np.zeros( ssp + (nhpar,nhpar) ) + np.nan
+	
+	for idx in itt.product(*[range(s) for s in ssp]):
+		idx1d = idx + tuple([slice(None) for _ in range(2)])
+		idx2d = idx + tuple([slice(None) for _ in range(3)])
+		h  = hpars[idx1d]
+		c  = hcovs[idx2d]
+		
+		h,c = synthesis( h , c )
+		hpar[idx1d[:-1]] = h
+		hcov[idx2d[:-1]] = c
+	
+	return hpar,hcov
+##}}}
 
 ## run_bsac_cmd_synthesize ##{{{
 @log_start_end(logger)
@@ -83,6 +106,8 @@ def run_bsac_cmd_synthesize():
 	except:
 		pass
 	hpar_names = clim.hpar_names
+	d_spatial = clim.d_spatial
+	c_spatial = clim.c_spatial
 	
 	## Temporary files
 	logger.info( " * Create zxarray files" )
@@ -104,44 +129,83 @@ def run_bsac_cmd_synthesize():
 		iclim = Climatology.init_from_file(ifile)
 		time  = iclim.time
 		bper  = iclim._bper
-		bias  = iclim.bias
+		bias  = iclim.bias[iclim.names[-1]]
 		hpar  = iclim.hpar.dataarray
 		hcov  = iclim.hcov.dataarray
 		
 		if regrid:
 			logger.info( f"    | Regrid" )
-			raise Exception
+			
 			## Grid
-			igrid     = xr.Dataset( iclim._spatial )
-#			regridder = xesmf.Regridder( igrid , grid , "bilinear" )
-			regridder = xesmf.Regridder( igrid , grid , "nearest_s2d" )
+			igrid  = xr.Dataset( iclim._spatial )
+			try:
+				rgrd2d = xesmf.Regridder( igrid , grid , "bilinear" )
+			except:
+				rgrd2d = None
+			rgrdnn = xesmf.Regridder( igrid , grid , "nearest_s2d" )
+			
+			## bias is float
+			if isinstance( bias , float ):
+				logger.info( f"    | Convert bias float => xarray" )
+				bias = xr.DataArray( [[bias]] , coords = igrid.coords )
 			
 			## Regrid
-			bias = regridder(bias_).where( mask , np.nan )
-			mean = regridder(mean_).where( mask , np.nan )
-			cov  = regridder(cov_ ).where( mask , np.nan )
+			try:
+				logger.info( f"    | * Bias with bilinear..." )
+				bias = rgrd2d(bias).where( mask , np.nan )
+				logger.info( f"    | * OK" )
+			except:
+				logger.info( f"    | * Bias with nearest-neighborhood..." )
+				bias = rgrdnn(bias).where( mask , np.nan )
+				logger.info( f"    | * OK" )
+			try:
+				logger.info( f"    | * hpar with bilinear..." )
+				hpar = rgrd2d(hpar).where( mask , np.nan )
+				logger.info( f"    | * OK" )
+			except:
+				hpar = rgrdnn(hpar).where( mask , np.nan )
+				logger.info( f"    | * hpar with nearest-neighborhood..." )
+				logger.info( f"    | * OK" )
+			logger.info( f"    | * hcov with nearest-neighborhood" )
+			hcov = rgrdnn(hcov).where( mask , np.nan )
+			logger.info( f"    | * OK" )
 		
 		## Store
-		hpars.loc[i,hpar["hpar"]] = hpar.values
-		hcovs.loc[i,hcov["hpar0"],hcov["hpar1"]] = hcov.values
+		idx0 = tuple([slice(None) for _ in range(len(d_spatial))])
+		hpars.loc[(i,hpar["hpar"])+idx0] = hpar.values
+		hcovs.loc[(i,hcov["hpar0"],hcov["hpar1"]) + idx0] = hcov.values
 		
 		for n in clim.namesX:
 			clim._bias[n] += iclim.bias[n]
 		if not clim.onlyX:
-			clim._bias[clim.names[-1]] += iclim.bias[iclim.names[-1]]
+			clim._bias[clim.names[-1]] += bias
 	
 	## Final bias
 	for n in clim.names:
 		clim._bias[n] /= len(ifiles)
 	
-	
 	## Now the synthesis
 	logger.info( " * Run synthesis" )
 	if clim.has_spatial:
-		raise Exception("Not implemented error")
-#		hpar,hcov = zr.apply_ufunc( synthesis , bdims = clim.d_spatial , max_mem = bsacParams.total_memory )
-#		hpar,hcov = synthesis( hpars , hcovs , bsacParams.n_jobs )
-#		hpar_S,cov_S = synthesis( zhpar , zcov , bsacParams.n_jobs )
+		hpar_names    = clim.hpar_names
+		nhpar_names   = len(hpar_names)
+		output_dims   = [("hpar",) + d_spatial,("hpar0","hpar1") + d_spatial]
+		output_coords = [[hpar_names] + [ c_spatial[d] for d in d_spatial ],[hpar_names,hpar_names] + [ c_spatial[d] for d in d_spatial ]]
+		output_dtypes = [hpars.dtype,hpars.dtype]
+		dask_kwargs   = { "input_core_dims"  : [ ["clim","hpar"] , ["clim","hpar0","hpar1"] ],
+		                  "output_core_dims" : [ ["hpar"],["hpar0","hpar1"] ],
+		                  "kwargs" : {},
+		                  "dask" : "parallelized",
+		                  "output_dtypes"  : [hpars.dtype,hpars.dtype]
+		                    }
+		hpar,hcov = zr.apply_ufunc( zsynthesis , hpars , hcovs, 
+		                            bdims         = d_spatial,
+		                            max_mem       = bsacParams.total_memory,
+		                            output_coords = output_coords,
+		                            output_dims   = output_dims,
+		                            output_dtypes = output_dtypes,
+		                            dask_kwargs   = dask_kwargs
+		                            )
 	else:
 		hpar,hcov = synthesis( hpars.dataarray , hcovs.dataarray )
 	
