@@ -43,88 +43,29 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-## run_bsac_cmd_example_GMST ##{{{
-@log_start_end(logger)
-def run_bsac_cmd_example_GMST():
+def find_path( output ):##{{{
 	
 	## Find output folder
-	iopath = os.path.abspath(bsacParams.output)
-	if not os.path.isdir(iopath):
-		raise NotADirectoryError( f"{iopath} is not a path" )
-	logger.info( f" * Output path found: {iopath}" )
+	if "," in output:
+		hiopath,diopath = bsacParams.split(",")
+		hiopath = os.path.abspath(hiopath)
+		diopath = os.path.abspath(diopath)
+		for p in [hiopath,diopath]:
+			if not os.path.isdir(p):
+				raise NotADirectoryError( f"{p} is not a path" )
+	else:
+		iopath = os.path.abspath(output)
+		if not os.path.isdir(iopath):
+			raise NotADirectoryError( f"{iopath} is not a path" )
+		hiopath = os.path.join( iopath , "home" )
+		diopath = os.path.join( iopath , "data" )
+		for p in [hiopath,diopath]:
+			if not os.path.isdir(p):
+				os.makedirs(p)
+	logger.info( f" * Home path found: {hiopath}" )
+	logger.info( f" * Data path found: {diopath}" )
 	
-	## Copy data
-	logger.info( f" * Copy data" )
-	cpath = os.path.dirname(os.path.abspath(__file__))
-	idata = os.path.join( cpath , ".." , "data" , "EXAMPLE_GMST.tar.gz" )
-	with tarfile.open( idata , mode = "r" ) as ifile:
-		ifile.extractall( os.path.join( iopath , "INPUT" ) )
-	
-	## Copy script
-	logger.info( f" * Copy script" )
-	
-	## Parameters
-	sh = "\n".join( ["#!/bin/bash","",
-	"## Parameters",
-	f"N_WORKERS={bsacParams.n_workers}",
-	f"THREADS_PER_WORKER={bsacParams.threads_per_worker}",
-	f"TOTAL_MEMORY={bsacParams.total_memory}",
-	f"WDIR={iopath}",
-	f"N_SAMPLES={bsacParams.n_samples}",
-	f"BIAS_PERIOD='1900/1950'",
-	f"GAM_DOF=7",
-	f"GAM_DEGREE=3",""] )
-	
-	## Add common part of the script
-	with open( os.path.join( cpath , ".." , "data" , "EXAMPLE_GMST.txt" ) , "r" ) as ish:
-		sh = sh + "".join( ish.readlines() )
-	
-	## And save the script
-	with open( os.path.join( iopath , "RUN_BSAC_EXAMPLE_GMST.sh" ) , "w" ) as ofile:
-		ofile.write(sh)
-	
-##}}}
-
-## run_bsac_cmd_example_IDF ##{{{
-@log_start_end(logger)
-def run_bsac_cmd_example_IDF():
-	
-	## Find output folder
-	iopath = os.path.abspath(bsacParams.output)
-	if not os.path.isdir(iopath):
-		raise NotADirectoryError( f"{iopath} is not a path" )
-	logger.info( f" * Output path found: {iopath}" )
-	
-	## Copy data
-	logger.info( f" * Copy data" )
-	cpath = os.path.dirname(os.path.abspath(__file__))
-	idata = os.path.join( cpath , ".." , "data" , "EXAMPLE_IDF.tar.gz" )
-	with tarfile.open( idata , mode = "r" ) as ifile:
-		ifile.extractall( os.path.join( iopath , "INPUT" ) )
-	
-	## Copy script
-	logger.info( f" * Copy script" )
-	
-	## Parameters
-	sh = "\n".join( ["#!/bin/bash","",
-	"## Parameters",
-	f"N_WORKERS={bsacParams.n_workers}",
-	f"THREADS_PER_WORKER={bsacParams.threads_per_worker}",
-	f"TOTAL_MEMORY={bsacParams.total_memory}",
-	f"WDIR={iopath}",
-	f"N_SAMPLES={bsacParams.n_samples}",
-	f"BIAS_PERIOD='1900/1950'",
-	f"GAM_DOF=7",
-	f"GAM_DEGREE=3",""] )
-	
-	## Add common part of the script
-	with open( os.path.join( cpath , ".." , "data" , "EXAMPLE_IDF.txt" ) , "r" ) as ish:
-		sh = sh + "".join( ish.readlines() )
-	
-	## And save the script
-	with open( os.path.join( iopath , "RUN_BSAC_EXAMPLE_IDF.sh" ) , "w" ) as ofile:
-		ofile.write(sh)
-	
+	return hiopath,diopath
 ##}}}
 
 ## run_bsac_cmd_example ##{{{
@@ -136,14 +77,42 @@ def run_bsac_cmd_example():
 		raise ValueError(f"Bad numbers of arguments of the example command: {', '.join(bsacParams.arg)}")
 	
 	available_commands = ["GMST","IDF"]
-	if not bsacParams.arg[0] in available_commands:
-		raise ValueError(f"Bad argument of the fit command ({bsacParams.arg[0]}), must be: {', '.join(available_commands)}")
+	cmd = bsacParams.arg[0].upper()
+	if not cmd in available_commands:
+		raise ValueError(f"Bad argument of the fit command ({cmd}), must be: {', '.join(available_commands)}")
 	
-	## OK, run the good command
-	if bsacParams.arg[0] == "GMST":
-		run_bsac_cmd_example_GMST()
-	if bsacParams.arg[0] == "IDF":
-		run_bsac_cmd_example_IDF()
+	## Path
+	hiopath,diopath = find_path( bsacParams.output )
+	
+	## Copy data
+	logger.info( f" * Copy data" )
+	cpath = os.path.dirname(os.path.abspath(__file__))
+	idata = os.path.join( cpath , ".." , "data" , f"EXAMPLE_{cmd}.tar.gz" )
+	with tarfile.open( idata , mode = "r" ) as ifile:
+		ifile.extractall( os.path.join( diopath , "INPUT" ) )
+	
+	## Copy script
+	logger.info( f" * Copy script" )
+	
+	## Parameters
+	sh = "\n".join( ["#!/bin/bash","",
+	"## Parameters",
+	f"N_WORKERS={bsacParams.n_workers}",
+	f"THREADS_PER_WORKER={bsacParams.threads_per_worker}",
+	f"TOTAL_MEMORY={bsacParams.total_memory}",
+	f"WDIR={diopath}",
+	f"N_SAMPLES={bsacParams.n_samples}",
+	f"BIAS_PERIOD='1900/1950'",
+	f"GAM_DOF=7",
+	f"GAM_DEGREE=3",""] )
+	
+	## Add common part of the script
+	with open( os.path.join( cpath , ".." , "data" , f"EXAMPLE_{cmd}.txt" ) , "r" ) as ish:
+		sh = sh + "".join( ish.readlines() )
+	
+	## And save the script
+	with open( os.path.join( hiopath , f"RUN_BSAC_EXAMPLE_{cmd}.sh" ) , "w" ) as ofile:
+		ofile.write(sh)
 ##}}}
 
 
