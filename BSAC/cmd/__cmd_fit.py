@@ -23,7 +23,6 @@
 import os
 import logging
 import itertools as itt
-import zarr
 from ..__logs import LINE
 from ..__logs import log_start_end
 
@@ -32,10 +31,12 @@ from ..__BSACParams import bsacParams
 from ..stats.__MultiGAM import MultiGAM
 from ..stats.__MultiGAM import mgam_multiple_fit_bootstrap
 from ..stats.__tools    import nslawid_to_class
-from ..stats.__NSLawMLEFit import nslaw_fit_bootstrap
+from ..stats.__NSLawMLEFit import nslaw_fit
+from ..__sys import coords_samples
 
 import numpy  as np
 import xarray as xr
+import zxarray as zr
 
 
 ##################
@@ -49,6 +50,16 @@ logger.addHandler(logging.NullHandler())
 ###############
 ## Functions ##
 ###############
+
+def hpar_hcov( hpars ):##{{{
+	
+	nhpar = hpars.shape[-3]
+	hpar  = hpars.mean( axis = (-2,-1) )
+	hcov  = np.apply_along_axis( lambda x: np.cov( x.reshape(nhpar,-1) ) , 1 , hpars.reshape(-1,np.prod(hpars.shape[-3:])) ).reshape( hpars.shape[:-3] + (nhpar,nhpar) )
+	
+	return hpar,hcov
+##}}}
+
 
 ## run_bsac_cmd_fit_X ##{{{
 @log_start_end(logger)
@@ -68,7 +79,6 @@ def run_bsac_cmd_fit_X():
 			logger.info( f" * covariate {name} detected" )
 			names.append(name)
 	bsacParams.clim.names = names
-	
 	
 	## Now open the data
 	logger.info("Open the data")
@@ -124,12 +134,13 @@ def run_bsac_cmd_fit_Y():
 	## Name of the variable to fit
 	name = bsacParams.config["name"]
 	
-	## Spatial coordinates
-	spatial = bsacParams.config.get("spatial")
-	if spatial is not None:
-		spatial = spatial.split(":")
+	## Spatial dimensions
+	d_spatial = bsacParams.config.get("spatial")
+	if d_spatial is not None:
+		d_spatial = d_spatial.split(":")
 	else:
-		spatial = []
+		d_spatial = []
+	d_spatial = tuple(d_spatial)
 	
 	## Set the covariate
 	cname = bsacParams.config.get("cname")
@@ -141,9 +152,12 @@ def run_bsac_cmd_fit_Y():
 	idata = xr.open_dataset(ifile).load()
 	
 	## Check if variables in idata
-	for v in [name] + spatial:
+	for v in (name,) + d_spatial:
 		if not v in idata:
 			raise ValueError( f"Variable '{v}' not in input data" )
+	
+	## Spatial coordinates
+	c_spatial = { d : idata[d] for d in d_spatial }
 	
 	## Find the nslaw
 	nslawid = bsacParams.config.get("nslaw")
@@ -152,12 +166,15 @@ def run_bsac_cmd_fit_Y():
 	
 	## Find the bias, and remove it
 	Y     = idata[name]
-	biasY = Y.sel( time = slice(*clim.bias_period) ).mean( dim = [d for d in Y.dims if d not in spatial] )
+	biasY = Y.sel( time = slice(*clim.bias_period) ).mean( dim = [d for d in Y.dims if d not in d_spatial] )
 	Y     = Y - biasY
 	try:
 		biasY = float(biasY)
 	except:
 		pass
+	
+	## Transform in ZXArray
+	zY = zr.ZXArray.from_xarray(Y)
 	
 	## Check periods
 	periods = list(set(clim.dpers) & set(Y.period.values.tolist()))
@@ -166,82 +183,72 @@ def run_bsac_cmd_fit_Y():
 	## And restrict its
 	clim = clim.restrict_dpers(periods)
 	
-	## Draw X
-	X,hparX  = clim.rvsX( bsacParams.n_samples , add_BE = True , return_hpar = True )
-	XF = X.XF.loc[:,cname,:,:]
-	
-	## Restrict the time axis of Y
-	ctime = list( set(X.time.values.ravel().tolist()) & set(Y.time.values.ravel().tolist()) )
-	ctime.sort()
-	ctime = xr.DataArray( ctime , dims = ["time"] , coords = [ctime] )
-	Y = Y.sel( time = ctime )
-	
-	##
+	## Find the nslaw
 	nslaw_class = nslawid_to_class(nslawid)
-	nslaw       = nslaw_class()
-	if Y.ndim == 3:
-		hparYshape = [nslaw.coef_name,periods,X.sample]
-	else:
-		hparYshape = [nslaw.coef_name,periods,X.sample] + [Y.coords[d] for d in Y.dims[3:]]
-	hparYshape = [len(s) for s in hparYshape]
+	hpar_namesY = clim.hpar_names + nslaw_class().coef_name
 	
-	## Create the zarr file of hyperparameter of Y
-	hparY = zarr.open( os.path.join( bsacParams.tmp , "hparY.zarr" ) , mode = "w" , shape = hparYshape , dtype = "float32" , compressor = None )
+	## Design matrix of the covariate
+	_,_,design,_ = clim.build_design_XFC()
 	
-	## Now the fit
-	nslaw_fit_bootstrap( Y = Y , X = XF , hparY = hparY , nslawid = nslawid , n_bootstrap = bsacParams.n_samples , n_jobs = bsacParams.n_jobs )
+	## Time axis
+	time = sorted( list( set(clim.time.tolist()) & set(Y.time.values.tolist()) ) )
+	Y    = Y.sel( time = time )
 	
-	## Mean and cov for new climatology
-	meanX = clim.mean_.copy()
-	covX  = clim.cov_.copy()
+	## Samples
+	n_samples = bsacParams.n_samples
+	samples   = coords_samples(n_samples)
+	samples   = zr.ZXArray.from_xarray( xr.DataArray( range(n_samples) , dims = ["sample"] , coords = [samples] ).astype(float) )
 	
-	if Y.ndim == 3:
-		mean_ = xr.DataArray( np.zeros( (meanX.size + hparYshape[0],) ) , dims = ["hpar"] , coords = [hparX.hpar.values.tolist()+nslaw.coef_name] )
-		cov_  = xr.DataArray( np.zeros( [meanX.size + hparYshape[0] for _ in range(2)] ) , dims = ["hpar0","hpar1"] , coords = [hparX.hpar.values.tolist()+nslaw.coef_name for _ in range(2)] )
-	else:
-		mean_ = xr.DataArray( np.zeros( [meanX.size + hparYshape[0]] + hparYshape[3:] ) , dims = ["hpar"] + list(Y.dims[3:]) , coords = [hparX.hpar.values.tolist()+nslaw.coef_name] + [Y.coords[d] for d in Y.dims[3:]] )
-		cov_  = xr.DataArray( np.zeros( [meanX.size + hparYshape[0] for _ in range(2)] + hparYshape[3:] ) , dims = ["hpar0","hpar1"] + list(Y.dims[3:]) , coords = [hparX.hpar.values.tolist()+nslaw.coef_name for _ in range(2)] + [Y.coords[d] for d in Y.dims[3:]] )
+	## zxarray.apply_ufunc parameters
+	output_dims      = [ ("hparY","dperiod","sample") + d_spatial ]
+	output_coords    = [ [hpar_namesY,clim.dpers,samples.dataarray] + [ c_spatial[d] for d in d_spatial ] ]
+	output_dtypes    = [ float ]
+	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["time","period","run"] , []],
+	                     "output_core_dims" : [ ["hparY","dperiod"] ],
+	                     "kwargs" : { "nslaw_class" : nslaw_class , "design" : design , "hpar_names" : clim.hpar_names , "cname" : cname , "dpers" : clim.dpers , "time" : time },
+	                     "dask" : "parallelized",
+	                     "dask_gufunc_kwargs" : { "output_sizes" : { "hparY" : len(hpar_namesY) , "dperiod" : len(clim.dpers) } },
+	                     "output_dtypes"  : [clim.hpar.dtype]
+	                    }
 	
-	## Variables for a loop on spatial dimension (if exists)
-	if Y.ndim == 3:
-		spatial = [1]
-	else:
-		spatial = [Y[d].size for d in Y.dims[3:]]
+	## Fit samples of parameters
+	hpar  = clim.hpar
+	hcov  = clim.hcov
+	hpars = zr.apply_ufunc( nslaw_fit , hpar , hcov , zY, samples,
+	                        bdims         = ("sample",) + d_spatial,
+	                        max_mem       = bsacParams.total_memory,
+	                        output_dims   = output_dims,
+	                        output_coords = output_coords,
+	                        output_dtypes = output_dtypes,
+	                        dask_kwargs   = dask_kwargs )
 	
-	## Loop on spatial dimension to build mean and cov
-	xhpar = np.zeros( (hparX.shape[1]+hparYshape[0],len(periods),X.sample.size) )
-	xhpar[:hparX.shape[1],:,:] = hparX.values.T.reshape(hparX.shape[1],1,X.sample.size)
-	for spatial_idx in itt.product(*[range(s) for s in spatial]):
-		
-		## Extract the spatial point for hparY
-		idx    = (slice(None),slice(None),slice(None))
-		idx1d  = (slice(None),)
-		idx2d  = (slice(None),slice(None))
-		if Y.ndim > 3:
-			idx   = idx + spatial_idx
-			idx1d = idx1d + spatial_idx
-			idx2d = idx2d + spatial_idx
-		xhpar[hparX.shape[1]:,:,:] = hparY.get_orthogonal_selection(idx)
-		mean_[idx1d] = xhpar.reshape(xhpar.shape[0],-1).mean( axis = 1 )
-		cov_[idx2d]  = np.cov( xhpar.reshape(xhpar.shape[0],-1) )
-	
-	## Mask
-	try:
-		mean_ = mean_.where( np.isfinite(biasY) , np.nan )
-		cov_  =  cov_.where( np.isfinite(biasY) , np.nan )
-	except:
-		pass
+	## And find parameters of the distribution
+	output_dims      = [ ("hpar",) + d_spatial , ("hpar0","hpar1") + d_spatial ]
+	output_coords    = [ [hpar_namesY] + [ c_spatial[d] for d in d_spatial ] , [hpar_namesY,hpar_namesY] + [ c_spatial[d] for d in d_spatial ] ]
+	output_dtypes    = [float,float]
+	dask_kwargs      = { "input_core_dims"  : [ ["hparY","dperiod","sample"]],
+	                     "output_core_dims" : [ ["hpar"] , ["hpar0","hpar1"] ],
+	                     "kwargs" : {},
+	                     "dask" : "parallelized",
+	                     "dask_gufunc_kwargs" : { "output_sizes" : { "hpar" : len(hpar_namesY) , "hpar0" : len(hpar_namesY) , "hpar1" : len(hpar_namesY) } },
+	                     "output_dtypes"  : [hpars.dtype,hpars.dtype]
+	                    }
+	hpar,hcov = zr.apply_ufunc( hpar_hcov , hpars,
+	                            bdims         = d_spatial,
+	                            max_mem       = bsacParams.total_memory,
+	                            output_dims   = output_dims,
+	                            output_coords = output_coords,
+	                            output_dtypes = output_dtypes,
+	                            dask_kwargs   = dask_kwargs )
 	
 	## Update the climatology
-	clim.mean_ = mean_.values
-	clim.cov_  = cov_.values
+	clim.hpar = hpar
+	clim.hcov = hcov
 	clim._names.append(name)
 	clim._bias[name]  = biasY
 	clim._nslawid     = nslawid
 	clim._nslaw_class = nslaw_class
-	
-	if Y.ndim > 3:
-		clim._spatial = { d : Y[d] for d in Y.dims[3:] }
+	clim._spatial = c_spatial
 	
 ##}}}
 

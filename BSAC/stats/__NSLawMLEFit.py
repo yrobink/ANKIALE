@@ -53,117 +53,53 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def _nslaw_fit_bootstrap( idxs , xY , X , per , nslaw_class , init_ ):##{{{
+def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , cname , dpers , time ):##{{{
 	
-	idxs = np.array([idxs]).ravel()
-	
+	## Init law
 	nslaw = nslaw_class()
 	
-	out = []
-	for idx in idxs:
-		xX = xr.DataArray( np.array( [X.loc[:,per,xY.time].values[idx,:] for _ in range(xY.run.size)] ).T , dims = ["time","run"] , coords = xY.coords )
-		
-		Yf = xY.values.ravel()
-		Xf = xX.values.ravel()
-		
-		mask = np.isfinite(Yf)
-		Yf = Yf[mask]
-		Xf = Xf[mask]
-		
-		if not np.any(mask):
-			out.append( np.zeros(len(nslaw.coef_name)) + np.nan )
-			continue
-		
-		## Resample
-		idxbs = np.random.choice( Yf.size , Yf.size , replace = True )
-		Yf = Yf[idxbs]
-		Xf = Xf[idxbs]
-		
-		## And fit
-		nslaw.fit_mle( Yf , Xf , init = init_ )
-		out.append(nslaw.coef_)
+	## Find spatial size
+	s_spatial = tuple()
+	if Y.ndim > 3:
+		s_spatial = tuple(Y.shape[:-4])
 	
-	return np.array(out)
-##}}}
-
-## nslaw_fit_bootstrap ##{{{
-@log_start_end(logger)
-def nslaw_fit_bootstrap( Y , X , hparY , nslawid , n_bootstrap , n_jobs ):
+	## Init output
+	s_hparY = hpar.size + nslaw.n_coef
+	ndpers  = Y.shape[-2]-1
+	hpars   = np.zeros( s_spatial + (samples.size,ndpers,s_hparY) ) + np.nan
+	nrun    = Y.shape[-1]
 	
-	## Find cper
-	cper = [ per for per in Y.period.values.tolist() if per not in X.period.values.tolist()][0]
+	## Draw parameters
+	hpars[*([slice(None) for _ in range(hpars.ndim-1)] + [range(hpar.size)] ) ] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = hpars.size // hpar.size ).reshape( hpars.shape[:-1] + (hpar.size,) )
 	
-	## Variables for a loop on spatial dimension (if exists)
-	if Y.ndim == 3:
-		spatial = [1]
-	else:
-		spatial = [Y[d].size for d in Y.dims[3:]]
+	## Find parameters used to build covariate
+	xhpars  = xr.DataArray( hpars , dims = [f"s{i}" for i in range(len(s_spatial))] + ["sample","period","hpar"] , coords = [ range(s) for s in s_spatial ] + [range(samples.size),range(ndpers),hpar_names+nslaw.coef_name] )
+	xhpars = xhpars.sel( hpar = [ h for h in xhpars.hpar.values.tolist() if cname in h ] )
+	xhpars = xhpars.assign_coords( hpar = [ h.replace( f"_{cname}" , "" ) for h in xhpars.hpar.values.tolist() ] )
+	lxXF   = [ ( design @ xhpars.sel( hpar = [ h for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).assign_coords( hpar = [ h.replace( f"_{dper}" , "" ) for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).sel( period = dpers.index(dper) ) ).sel( time = time ) for dper in dpers ]
 	
-	##
-	nslaw_class = nslawid_to_class(nslawid)
-	nslaw       = nslaw_class()
+	## Now loop for fit
+	for idx0 in itt.product( *[ range(s) for s in hpars.shape[:-2]] ):
+		for iper,dper in enumerate(dpers):
+			
+			## X / Y and re-sampling
+			xX = np.array( [ lxXF[iper][ (slice(None),) + idx0 ].values for _ in range(nrun) ] ).T.ravel().copy()
+			xY = np.nanmean( Y[ idx0 + (slice(None),[0,iper+1],slice(None)) ] , axis = 0 ).ravel().copy()
+			p  = np.random.choice( xX.size , xX.size , replace = True )
+			
+			## Fit
+			nslaw.fit_mle( xY[p] , xX[p] )
+			ns_hpar = nslaw.coef_
+			
+			## Save
+			hpars[ idx0 + (iper,slice(hpar.size,s_hparY,1)) ] = ns_hpar
 	
-	## Loop on spatial dimension
-	s_iter = 0
-	t_iter = int(np.prod(spatial))
-	for spatial_idx in itt.product(*[range(s) for s in spatial]):
-		
-		##
-		if s_iter % max(int(0.05 * t_iter),1) == 0:
-			logger.info( " * {:{fill}{align}{n}}%".format( int( 100 * s_iter / t_iter ) + 1 , fill = " " , align = ">" , n = 4 ) + " " * 16 )
-		s_iter += 1
-		
-		## Indexes to extract data
-		iidx = (slice(None),slice(None),slice(None))
-		if Y.ndim > 3:
-			iidx = iidx + spatial_idx
-		
-		## Loop on period
-		for iper,per in enumerate(X.period.values.tolist()):
-			
-			## Start with the best estimate
-			xY = Y[iidx].sel( period = [cper,per] ).mean( dim = "period" )
-			xX = xr.DataArray( np.array( [X.loc["BE",per,xY.time].values for _ in range(xY.run.size)] ).T , dims = ["time","run"] , coords = xY.coords )
-			
-			valid = np.isfinite(xY.mean( dim = "run" ))
-			if valid.size < 50:
-				continue
-			
-			Yf = xY.values.ravel()
-			Xf = xX.values.ravel()
-			
-			mask = np.isfinite(Yf)
-			
-			Yf = Yf[mask]
-			Xf = Xf[mask]
-			
-			nslaw.fit_mle( Yf , Xf )
-			oidx = (slice(None),iper,0)
-			if Y.ndim > 3:
-				oidx = oidx + spatial_idx
-			init_     = nslaw.coef_
-			hparY.set_orthogonal_selection( oidx , init_ )
-			
-			## Prepare dimension for parallelization
-			idxs = xr.DataArray( [i+1 for i in range(n_bootstrap)] , dims = ["bootstrap"] , coords = [range(n_bootstrap)] ).chunk( { "bootstrap" : max( n_bootstrap // n_jobs , 1 ) } )
-			
-			## Parallelization of the bootstrap
-			coef_bs = xr.apply_ufunc(
-			             _nslaw_fit_bootstrap , idxs ,
-			             kwargs             = { "xY" : xY , "X" : X , "per" : per , "nslaw_class" : nslaw_class , "init_" : init_ },
-			             input_core_dims    = [[]],
-			             output_core_dims   = [["hpar"]],
-					     output_dtypes      = X.dtype ,
-					     vectorize          = True ,
-					     dask               = "parallelized" ,
-					     dask_gufunc_kwargs = { "output_sizes" : { "hpar" : init_.size } }
-			             ).compute()
-			
-			oidx = (slice(None),iper,slice(1,None))
-			if Y.ndim > 3:
-				oidx = oidx + spatial_idx
-			hparY.set_orthogonal_selection( oidx , coef_bs.values.T )
+	## Transpose for output
+	trsp = [i for i in range(hpars.ndim)]
+	trsp[-2],trsp[-1] = trsp[-1],trsp[-2]
+	hpars = np.transpose( hpars , trsp )
 	
+	return hpars
 ##}}}
 
 

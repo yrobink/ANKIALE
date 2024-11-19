@@ -4,3 +4,5 @@ include BSAC/data/STAN_GEV-MODEL.stan
 include BSAC/data/STAN_NORMAL-MODEL.stan
 include BSAC/data/EXAMPLE_GMST.tar.gz
 include BSAC/data/EXAMPLE_GMST.txt
+include BSAC/data/EXAMPLE_IDF.tar.gz
+include BSAC/data/EXAMPLE_IDF.txt

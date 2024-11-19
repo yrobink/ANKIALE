@@ -297,11 +297,11 @@ class Climatology:##{{{
 					spl = True
 			if not spl:
 				idx.append(ih)
-		new_hpar_names = [self.hpar_names[i] for i in idx]
 		
-		self._mean = self._mean[idx]
-		self._cov  = self._cov[idx,:][:,idx]
+		self._hpar = self._hpar.zisel( {  "hpar" : idx } )
+		self._hcov = self._hcov.zisel( { "hpar0" : idx , "hpar1" : idx } )
 		self._dpers = periods
+		
 		return self
 	##}}}
 	
