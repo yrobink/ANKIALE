@@ -23,6 +23,7 @@
 import sys
 import os
 import logging
+import traceback
 import datetime as dt
 
 import numpy   as np
@@ -214,7 +215,10 @@ def start_bsac(*argv):##{{{
 	except AbortForHelpException:
 		pass
 	except Exception as e:
+		logger.error(LINE)
 		logger.error( f"Error: {e}" )
+		logger.error( traceback.print_tb( sys.exc_info()[2] ) )
+		logger.error(LINE)
 	
 	## End
 	walltime1 = dt.datetime.now(dt.UTC)
