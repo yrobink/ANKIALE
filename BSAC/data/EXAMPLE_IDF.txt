@@ -59,20 +59,20 @@ bsac synthesize --log info $HPATH/LOG/SYNTHESIS.log\
                 --n-workers $N_WORKERS\
                 --threads-per-worker $THREADS_PER_WORKER
 
-#bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_SYNTHESIS.log\
-#            --bias-period $BIAS_PERIOD\
-#            --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
-#            --output $DPATH/FIGURES/BSAC_SHOW_X_SYNTHESIS.pdf\
-#            --total-memory $TOTAL_MEMORY\
-#            --n-workers $N_WORKERS\
-#            --threads-per-worker $THREADS_PER_WORKER
+bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_SYNTHESIS.log\
+            --bias-period $BIAS_PERIOD\
+            --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
+            --output $DPATH/FIGURES/BSAC_SHOW_X_SYNTHESIS.pdf\
+            --total-memory $TOTAL_MEMORY\
+            --n-workers $N_WORKERS\
+            --threads-per-worker $THREADS_PER_WORKER
 
 ## Run constraint
 #bsac constrain X --log info $HPATH/LOG/CONSTRAINX.log\
 #                 --bias-period $BIAS_PERIOD\
 #                 --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
 #                 --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-#                 --input GMST,$DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
+#                 --input GMST,$DPATH/INPUT/IDF/Xo/GMST_GISTEMP_tas_year_1880-2023.nc EU,$DPATH/INPUT/IDF/Xo/EU_HadCRUT_tas_year_1850-2023.nc\
 #                 --total-memory $TOTAL_MEMORY\
 #                 --n-workers $N_WORKERS\
 #                 --threads-per-worker $THREADS_PER_WORKER

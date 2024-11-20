@@ -70,7 +70,7 @@ def gaussian_conditionning( *args , A = None ):##{{{
 	## Application
 	K0 = A @ hcov
 	K1 = ( hcov @ A.T ) @ np.linalg.inv( K0 @ A.T + hcov_o )
-	hpar = hpar + K1 @ ( Xo.squeeze() - A @ hpar )
+	hpar = hpar + K1 @ ( gXo.squeeze() - A @ hpar )
 	hcov = hcov - K1 @ K0
 	
 	return hpar,hcov
