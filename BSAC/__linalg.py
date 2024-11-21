@@ -22,6 +22,9 @@
 
 import itertools as itt
 import numpy as np
+import scipy.stats as sc
+
+from .__logs import disable_warnings
 
 
 ###############
@@ -66,5 +69,57 @@ def nancov(X):##{{{
 		return P
 ##}}}
 
+def sqrtm( C ):##{{{
+	
+	def _sqrtm(c):
+		if not np.isfinite(c).all():
+			return np.zeros_like(c) + np.nan
+		u,s,v = np.linalg.svd(c)
+		return u @ np.sqrt(np.diag(s)) @ v.T
+	
+	if C.ndim == 2:
+		return _sqrtm(C)
+	
+	shape_nd = C.shape
+	shape_1d = C.shape[:2] + (-1,)
+	C = C.reshape(shape_1d)
+	S = C.copy() + np.nan
+	for i in range(C.shape[-1]):
+		S[:,:,i] = _sqrtm(C[:,:,i])
+	
+	return S.reshape(shape_nd)
+##}}}
+
+def robust_covariance( X , method = "norm-quantile" , index = slice(None) ):##{{{
+	
+	if method == "norm-quantile":
+		XX = X[:,index]
+		loc   = np.quantile( XX , 0.50 , axis = 0 )
+		scale = np.quantile( XX - loc.reshape(1,-1) , 0.8413447460685429 , axis = 0 )
+		e     = 1 / XX.shape[0] / 2
+		valid = np.ones( XX.shape[0] , dtype = bool )
+		for i in range(XX.shape[1]):
+			p     = sc.norm.cdf( XX[:,i] , loc = loc[i] , scale = scale[i] )
+			valid = valid & (p > e) & (1 - p > e)
+		C = np.cov( X[valid,:].T )
+	else:
+		C = np.cov( X.T )
+	return C
+##}}}
+
+## mean_cov_hpars ##{{{
+
+@disable_warnings
+def mean_cov_hpars( hpars ):
+	
+	nhpar = hpars.shape[-3]
+	hpar  = np.nanmean( hpars , axis = (-2,-1) )
+	if ~np.isfinite(hpar).all():
+		hcov = np.zeros( hpar.shape + (nhpar,) ) + np.nan
+	else:
+		hcov  = np.apply_along_axis( lambda x: robust_covariance( x.reshape(nhpar,-1).T ) , 1 , hpars.reshape(-1,np.prod(hpars.shape[-3:])) ).reshape( hpars.shape[:-3] + (nhpar,nhpar) )
+	
+	return hpar,hcov
+##}}}
 
 

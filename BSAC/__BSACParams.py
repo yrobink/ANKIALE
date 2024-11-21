@@ -75,6 +75,7 @@ class BSACParams:
 	tmp_stan    : str | None         = None
 	
 	config : str | None = None
+	no_STAN: bool = False
 	
 	input  : list | None = None
 	output : str  | None = None
@@ -109,6 +110,7 @@ class BSACParams:
 		parser.add_argument( "--disable-dask" , action = "store_const" , const = True , default = False )
 		
 		parser.add_argument( "--config" , default = None )
+		parser.add_argument( "--no-STAN" , action = "store_const" , const = True , default = False )
 		
 		parser.add_argument( "--input" , nargs = "+" , action = "extend" )
 		parser.add_argument( "--output" , default = None )

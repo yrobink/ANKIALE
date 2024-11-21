@@ -83,56 +83,65 @@ class GEVModel(AbstractModel):##{{{
 		return stan_model
 	##}}}
 	
-	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , tmp ):##{{{
+	def _fit_bayesian_ORIGIN( self , Y , X , prior , n_mcmc_drawn , n_try = 10 ):##{{{
 		
-		n_try = 10
-		try:
-			for _ in range(n_try):
-				try:
-					## Load stan model
-					stan_model = self.init_stan( tmp )
-					
-					## Fit the model
-					idata  = {
-						"nhpar" : prior.mean.size,
-						"prior_hpar" : prior.mean,
-						"prior_hcov" : prior.cov,
-						"nXY"        : Y.size,
-						"X"          : X,
-						"Y"          : Y,
-					}
-					with tempfile.TemporaryDirectory( dir = tmp ) as tmp_draw:
-						fit  = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp_draw , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
-						draw = fit.draws_xr("hpar")["hpar"][0,:,:].values#.rename( hpar_dim_0 = "hpar" ).assign_coords( hpar = self.coef_name )
-					
-					success = True
-					break
-				except:
-					success = False
+		for _ in range(n_try):
 			
-			if not success:
-				raise Exception
+			self.law = self.sd( method = "bayesian" )
+			with warnings.catch_warnings():
+				warnings.simplefilter("ignore")
+				self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = 20 * n_mcmc_drawn , burn = 5000 )
+			rate = self.law.info_.rate_accept
+			draw = self.law.info_.draw[self.law.info_.accept,:][::5,:][-n_mcmc_drawn:,:]
 			
-		except:
-			
-			for _ in range(n_try):
-				
-				self.law = self.sd( method = "bayesian" )
-				with warnings.catch_warnings():
-					warnings.simplefilter("ignore")
-					self.law.fit( Y , c_loc = X , c_scale = X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = 20 * n_mcmc_drawn , burn = 5000 )
-				rate = self.law.info_.rate_accept
-				draw = self.law.info_.draw[self.law.info_.accept,:][::5,:][-n_mcmc_drawn:,:]
-				
-				if draw.shape[0] < n_mcmc_drawn or rate < 0.3:
-					success = False
-					continue
-				else:
-					success = True
-					break
+			if draw.shape[0] < n_mcmc_drawn or rate < 0.3:
+				success = False
+				continue
+			else:
+				success = True
+				break
 		
 		if not success:
 			draw = np.zeros( (n_mcmc_drawn,prior.mean.size) ) + np.nan
+		return draw
+	##}}}
+	
+	def _fit_bayesian_STAN( self , Y , X , prior , n_mcmc_drawn , tmp , n_try = 10 ):##{{{
+		for _ in range(n_try):
+			try:
+				## Load stan model
+				stan_model = self.init_stan( tmp )
+				
+				## Fit the model
+				idata  = {
+					"nhpar" : prior.mean.size,
+					"prior_hpar" : prior.mean,
+					"prior_hcov" : prior.cov,
+					"nXY"        : Y.size,
+					"X"          : X,
+					"Y"          : Y,
+				}
+				with tempfile.TemporaryDirectory( dir = tmp ) as tmp_draw:
+					fit  = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp_draw , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
+					draw = fit.draws_xr("hpar")["hpar"][0,:,:].values
+				
+				success = True
+				break
+			except:
+				success = False
+		
+		if not success:
+			draw = self._fit_bayesian_ORIGIN( Y , X , prior , n_mcmc_drawn , n_try )
+		
+		return draw
+	##}}}
+	
+	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , use_STAN , tmp , n_try = 10 ):##{{{
+		
+		if use_STAN:
+			draw = self._fit_bayesian_STAN( Y , X , prior , n_mcmc_drawn , tmp , n_try )
+		else:
+			draw = self._fit_bayesian_ORIGIN( Y , X , prior , n_mcmc_drawn , n_try )
 		
 		return draw
 	##}}}

@@ -34,6 +34,8 @@ from ..stats.__tools    import nslawid_to_class
 from ..stats.__NSLawMLEFit import nslaw_fit
 from ..__sys import coords_samples
 
+from ..__linalg import mean_cov_hpars
+
 import numpy  as np
 import xarray as xr
 import zxarray as zr
@@ -50,16 +52,6 @@ logger.addHandler(logging.NullHandler())
 ###############
 ## Functions ##
 ###############
-
-def hpar_hcov( hpars ):##{{{
-	
-	nhpar = hpars.shape[-3]
-	hpar  = hpars.mean( axis = (-2,-1) )
-	hcov  = np.apply_along_axis( lambda x: np.cov( x.reshape(nhpar,-1) ) , 1 , hpars.reshape(-1,np.prod(hpars.shape[-3:])) ).reshape( hpars.shape[:-3] + (nhpar,nhpar) )
-	
-	return hpar,hcov
-##}}}
-
 
 ## run_bsac_cmd_fit_X ##{{{
 @log_start_end(logger)
@@ -87,24 +79,30 @@ def run_bsac_cmd_fit_X():
 		idata   = xr.open_dataset( inputs[name] )[name].mean( dim = "run" )
 		periods = list(set(idata.period.values.tolist()) & set(bsacParams.dpers))
 		periods.sort()
-		X[name] = { p : idata.sel( period = bsacParams.cper + [p] ).mean( dim = "period" ) for p in periods }
+		X[name] = { p : idata.sel( period = bsacParams.cper + [p] ).mean( dim = "period" ).dropna( dim = "time" ) for p in periods }
 	bsacParams.clim.dpers = periods
+	
+	## Restrict time axis
+	time = X[name][periods[0]].time.values.tolist()
+	for name in X:
+		for p in X[name]:
+			time = list(set(time) & set(X[name][p].time.values.tolist()))
+	time = sorted(time)
+	for name in X:
+		for p in X[name]:
+			X[name][p] = X[name][p].sel( time = time )
+	time = np.array(time)
+	bsacParams.clim._time = time
 	
 	## Find the bias
 	logger.info( "Build bias:" )
 	bias = { name : 0 for name in X }
-	time    = []
 	for name in X:
 		for p in X[name]:
 			bias[name] = float(X[name][p].sel( time = slice(*bsacParams.clim.bper) ).mean( dim = "time" ).values)
 			X[name][p]   -= bias[name]
-			time          = time + X[name][p]["time"].values.tolist()
 		logger.info( f" * {name}: {bias[name]}" )
-	time = list(set(time))
-	time.sort()
-	time = np.array(time)
 	bsacParams.clim._bias = bias
-	bsacParams.clim._time = time
 	
 	## Build the natural forcings
 	logger.info( "Build XN" )
@@ -233,7 +231,7 @@ def run_bsac_cmd_fit_Y():
 	                     "dask_gufunc_kwargs" : { "output_sizes" : { "hpar" : len(hpar_namesY) , "hpar0" : len(hpar_namesY) , "hpar1" : len(hpar_namesY) } },
 	                     "output_dtypes"  : [hpars.dtype,hpars.dtype]
 	                    }
-	hpar,hcov = zr.apply_ufunc( hpar_hcov , hpars,
+	hpar,hcov = zr.apply_ufunc( mean_cov_hpars , hpars,
 	                            bdims         = d_spatial,
 	                            max_mem       = bsacParams.total_memory,
 	                            output_dims   = output_dims,

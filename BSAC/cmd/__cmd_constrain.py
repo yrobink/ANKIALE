@@ -24,8 +24,6 @@ import os
 import logging
 import tempfile
 import itertools as itt
-import gc
-
 
 from ..__logs import LINE
 from ..__logs import log_start_end
@@ -35,14 +33,18 @@ from ..__BSACParams import bsacParams
 import numpy  as np
 import xarray as xr
 import zxarray as zr
-import statsmodels.gam.api as smg
 import scipy.stats as sc
+
+import netCDF4
 
 from ..__sys     import coords_samples
 from ..stats.__tools import nslawid_to_class
-from ..stats.__rvs   import rvs_multivariate_normal
-from ..stats.__rvs   import robust_covariance
+
 from ..stats.__constraint import gaussian_conditionning
+from ..stats.__constraint import mcmc
+
+from ..__linalg import mean_cov_hpars
+
 
 ##################
 ## Init logging ##
@@ -139,8 +141,7 @@ def run_bsac_cmd_constrain_X():
 	
 	##
 	time = clim.time
-	spl  = smg.BSplines( time , df = clim.GAM_dof + 1 - 1 , degree = clim.GAM_degree , include_intercept = False ).basis
-	lin  = np.stack( [np.ones(time.size),clim.XN.loc[time].values] ).T.copy()
+	spl,lin,_,_ = clim.build_design_XFC()
 	nper = len(clim.dpers)
 	
 	## Create projection matrix A
@@ -199,80 +200,31 @@ def run_bsac_cmd_constrain_X():
 ##}}}
 
 
-def _constrain_Y_parallel( hpar , hcov , Yo , timeYo , clim , size , size_chain ):##{{{
+def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STAN ):##{{{
 	
-	## Build output
-	ohpar = hpar.copy() + np.nan
-	ohcov = hcov.copy() + np.nan
+	ssp    = ihpar.shape[:-2]
+	nhpar  = ihpar.shape[-1]
+	hpars  = np.zeros( ssp + (samples.size,nhpar,size_chain) ) + np.nan
 	
-	##
-	if np.any(~np.isfinite(hpar)):
-		return ohpar,ohcov
-	
-	
-	## 
-	_,_,designF_,_ = clim.build_design_XFC()
-	hpar_coords = designF_.hpar.values.tolist()
-	name        = clim.namesX[-1]
-	
-	## Build the prior
-	prior_hpar = hpar[-clim.sizeY:]
-	prior_hcov = hcov[-clim.sizeY:,-clim.sizeY:]
-	prior      = sc.multivariate_normal( mean = prior_hpar , cov = prior_hcov , allow_singular = True )
-	
-	##
-	total_draw = 0
-	
-	## While loop
-	samples = coords_samples(size)
-	Yf      = Yo
-	nslaw   = clim._nslaw_class()
-	draw    = []
-	for _ in range(10):
+	for idx in itt.product(*[range(s) for s in ssp + (samples.size,)]):
 		
-		## Draw hpars
-		hpars = xr.DataArray( rvs_multivariate_normal( size , hpar , hcov ) , dims = ["sample","hpar"] , coords = [samples,clim.hpar_names] )
-		mcmc  = np.zeros( (hpars.hpar.size,size_chain) )
+		## Extract
+		idx1d = idx + tuple([slice(None) for _ in range(1)])
+		idx2d = idx + tuple([slice(None) for _ in range(2)])
+		ih    = ihpar[idx1d]
+		ic    = ihcov[idx2d]
+		iYo   = Yo[idx1d]
 		
-		## Build covariates
-		XF = xr.concat(
-		        [
-		         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_.sel( time = timeYo )
-		         for per in clim.dpers
-		        ],
-		        dim = "period"
-		    ).mean( dim = "period" )#.values
+		if np.any(~np.isfinite(ih)):
+			continue
 		
-		## and MCMC on all samples
-		for s in samples:
-			## MCMC
-			chain = nslaw.fit_bayesian( Yf , XF.loc[s,:].values , prior = prior , n_mcmc_drawn = size_chain , tmp = bsacParams.tmp_stan )
-			
-			## Build output
-			mcmc[:-clim.sizeY,:] = hpars.loc[s,:][:-clim.sizeY].values.reshape(-1,1)
-			mcmc[-clim.sizeY:,:] = chain.T
-			valid   = np.isfinite(mcmc).all( axis = 0 )
-			n_valid = valid.sum()
-			if n_valid > 0:
-				draw.append( mcmc[:,valid].reshape(-1,n_valid).copy() )
-			total_draw += n_valid
-			if total_draw > size * size_chain:
-				break
-		if total_draw > size * size_chain:
-			break
+		## MCMC
+		oh = mcmc( ih , ic , iYo , A , size_chain , nslaw_class , use_STAN , bsacParams.tmp_stan )
+		
+		## Store
+		hpars[idx2d] = oh
 	
-	## And merge all drawn
-	draw  = np.hstack(draw)
-	
-	## Compute final parameters
-	ohpar = draw.mean(1)
-	ohcov = robust_covariance( draw.T , index = slice(-clim.sizeY,None,1) )
-	
-	## Clean memory
-	del hpars
-	gc.collect()
-	
-	return ohpar,ohcov
+	return hpars
 ##}}}
 
 ## run_bsac_cmd_constrain_Y ##{{{
@@ -298,61 +250,115 @@ def run_bsac_cmd_constrain_Y():
 		pass
 	clim._bias[clim.names[-1]] = bias
 	
+	## Transform in ZXArray
+	zYo = zr.ZXArray.from_xarray(Yo)
+	
 	## Extract parameters
-	d_spatial = clim.d_spatial
-	c_spatial = clim.c_spatial
-	chpar     = clim.hpar_names
-	ihpar     = xr.DataArray( clim.mean_.copy() , dims = ("hpar",)         + d_spatial , coords = { **{ "hpar"  : chpar }                   , **c_spatial } )
-	ihcov     = xr.DataArray( clim.cov_.copy()  , dims = ("hpar0","hpar1") + d_spatial , coords = { **{ "hpar0" : chpar , "hpar1" : chpar } , **c_spatial } )
-	ohpar     = xr.zeros_like(ihpar) + np.nan
-	ohcov     = xr.zeros_like(ihcov) + np.nan
+	use_STAN   = not bsacParams.no_STAN
+	d_spatial  = clim.d_spatial
+	c_spatial  = clim.c_spatial
+	hpar_names = clim.hpar_names
+	ihpar      = clim.hpar
+	ihcov      = clim.hcov
+	
+	## Samples
+	n_samples = bsacParams.n_samples
+	samples   = coords_samples(n_samples)
+	zsamples  = zr.ZXArray.from_xarray( xr.DataArray( range(n_samples) , dims = ["sample"] , coords = [samples] ).astype(float) )
+	
+	##
+	dpers  = clim.dpers
+	chains = range(size_chain)
+	
+	## Build projection operator for the covariable
+	time = clim.time
+	spl,lin,_,_ = clim.build_design_XFC()
+	nper = len(clim.dpers)
+	
+	design_ = []
+	for nameX in clim.namesX:
+		if nameX == clim.namesX[-1]:
+			design_ = design_ + [spl for _ in range(nper)] + [nper * lin]
+		else:
+			design_ = design_ + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+	design_ = design_ + [np.zeros( (time.size,clim.sizeY) )]
+	design_ = np.hstack(design_)
+	
+	T = xr.DataArray( np.identity(design_.shape[0]) , dims = ["timeA","timeB"] , coords = [time,time] ).loc[Yo.time,time].values
+	A = T @ design_ / nper
+	
+	##
+	nslaw_class = clim._nslaw_class
 	
 	## Init stan
-	logger.info("Stan compilation...")
-	clim._nslaw_class.init_stan( tmp = bsacParams.tmp_stan , force_compile = True )
-	logger.info("Stan compilation. Done.")
+	if use_STAN:
+		logger.info(" * STAN compilation...")
+		nslaw_class.init_stan( tmp = bsacParams.tmp_stan , force_compile = True )
+		logger.info(" * STAN compilation... Done.")
 	
-	## Loop on spatial variables
-	jump = max( 0 , int( np.power( bsacParams.n_jobs , 1. / max( len(clim.s_spatial) , 1 ) ) ) ) + 1
-	for idx in itt.product(*[range(0,s,jump) for s in clim.s_spatial]):
+	## Apply parameters
+	output_dims      = [ ("hpar","sample","chain") + d_spatial   ]
+	output_coords    = [ [hpar_names,samples,chains] + [ c_spatial[d] for d in d_spatial ] ]
+	output_dtypes    = [float]
+	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["time"] , [] ],
+	                     "output_core_dims" : [ ["hpar","chain"] ],
+	                     "kwargs" : { "A" : A , "size_chain" : size_chain , "nslaw_class" : nslaw_class , "use_STAN" : use_STAN } ,
+	                     "dask" : "parallelized",
+	                     "dask_gufunc_kwargs" : { "output_sizes" : { "chain" : size_chain } },
+	                     "output_dtypes"  : [clim.hpar.dtype]
+	                    }
+	
+	## Draw samples
+	logger.info(" * Draw samples")
+	ohpars = zr.apply_ufunc( zmcmc , ihpar , ihcov , zYo , zsamples ,
+	                         bdims = d_spatial , max_mem = bsacParams.total_memory,
+	                         output_coords = output_coords,
+	                         output_dims   = output_dims,
+	                         output_dtypes = output_dtypes,
+	                         dask_kwargs   = dask_kwargs )
+	
+	## And find parameters of the distribution
+	logger.info(" * Compute mean and covariance of parameters")
+	output_dims      = [ ("hpar",) + d_spatial , ("hpar0","hpar1") + d_spatial ]
+	output_coords    = [ [hpar_names] + [ c_spatial[d] for d in d_spatial ] , [hpar_names,hpar_names] + [ c_spatial[d] for d in d_spatial ] ]
+	output_dtypes    = [float,float]
+	dask_kwargs      = { "input_core_dims"  : [ ["hpar","sample","chain"]],
+	                     "output_core_dims" : [ ["hpar"] , ["hpar0","hpar1"] ],
+	                     "kwargs" : {},
+	                     "dask" : "parallelized",
+	                     "dask_gufunc_kwargs" : { "output_sizes" : { "hpar0" : len(hpar_names) , "hpar1" : len(hpar_names) } },
+	                     "output_dtypes"  : [ohpars.dtype,ohpars.dtype]
+	                    }
+	hpar,hcov = zr.apply_ufunc( mean_cov_hpars , ohpars,
+	                            bdims         = d_spatial,
+	                            max_mem       = bsacParams.total_memory,
+	                            output_dims   = output_dims,
+	                            output_coords = output_coords,
+	                            output_dtypes = output_dtypes,
+	                            dask_kwargs   = dask_kwargs )
+	
+	## Store (or not) the samples
+	if bsacParams.output is not None:
+		logger.info(" * Store samples on the disk")
 		
-		##
-		s_idx = tuple([slice(s,s+jump,1) for s in idx])
-		idx1d = (slice(None),) + s_idx
-		idx2d = (slice(None),slice(None)) + s_idx
-		
-		## Extract data
-		shpar = ihpar[idx1d].chunk( { d : 1 for d in ihpar.dims[1:] } )
-		shcov = ihcov[idx2d].chunk( { d : 1 for d in ihpar.dims[1:] } )
-		sYo   = Yo[(slice(None),) + s_idx].chunk({ d : 1 for d in ihpar.dims[1:] })
-		
-		##
-		isfin = np.all( np.isfinite(sYo) , axis = 0 ).values
-		logger.info( f" * {idx} + {jump} / {clim.s_spatial} ({round( 100 * isfin.sum() / isfin.size , 2 )}%)" )
-		
-		##
-		h,c = xr.apply_ufunc( _constrain_Y_parallel , shpar , shcov , sYo ,
-		                    input_core_dims  = [["hpar"],["hpar0","hpar1"],["time"]],
-		                    output_core_dims = [["hpar"],["hpar0","hpar1"]],
-		                    output_dtypes    = [shpar.dtype,shcov.dtype],
-		                    vectorize        = True,
-		                    dask             = "parallelized",
-		                    kwargs           = { "timeYo" : Yo.time.values , "clim" : clim , "size" : size , "size_chain" : size_chain }
-		                    )
-		h = h.transpose( *shpar.dims ).compute()
-		c = c.transpose( *shcov.dims ).compute()
-		
-		ohpar[idx1d] = h.values
-		ohcov[idx2d] = c.values
-		
-		## Clean memory
-		del h
-		del c
-		gc.collect()
+		names = lambda n : "hyper_parameter" if n == "hpar" else n
+		with netCDF4.Dataset( bsacParams.output , "w" ) as oncf:
+			
+			## Create dimensions
+			ncdims = { names(d) : oncf.createDimension( names(d) , s ) for d,s in zip(ohpars.dims,ohpars.shape) }
+			
+			## Create variables
+			ncvars = { names(d) : oncf.createVariable( names(d) , ohpars.coords[d].dtype , (names(d),) ) for d in ohpars.dims }
+			ncvars["hpars"] = oncf.createVariable( "hpars" , ohpars.dtype , [names(d) for d in ohpars.dims] )
+			
+			## And fill
+			for d in ohpars.dims:
+				ncvars[names(d)][:] = ohpars.coords[d].values[:]
+			ncvars["hpars"][:] = ohpars._internal.zdata[:]
 	
 	## And save
-	clim.mean_ = ohpar.values
-	clim.cov_  = ohcov.values
+	clim.hpar = hpar
+	clim.hcov = hcov
 	bsacParams.clim = clim
 ##}}}
 

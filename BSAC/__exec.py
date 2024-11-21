@@ -216,8 +216,8 @@ def start_bsac(*argv):##{{{
 		pass
 	except Exception as e:
 		logger.error(LINE)
-		logger.error( f"Error: {e}" )
 		logger.error( traceback.print_tb( sys.exc_info()[2] ) )
+		logger.error( f"Error: {e}" )
 		logger.error(LINE)
 	
 	## End

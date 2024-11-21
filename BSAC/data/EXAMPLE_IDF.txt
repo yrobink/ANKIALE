@@ -11,9 +11,12 @@ done
 MODELS=$(ls $DPATH/INPUT/IDF/X-GMST)
 
 ## Loop on models to fit the statistical model
+echo "Loop on models"
 for MODNC in $MODELS
 do
     MOD=$(basename $MODNC .nc)
+    echo " * $MOD"
+    echo "   => fit X"
     bsac fit X --n-samples $N_SAMPLES --log info $HPATH/LOG/'FITX_'$MOD.log\
                --bias-period $BIAS_PERIOD\
                --input GMST,$DPATH/INPUT/IDF/X-GMST/$MODNC EU,$DPATH/INPUT/IDF/X-EU/$MODNC\
@@ -24,6 +27,7 @@ do
                --n-workers $N_WORKERS\
                --threads-per-worker $THREADS_PER_WORKER
 	
+    echo "   => show X"
     bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/'SHOWX_'$MOD.log\
                 --bias-period $BIAS_PERIOD\
                 --load-clim $DPATH/FIT/$MOD'_fitX.nc'\
@@ -33,6 +37,7 @@ do
                 --n-workers $N_WORKERS\
                 --threads-per-worker $THREADS_PER_WORKER
     
+    echo "   => fit Y"
     bsac fit Y --n-samples $N_SAMPLES --log info $HPATH/LOG/'FITY_'$MOD.log\
                --bias-period $BIAS_PERIOD\
                --input $DPATH/INPUT/IDF/Y-IDF/$MODNC\
@@ -47,6 +52,7 @@ do
 done
 
 ### Run synthesis
+echo " * synthesis"
 GRID=$DPATH/INPUT/IDF/infos/mask_IDF.nc
 GRIDNAME='area_fraction'
 bsac synthesize --log info $HPATH/LOG/SYNTHESIS.log\
@@ -59,6 +65,7 @@ bsac synthesize --log info $HPATH/LOG/SYNTHESIS.log\
                 --n-workers $N_WORKERS\
                 --threads-per-worker $THREADS_PER_WORKER
 
+echo " * show X of synthesis"
 bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_SYNTHESIS.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
@@ -68,31 +75,46 @@ bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_SYNTHESIS.log\
             --threads-per-worker $THREADS_PER_WORKER
 
 ## Run constraint
-#bsac constrain X --log info $HPATH/LOG/CONSTRAINX.log\
-#                 --bias-period $BIAS_PERIOD\
-#                 --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
-#                 --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-#                 --input GMST,$DPATH/INPUT/IDF/Xo/GMST_GISTEMP_tas_year_1880-2023.nc EU,$DPATH/INPUT/IDF/Xo/EU_HadCRUT_tas_year_1850-2023.nc\
-#                 --total-memory $TOTAL_MEMORY\
-#                 --n-workers $N_WORKERS\
-#                 --threads-per-worker $THREADS_PER_WORKER
-#
-#bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_CONSTRAINX.log\
-#            --bias-period $BIAS_PERIOD\
-#            --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-#            --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
-#            --output $DPATH/FIGURES/BSAC_SHOW_X_CONSTRAINX.pdf\
-#            --total-memory $TOTAL_MEMORY\
-#            --n-workers $N_WORKERS\
-#            --threads-per-worker $THREADS_PER_WORKER
-#
-#bsac show CX --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
-#             --bias-period $BIAS_PERIOD\
-#             --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-#             --input $DPATH/SYNTHESIS/SYNTHESIS.nc\
-#             --output $DPATH/FIGURES/BSAC_SHOW_CX_CONSTRAINX-VS-SYNTHESIS.pdf\
-#             --total-memory $TOTAL_MEMORY\
-#             --n-workers $N_WORKERS\
-#             --threads-per-worker $THREADS_PER_WORKER
+echo " * constraint X of observations"
+bsac constrain X --log info $HPATH/LOG/CONSTRAINX.log\
+                 --bias-period $BIAS_PERIOD\
+                 --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
+                 --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
+                 --input GMST,$DPATH/INPUT/IDF/Xo/GMST_GISTEMP_tas_year_1880-2023.nc EU,$DPATH/INPUT/IDF/Xo/EU_HadCRUT_tas_year_1850-2023.nc\
+                 --total-memory $TOTAL_MEMORY\
+                 --n-workers $N_WORKERS\
+                 --threads-per-worker $THREADS_PER_WORKER
+
+echo " * show X of constraint"
+bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_CONSTRAINX.log\
+            --bias-period $BIAS_PERIOD\
+            --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
+            --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
+            --output $DPATH/FIGURES/BSAC_SHOW_X_CONSTRAINX.pdf\
+            --total-memory $TOTAL_MEMORY\
+            --n-workers $N_WORKERS\
+            --threads-per-worker $THREADS_PER_WORKER
+
+echo " * show X of constraint VS synthesis"
+bsac show CX --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
+             --bias-period $BIAS_PERIOD\
+             --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
+             --input $DPATH/SYNTHESIS/SYNTHESIS.nc\
+             --output $DPATH/FIGURES/BSAC_SHOW_CX_CONSTRAINX-VS-SYNTHESIS.pdf\
+             --total-memory $TOTAL_MEMORY\
+             --n-workers $N_WORKERS\
+             --threads-per-worker $THREADS_PER_WORKER
+
+echo " * constraint Y of observations"
+bsac constrain Y --log info $HPATH/LOG/CONSTRAINY.log\
+                 --n-samples $N_SAMPLES\
+                 --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
+                 --save-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
+                 --input TX3x,$DPATH/INPUT/IDF/Yo/IDF_ERA5_TX3x_year_1940-2023.nc\
+                 --output $DPATH/CONSTRAIN/SAMPLES_CONSTRAINY.nc\
+                 --config size-chain=10\
+                 --total-memory $TOTAL_MEMORY\
+                 --n-workers $N_WORKERS\
+                 --threads-per-worker $THREADS_PER_WORKER
 
 ## END OF SCRIPT
