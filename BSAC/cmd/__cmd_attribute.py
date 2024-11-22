@@ -28,24 +28,19 @@ import logging
 import warnings
 from ..__logs import LINE
 from ..__logs import log_start_end
+from ..__logs import disable_warnings
 from ..__release import version
 
 from ..__BSACParams import bsacParams
 
 from ..__climatology import Climatology
 
-from ..__XZarr import XZarr
-from ..__XZarr import random_zfile
-
-from ..__sys import SizeOf
 from ..__sys import coords_samples
-
-from ..stats.__rvs import rvs_climatology
-from ..stats.__rvs import rvs_multivariate_normal
 
 
 import numpy  as np
 import xarray as xr
+import zxarray as zr
 import netCDF4
 import cftime
 
@@ -62,538 +57,102 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def _attribute_event_parallel( hpar , hcov , Yo , bias , t_attr , clim , side , mode , n_samples , ci ):##{{{
+## zattribute_fcreturnt ##{{{
+
+@disable_warnings
+def zattribute_fcreturnt( hpar , hcov , bias , projF , projC , RT , nslaw_class , side , world , mode , n_samples , ci ):
 	
-	## Extract parameters from clim
-	_,_,designF_,designC_ = clim.build_design_XFC()
-	nslaw_class = clim._nslaw_class
-	nslaw   = clim._nslaw_class()
-	n_pers  = len(clim.dpers)
-	n_times = len(clim.time)
+	## Coordinates
+	nhpar = hpar.shape[-1]
+	ssp   = hpar.shape[:-3]
+	nper  = projF.shape[0]
+	ntime = projF.shape[-2]
 	
-	## Init output
-	n_modes = n_samples if mode == "sample" else 3
+	##
+	projF = projF.reshape( projF.shape[-3:] )
+	projC = projC.reshape( projF.shape[-3:] )
+	nslaw = nslaw_class()
 	
-	## If nan, return
-	if not np.isfinite(hpar).all():
-		return tuple([ np.zeros((n_modes,n_pers,n_times)) for _ in range(8) ])
+	## Prepare output
+	pF = np.zeros( ssp + (nper,RT.size,ntime,n_samples) ) + np.nan
+	pC = np.zeros( ssp + (nper,RT.size,ntime,n_samples) ) + np.nan
+	IF = np.zeros( ssp + (nper,RT.size,ntime,n_samples) ) + np.nan
+	IC = np.zeros( ssp + (nper,RT.size,ntime,n_samples) ) + np.nan
 	
-	## Draw parameters
-	hpars = xr.DataArray( rvs_multivariate_normal( n_samples , hpar , hcov ) , dims = ["sample","hpar"] , coords = [range(n_samples),clim.hpar_names] )
+	## Copy RT
+	if world.upper() == "F":
+		pF[:] = 1. / RT.reshape( *([1 for _ in ssp] + [1,-1,1,1]) )
+	else:
+		pC[:] = 1. / RT.reshape( *([1 for _ in ssp] + [1,-1,1,1]) )
 	
-	## Design
-	_,_,designF_,designC_ = clim.build_design_XFC()
-	hpar_coords = designF_.hpar.values.tolist()
-	name        = clim.namesX[-1]
-	
-	## Build XFC
-	XF = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).assign_coords( period = clim.dpers )
-	XC = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designC_
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).assign_coords( period = clim.dpers )
-	
-	## Build params
-	kwargsF = nslaw.draw_params( XF , hpars )
-	kwargsC = nslaw.draw_params( XC , hpars )
-	
-	## Attribution
-	xYo = np.zeros( (n_samples,n_pers,n_times) ) + Yo
-	pF  = nslaw.cdf_sf( xYo , side = side , **kwargsF )
-	pC  = nslaw.cdf_sf( xYo , side = side , **kwargsC )
+	## Loop
+	for idx in itt.product(*[range(s) for s in ssp]):
+		
+		ih = hpar[idx+(0,0,slice(None))]
+		ic = hcov[idx+(0,0,slice(None),slice(None))]
+		
+		if not np.isfinite(ih).all() or not np.isfinite(ic).all():
+			continue
+		
+		## Find hpars
+		hpars = np.random.multivariate_normal( mean = ih , cov = ic , size = (n_samples,RT.size,nper) )
+		
+		## Transform in XF: nper,samples,RT,time
+		dims   = ["period","sample","RT","time"]
+		coords = [range(nper),range(n_samples),range(RT.size),range(ntime)]
+		XF     = xr.DataArray( np.array( [hpars[:,:,i,:] @ projF[i,:,:].T for i in range(nper)] ).reshape(nper,n_samples,RT.size,ntime) , dims = dims , coords = coords )
+		XC     = xr.DataArray( np.array( [hpars[:,:,i,:] @ projC[i,:,:].T for i in range(nper)] ).reshape(nper,n_samples,RT.size,ntime) , dims = dims , coords = coords )
+		
+		## Find law parameters
+		dims    = ["sample","RT","period","hpar"]
+		coords  = [range(n_samples),range(RT.size),range(nper),nslaw.coef_name]
+		nspars  = xr.DataArray( hpars[:,:,:,-nslaw.n_coef:] , dims = dims , coords = coords )
+		kwargsF = nslaw.draw_params( XF , nspars )
+		kwargsC = nslaw.draw_params( XC , nspars )
+		
+		## Transpose
+		kwargsF = { key : kwargsF[key].transpose("period","RT","time","sample") for key in kwargsF }
+		kwargsC = { key : kwargsC[key].transpose("period","RT","time","sample") for key in kwargsF }
+		
+		## Attribution
+		idxp = idx + tuple([slice(None) for _ in range(4)])
+		if world.upper() == "F":
+			IF[idxp] = nslaw.icdf_sf( pF[idxp] , side = side , **kwargsF )
+			IC[idxp] = nslaw.icdf_sf( pF[idxp] , side = side , **kwargsC )
+			pC[idxp] = nslaw.cdf_sf(  IF[idxp] , side = side , **kwargsC )
+		else:
+			IF[idxp] = nslaw.icdf_sf( pC[idxp] , side = side , **kwargsF )
+			IC[idxp] = nslaw.icdf_sf( pC[idxp] , side = side , **kwargsC )
+			pF[idxp] = nslaw.cdf_sf(  IC[idxp] , side = side , **kwargsF )
 	
 	## Remove 0 and 1
 	e  = 10 * sys.float_info.epsilon
-	pF = np.where( pF >     e , pF ,     e )
-	pC = np.where( pC >     e , pC ,     e )
-	pF = np.where( pF < 1 - e , pF , 1 - e )
-	pC = np.where( pC < 1 - e , pC , 1 - e )
-	
-	it_attr = int(np.argwhere( clim.time == t_attr ).ravel())
-	pf      = np.zeros_like(pF) + pF[:,:,it_attr].reshape((n_samples,n_pers,1))
-	
-	IF = nslaw.icdf_sf( pf , side = side , **kwargsF )
-	IC = nslaw.icdf_sf( pf , side = side , **kwargsC )
+	if world.upper() == "F":
+		pC = np.where( pC >     e , pC ,     e )
+		pC = np.where( pC < 1 - e , pC , 1 - e )
+	else:
+		pF = np.where( pF >     e , pF ,     e )
+		pF = np.where( pF < 1 - e , pF , 1 - e )
 	
 	## Others variables
-	with warnings.catch_warnings():
-		warnings.simplefilter("ignore")
-		IF  = IF + bias
-		IC  = IC + bias
-		RF  = 1. / pF
-		RC  = 1. / pC
-		dI  = IF - IC
-		PR  = pF / pC
+	IF  = IF + bias.reshape( ssp + tuple([1 for _ in range(4)]) )
+	IC  = IC + bias.reshape( ssp + tuple([1 for _ in range(4)]) )
+	RF  = 1. / pF
+	RC  = 1. / pC
+	dI  = IF - IC
+	PR  = pF / pC
 	
 	## Compute CI
 	if mode == "quantile":
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			pF = np.quantile( pF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			pC = np.quantile( pC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			RF = np.quantile( RF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			RC = np.quantile( RC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			IF = np.quantile( IF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			IC = np.quantile( IC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			dI = np.quantile( dI , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			PR = np.quantile( PR , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-	
-	return tuple([pF,pC,RF,RC,IF,IC,dI,PR])
-##}}}
-
-## run_bsac_cmd_attribute_event ##{{{
-@log_start_end(logger)
-def run_bsac_cmd_attribute_event():
-	
-	## Parameters
-	clim      = bsacParams.clim
-	time      = clim.time
-	n_samples = bsacParams.n_samples
-	tmp       = bsacParams.tmp
-	side      = bsacParams.config.get("side","right")
-	mode      = bsacParams.config.get("mode","sample")
-	ci        = bsacParams.config.get("ci",0.05)
-	t_attr    = int(bsacParams.config.get("time"))
-	it_attr   = int(np.argwhere( time == t_attr ).ravel())
-	nslaw     = clim._nslaw_class()
-	sp_dims   = clim.d_spatial
-	
-	## Logs
-	logger.info(  " * Configuration" )
-	logger.info( f"   => mode: {mode}" )
-	logger.info( f"   => side: {side}" )
-	logger.info( f"   => ci  : {ci}" )
-	logger.info( f"   => year: {t_attr}" )
-	
-	## Mode dimension
-	if mode == "sample":
-		modes = np.array(coords_samples( n_samples ))
-	elif mode == "quantile":
-		modes = np.array(["QL","BE","QU"])
-	else:
-		raise ValueError( f"Invalid mode ({mode})" )
-	n_modes = modes.size
-	
-	## Load observations
-	Yo  = xr.open_dataset( bsacParams.input[0].split(",")[1] )[clim.names[-1]]
-	
-	## Select year
-	if "time" in Yo.dims:
-		Yo = Yo.assign_coords( time = Yo.time.dt.year )
-		if Yo.time.size > 1:
-			Yo = Yo.sel( time = int(t_attr) )
-		else:
-			Yo = Yo.sel( time = Yo.time[0] )
-		Yo = Yo.drop_vars("time")
-	
-	## And remove bias
-	Yo = Yo - clim.bias[clim.names[-1]]
-	
-	## Output
-	time   = clim.time
-	period = np.array(clim.dpers)
-	dims   = [mode ] + ["time","period"] + list(clim.d_spatial)
-	coords = [modes] + [ time , period ] + [ clim.c_spatial[d] for d in clim.c_spatial ]
-	shape  = [len(c) for c in coords]
-	out = {
-	    "pF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "pF" ) ) ),
-	    "pC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "pC" ) ) ),
-	    "RF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "RF" ) ) ),
-	    "RC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "RC" ) ) ),
-	    "IF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "IF" ) ) ),
-	    "IC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "IC" ) ) ),
-	    "dI" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "dI" ) ) ),
-	    "PR" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "PR" ) ) )
-	}
-	
-	## Build a 'small' climatology
-	## climatology must be pass at each threads, but duplication of mean, cov bias implies a memory leak
-	climB = Climatology.init_from_file( bsacParams.load_clim )
-	del climB._mean
-	del climB._cov
-	del climB._bias
-	
-	## Dask parameters
-	dask_gufunc_kwargs = {}
-	dask_gufunc_kwargs["output_sizes"] = { mode : modes.size , "period" : period.size , "time" : time.size }
-	
-	## Loop on spatial variables
-	block = max( 0 , int( np.power( bsacParams.n_jobs , 1. / max( len(clim.s_spatial) , 1 ) ) ) ) + 1
-	logger.info( " * Loop on spatial variables" )
-	for idx in itt.product(*[range(0,s,block) for s in clim.s_spatial]):
-		
-		##
-		s_idx = tuple([slice(s,s+block,1) for s in idx])
-		f_idx = tuple( [slice(None) for _ in range(3)] ) + s_idx
-		
-		##
-		sYo  = Yo[s_idx].chunk( { d : 1 for d in sp_dims } )
-		bias = clim.bias[clim.names[-1]]
-		if not isinstance(bias,float):
-			bias = clim.bias[clim.names[-1]][s_idx]
-		
-		hpar = clim.xmean_[(slice(None),)+s_idx]
-		hcov = clim.xcov_[(slice(None),slice(None))+s_idx]
-		
-		#
-		res = xr.apply_ufunc( _attribute_event_parallel , hpar , hcov , sYo , bias ,
-		                    input_core_dims    = [["hpar"],["hpar0","hpar1"],[],[]],
-		                    output_core_dims   = [[mode,"period","time"] for _ in range(8)],
-		                    output_dtypes      = [hpar.dtype for _ in range(8)],
-		                    vectorize          = True,
-		                    dask               = "parallelized",
-		                    kwargs             = { "t_attr" : t_attr , "clim" : climB , "side" : side , "mode" : mode , "n_samples" : n_samples , "ci" : ci },
-		                    dask_gufunc_kwargs = dask_gufunc_kwargs
-		                    )
-		
-		res = [ r.transpose( *out["pF"].dims ).compute() for r in res ]
-		for key,r in zip(out,res):
-			out[key].set_orthogonal_selection( f_idx , r.values )
-	
-	## And save
-	logger.info( " * Save in netcdf" )
-	ofile = bsacParams.output
-	with netCDF4.Dataset( ofile , "w" ) as ncf:
-		
-		## Define dimensions
-		logger.info( "   => Define dimensions" )
-		ncdims = {
-		           mode : ncf.createDimension( mode , n_modes ),
-		       "period" : ncf.createDimension( "period" , len(clim.dpers) ),
-		       "time"   : ncf.createDimension(   "time" ),
-		}
-		spatial = ()
-		if clim._spatial is not None:
-			for d in clim._spatial:
-				ncdims[d] = ncf.createDimension( d , clim._spatial[d].size )
-			spatial = tuple([d for d in clim._spatial])
-		
-		## Define variables
-		logger.info( "   => Define variables dimensions" )
-		ncvars = {
-		           mode : ncf.createVariable(     mode , str       , (mode,)     ),
-		       "period" : ncf.createVariable( "period" , str       , ("period",) ),
-		       "time"   : ncf.createVariable( "time"   , "float32" , ("time"  ,) )
-		}
-		ncvars[mode][:] = modes
-		ncvars["period"][:] = period
-		if clim._spatial is not None:
-			for d in clim._spatial:
-				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
-				ncvars[d][:] = np.array(clim._spatial[d]).ravel()
-		
-		## Fill time axis
-		logger.info( "   => Fill time axis" )
-		calendar = "standard"
-		units    = "days since 1750-01-01 00:00"
-		ncvars["time"][:]  = cftime.date2num( [cftime.DatetimeGregorian( int(y) , 1 , 1 ) for y in time] , units = units , calendar = calendar )
-		ncvars["time"].setncattr( "standard_name" , "time"      )
-		ncvars["time"].setncattr( "long_name"     , "time_axis" )
-		ncvars["time"].setncattr( "units"         , units       )
-		ncvars["time"].setncattr( "calendar"      , calendar    )
-		ncvars["time"].setncattr( "axis"          , "T"         )
-		
-		## Variables
-		logger.info( "   => Definie variables" )
-		for key in out:
-			ncvars[key] = ncf.createVariable( key , "float32" , (mode,"time","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
-		
-		## Attributes
-		logger.info( "   => Add attributes" )
-		if mode == "quantile":
-			ncvars[mode].setncattr( "confidence_level" , ci )
-			ncvars["quantile_level"] = ncf.createVariable( "quantile_levels" , "float32" , ("quantile") )
-			ncvars["quantile_level"][:] = np.array([ci/2,0.5,1-ci/2])
-		ncvars["pF"].setncattr( "description" , "Probability in the Factual world" )
-		ncvars["pC"].setncattr( "description" , "Probability in the Counter factual world" )
-		ncvars["RF"].setncattr( "description" , "Return time in the Factual world" )
-		ncvars["RC"].setncattr( "description" , "Return time in the Counter factual world" )
-		ncvars["IF"].setncattr( "description" , "Intensity in the Factual world" )
-		ncvars["IC"].setncattr( "description" , "Intensity in the Counter factual world" )
-		ncvars["PR"].setncattr( "description" , "Change in probability between Factual and Counter factual world" )
-		ncvars["dI"].setncattr( "description" , "Change in intensity between Factual and Counter factual world" )
-		
-		## Find the blocks to write netcdf
-		logger.info( "   => Find blocks to write netcdf" )
-		blocks  = [1,1,1]
-		sizes   = [n_modes,time.size,len(clim.dpers)]
-		nsizes  = [n_modes,time.size,len(clim.dpers)]
-		sp_mem  = SizeOf( n = int(np.prod(clim.s_spatial) * np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) , unit = "o" )
-		tot_mem = SizeOf( n = int(min( 0.8 , 3 * bsacParams.frac_memory_per_array ) * bsacParams.total_memory.o) , unit = "o" )
-		nfind   = [True,True,True]
-		while any(nfind):
-			i = np.argmin(nsizes)
-			blocks[i] = sizes[i]
-			while int(np.prod(blocks)) * sp_mem > tot_mem:
-				if blocks[i] < 2:
-					blocks[i] = 1
-					break
-				blocks[i] = blocks[i] // 2
-			nfind[i]  = False
-			nsizes[i] = np.inf
-		logger.info( f"   => Blocks size found: {blocks}" )
-		
-		## Fill
-		idx_sp = ()
-		if clim._spatial is not None:
-			idx_sp = tuple([slice(None) for _ in range(len(clim._spatial))])
-		for idx in itt.product(*[range(0,s,block) for s,block in zip(sizes,blocks)]):
-			
-			s_idx = tuple([slice(s,s+block,1) for s,block in zip(idx,blocks)])
-			idxs = s_idx + idx_sp
-			
-			for key in out:
-				xdata = out[key].get_orthogonal_selection(idxs)
-				ncvars[key][idxs] = xdata.values
-		
-		## Global attributes
-		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
-		ncf.setncattr( "BSAC_version"  , version )
-		ncf.setncattr( "description" , f"Attribute event" )
-	
-##}}}
-
-
-def _attribute_freturnt_parallel( hpar , hcov , bias , RT , clim , side , mode , n_samples , ci ):##{{{
-	
-	## Extract parameters from clim
-	_,_,designF_,designC_ = clim.build_design_XFC()
-	nslaw_class = clim._nslaw_class
-	nslaw   = clim._nslaw_class()
-	n_pers  = len(clim.dpers)
-	n_times = len(clim.time)
-	n_RT    = len(RT)
-	
-	## Init output
-	n_modes = n_samples if mode == "sample" else 3
-	
-	## If nan, return
-	if not np.isfinite(hpar).all():
-		return tuple([ np.zeros((n_RT,n_modes,n_pers,n_times)) for _ in range(8) ])
-	
-	## Draw parameters
-	hpars = xr.DataArray( rvs_multivariate_normal( n_samples , hpar , hcov ) , dims = ["sample","hpar"] , coords = [range(n_samples),clim.hpar_names] )
-	
-	## Design
-	_,_,designF_,designC_ = clim.build_design_XFC()
-	hpar_coords = designF_.hpar.values.tolist()
-	name        = clim.namesX[-1]
-	
-	## Build XFC
-	XF = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).assign_coords( period = clim.dpers )
-	XC = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designC_
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).assign_coords( period = clim.dpers )
-	
-	## Build params
-	kwargsF = nslaw.draw_params( XF , hpars )
-	kwargsC = nslaw.draw_params( XC , hpars )
-	
-	## Output
-	lpF = []
-	lpC = []
-	lRF = []
-	lRC = []
-	lIF = []
-	lIC = []
-	ldI = []
-	lPR = []
-	
-	## Loop on return time
-	for rt in RT:
-		
-		## Set output
-		pF  = np.zeros( (n_samples,n_pers,n_times) ) + 1. / rt
-		pC  = np.zeros( (n_samples,n_pers,n_times) ) + np.nan
-		IF  = np.zeros( (n_samples,n_pers,n_times) ) + np.nan
-		IC  = np.zeros( (n_samples,n_pers,n_times) ) + np.nan
-		
-		## Attribution
-		IF = nslaw.icdf_sf( pF , side = side , **kwargsF )
-		IC = nslaw.icdf_sf( pF , side = side , **kwargsC )
-		pC = nslaw.cdf_sf(  IF , side = side , **kwargsC )
-		
-		## Remove 0 and 1
-		e  = 10 * sys.float_info.epsilon
-		pC = np.where( pC >     e , pC ,     e )
-		pC = np.where( pC < 1 - e , pC , 1 - e )
-		
-		## Others variables
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			IF  = IF + bias
-			IC  = IC + bias
-			RF  = 1. / pF
-			RC  = 1. / pC
-			dI  = IF - IC
-			PR  = pF / pC
-		
-		## Compute CI
-		if mode == "quantile":
-			with warnings.catch_warnings():
-				warnings.simplefilter("ignore")
-				pF = np.quantile( pF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				pC = np.quantile( pC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				RF = np.quantile( RF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				RC = np.quantile( RC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				IF = np.quantile( IF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				IC = np.quantile( IC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				dI = np.quantile( dI , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				PR = np.quantile( PR , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-		
-		lpF.append(pF)
-		lpC.append(pC)
-		lRF.append(RF)
-		lRC.append(RC)
-		lIF.append(IF)
-		lIC.append(IC)
-		ldI.append(dI)
-		lPR.append(PR)
-	
-	pF = np.stack( lpF , axis = 0 )
-	pC = np.stack( lpC , axis = 0 )
-	RF = np.stack( lRF , axis = 0 )
-	RC = np.stack( lRC , axis = 0 )
-	IF = np.stack( lIF , axis = 0 )
-	IC = np.stack( lIC , axis = 0 )
-	dI = np.stack( ldI , axis = 0 )
-	PR = np.stack( lPR , axis = 0 )
-	
-	return tuple([pF,pC,RF,RC,IF,IC,dI,PR])
-##}}}
-
-def _attribute_creturnt_parallel( hpar , hcov , bias , RT , clim , side , mode , n_samples , ci ):##{{{
-	
-	## Extract parameters from clim
-	_,_,designF_,designC_ = clim.build_design_XFC()
-	nslaw_class = clim._nslaw_class
-	nslaw   = clim._nslaw_class()
-	n_pers  = len(clim.dpers)
-	n_times = len(clim.time)
-	
-	## Init output
-	n_modes = n_samples if mode == "sample" else 3
-	
-	## If nan, return
-	if not np.isfinite(hpar).all():
-		return tuple([ np.zeros((n_RT,n_modes,n_pers,n_times)) for _ in range(8) ])
-	
-	## Draw parameters
-	hpars = xr.DataArray( rvs_multivariate_normal( n_samples , hpar , hcov ) , dims = ["sample","hpar"] , coords = [range(n_samples),clim.hpar_names] )
-	
-	## Design
-	_,_,designF_,designC_ = clim.build_design_XFC()
-	hpar_coords = designF_.hpar.values.tolist()
-	name        = clim.namesX[-1]
-	
-	## Build XFC
-	XF = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).assign_coords( period = clim.dpers )
-	XC = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designC_
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).assign_coords( period = clim.dpers )
-	
-	## Build params
-	kwargsF = nslaw.draw_params( XF , hpars )
-	kwargsC = nslaw.draw_params( XC , hpars )
-	
-	## Output
-	lpF = []
-	lpC = []
-	lRF = []
-	lRC = []
-	lIF = []
-	lIC = []
-	ldI = []
-	lPR = []
-	
-	## Loop on return time
-	for rt in RT:
-		
-		## Set output
-		pF  = np.zeros( (n_samples,n_pers,n_times) ) + np.nan
-		pC  = np.zeros( (n_samples,n_pers,n_times) ) + 1. / rt
-		IF  = np.zeros( (n_samples,n_pers,n_times) ) + np.nan
-		IC  = np.zeros( (n_samples,n_pers,n_times) ) + np.nan
-		
-		## Attribution
-		IF = nslaw.icdf_sf( pC , side = side , **kwargsF )
-		IC = nslaw.icdf_sf( pC , side = side , **kwargsC )
-		pF = nslaw.cdf_sf(  IC , side = side , **kwargsF )
-		
-		## Remove 0 and 1
-		e  = 10 * sys.float_info.epsilon
-		pF = np.where( pF >     e , pF ,     e )
-		pF = np.where( pF < 1 - e , pF , 1 - e )
-		
-		## Others variables
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			IF  = IF + bias
-			IC  = IC + bias
-			RF  = 1. / pF
-			RC  = 1. / pC
-			dI  = IF - IC
-			PR  = pF / pC
-		
-		## Compute CI
-		if mode == "quantile":
-			with warnings.catch_warnings():
-				warnings.simplefilter("ignore")
-				pF = np.quantile( pF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				pC = np.quantile( pC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				RF = np.quantile( RF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				RC = np.quantile( RC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				IF = np.quantile( IF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				IC = np.quantile( IC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				dI = np.quantile( dI , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-				PR = np.quantile( PR , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-		
-		lpF.append(pF)
-		lpC.append(pC)
-		lRF.append(RF)
-		lRC.append(RC)
-		lIF.append(IF)
-		lIC.append(IC)
-		ldI.append(dI)
-		lPR.append(PR)
-	
-	pF = np.stack( lpF , axis = 0 )
-	pC = np.stack( lpC , axis = 0 )
-	RF = np.stack( lRF , axis = 0 )
-	RC = np.stack( lRC , axis = 0 )
-	IF = np.stack( lIF , axis = 0 )
-	IC = np.stack( lIC , axis = 0 )
-	dI = np.stack( ldI , axis = 0 )
-	PR = np.stack( lPR , axis = 0 )
+		trsp = tuple( [ i + 1 for i in range(pF.ndim-1) ] + [0] )
+		pF = np.quantile( pF , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		pC = np.quantile( pC , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		RF = np.quantile( RF , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		RC = np.quantile( RC , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		IF = np.quantile( IF , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		IC = np.quantile( IC , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		dI = np.quantile( dI , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		PR = np.quantile( PR , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
 	
 	return tuple([pF,pC,RF,RC,IF,IC,dI,PR])
 ##}}}
@@ -609,9 +168,8 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	tmp       = bsacParams.tmp
 	side      = bsacParams.config.get("side","right")
 	mode      = bsacParams.config.get("mode","sample")
-	ci        = bsacParams.config.get("ci",0.05)
+	ci        = float(bsacParams.config.get("ci",0.05))
 	nslaw     = clim._nslaw_class()
-	sp_dims   = clim.d_spatial
 	
 	## Logs
 	logger.info(  " * Configuration" )
@@ -621,7 +179,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	
 	## Mode dimension
 	if mode == "sample":
-		modes = coords_samples( n_samples )
+		modes = np.array(coords_samples( n_samples ))
 	elif mode == "quantile":
 		modes = np.array(["QL","BE","QU"])
 	else:
@@ -635,75 +193,76 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		RT = np.arange( rp[0] , rp[1] + rp[2] / 2 , rp[2] , dtype = float ) 
 	else:
 		RT = np.array([float(x) for x in inp.split(",")]).ravel()
+	RT  = xr.DataArray( RT , dims = ["return_time"] , coords = [RT] )
+	zRT = zr.ZXArray.from_xarray(RT)
 	n_RT = RT.size
-	logger.info( f" * Return time: {RT}" )
+	logger.info( f" * Return time: {RT.values}" )
 	
-	## Output
-	time   = clim.time
-	period = np.array(clim.dpers)
-	dims   = ["RT",mode ] + ["time","period"] + list(clim.d_spatial)
-	coords = [ RT ,modes] + [ time , period ] + [ clim.c_spatial[d] for d in clim.c_spatial ]
-	shape  = [len(c) for c in coords]
-	out = {
-	    "pF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "pF" ) ) ),
-	    "pC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "pC" ) ) ),
-	    "RF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "RF" ) ) ),
-	    "RC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "RC" ) ) ),
-	    "IF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "IF" ) ) ),
-	    "IC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "IC" ) ) ),
-	    "dI" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "dI" ) ) ),
-	    "PR" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "PR" ) ) )
-	}
+	## Build projection operator for the covariable
+	time = clim.time
+	spl,lin,_,_ = clim.build_design_XFC()
+	nper = len(clim.dpers)
 	
-	## Select the good function
-	if arg == "freturnt":
-		_attribute_fcreturnt_parallel = _attribute_freturnt_parallel
-	else:
-		_attribute_fcreturnt_parallel = _attribute_creturnt_parallel
+	projF = []
+	projC = []
+	for iper,per in enumerate(clim.dpers):
+		zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
+		designF = []
+		designC = []
+		for nameX in clim.namesX:
+			if nameX == clim.namesX[-1]:
+				designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
+			else:
+				designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+			designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
+		designF = designF + [np.zeros( (time.size,clim.sizeY) )]
+		designC = designC + [np.zeros( (time.size,clim.sizeY) )]
+		projF.append( np.hstack(designF) )
+		projC.append( np.hstack(designC) )
 	
-	## Build a 'small' climatology
-	## climatology must be pass at each threads, but duplication of mean, cov bias implies a memory leak
-	climB = Climatology.init_from_file( bsacParams.load_clim )
-	del climB._mean
-	del climB._cov
-	del climB._bias
+	projF  = xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
+	zprojF = zr.ZXArray.from_xarray(projF)
+	projC  = xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
+	zprojC = zr.ZXArray.from_xarray(projC)
 	
-	## Dask parameters
-	dask_gufunc_kwargs = { "output_sizes" : { "RT" : n_RT } }
-	if mode == "quantile":
-		dask_gufunc_kwargs["output_sizes"] = { "RT" : n_RT , mode : modes.size , "time" : time.size }
+	## Samples
+	n_samples = bsacParams.n_samples
+	samples   = coords_samples(n_samples)
 	
-	## Loop on spatial variables
-	block = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
-	logger.info( " * Loop on spatial variables" )
-	for idx in itt.product(*[range(0,s,block) for s in clim.s_spatial]):
-		
-		##
-		s_idx = tuple([slice(s,s+block,1) for s in idx])
-		f_idx = tuple( [slice(None) for _ in range(3)] ) + s_idx
-		
-		##
-		bias = clim.bias[clim.names[-1]][s_idx]
-		
-		##
-		hpar = clim.xmean_[(slice(None),)+s_idx]
-		hcov = clim.xcov_[(slice(None),slice(None))+s_idx]
-		
-		#
-		res = xr.apply_ufunc( _attribute_fcreturnt_parallel , hpar , hcov , bias ,
-		                    input_core_dims    = [["hpar"],["hpar0","hpar1"],[]],
-		                    output_core_dims   = [["RT",mode,"period","time"] for _ in range(8)],
-		                    output_dtypes      = [hpar.dtype for _ in range(8)],
-		                    vectorize          = True,
-		                    dask               = "parallelized",
-		                    kwargs             = { "RT" : RT , "clim" : climB , "side" : side , "mode" : mode , "n_samples" : n_samples , "ci" : ci },
-		                    dask_gufunc_kwargs = dask_gufunc_kwargs
-		                    )
-		
-		res = [ r.transpose( *out["pF"].dims ).compute() for r in res ]
-		
-		for key,r in zip(out,res):
-			out[key].set_orthogonal_selection( (slice(None),) + f_idx , r.values )
+	##
+	time        = np.array(clim.time)
+	dpers       = np.array(clim.dpers)
+	nslaw_class = clim._nslaw_class
+	d_spatial   = clim.d_spatial
+	c_spatial   = clim.c_spatial
+	zbias       = zr.ZXArray.from_xarray(clim.bias[clim.names[-1]])
+	
+	## Build arguments
+	output_dims      = [ ("return_time",mode,"time","period") + d_spatial for _ in range(8) ]
+	output_coords    = [ [RT,modes,time,dpers] + [ c_spatial[d] for d in d_spatial ] for _ in range(8) ]
+	output_dtypes    = [clim.hpar.dtype for _ in range(8)]
+	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , [] , ["time","hpar"] , ["time","hpar"] , [] ],
+	                     "output_core_dims" : [ ["time",mode] for _ in range(8) ],
+	                     "kwargs"           : { "nslaw_class" : nslaw_class , "side" : side , "world" : arg[0].upper() , "mode" : mode , "n_samples" : n_samples , "ci" : ci } ,
+	                     "dask"             : "parallelized",
+	                     "output_dtypes"    : [clim.hpar.dtype for _ in range(8)],
+		                 "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size } }
+	                    }
+	
+	## Run with zxarray
+	zargs = [clim.hpar,clim.hcov,zbias,zprojF,zprojC,zRT]
+	out = zr.apply_ufunc( zattribute_fcreturnt , *zargs,
+	                      bdims         = ("period","return_time") + clim.d_spatial,
+	                      max_mem       = bsacParams.total_memory,
+	                      output_dims   = output_dims,
+	                      output_coords = output_coords,
+	                      output_dtypes = output_dtypes,
+	                      dask_kwargs   = dask_kwargs,
+	                    )
+	
+	## Transform in dict
+	keys = ["pF","pC","RF","RC","IF","IC","dI","PR"]
+	out  = { key : out[ikey] for ikey,key in enumerate(keys) }
 	
 	## And save
 	logger.info( " * Save in netcdf" )
@@ -718,10 +277,9 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		       "time"   : ncf.createDimension(   "time" ),
 		}
 		spatial = ()
-		if clim._spatial is not None:
-			for d in clim._spatial:
-				ncdims[d] = ncf.createDimension( d , clim._spatial[d].size )
-			spatial = tuple([d for d in clim._spatial])
+		if clim.has_spatial is not None:
+			for d in d_spatial:
+				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
 		
 		## Define variables
 		ncvars = {
@@ -732,11 +290,11 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		}
 		ncvars["return_time"][:] = RT
 		ncvars[mode    ][:]      = modes
-		ncvars["period"][:]      = period
-		if clim._spatial is not None:
-			for d in clim._spatial:
+		ncvars["period"][:]      = dpers
+		if clim.has_spatial:
+			for d in d_spatial:
 				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
-				ncvars[d][:] = np.array(clim._spatial[d]).ravel()
+				ncvars[d][:] = np.array(c_spatial[d]).ravel()
 		
 		if mode == "quantile":
 			ncvars[mode].setncattr( "confidence_level" , ci )
@@ -755,7 +313,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		
 		## Variables
 		for key in out:
-			ncvars[key] = ncf.createVariable( key , "float32" , ("return_time",mode,"time","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + clim.s_spatial )
+			ncvars[key] = ncf.createVariable( key , "float32" , ("return_time",mode,"time","period") + d_spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + clim.s_spatial )
 		
 		## Attributes
 		ncvars["pF"].setncattr( "description" , "Probability in the Factual world" )
@@ -767,34 +325,9 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		ncvars["PR"].setncattr( "description" , "Change in probability between Factual and Counter factual world" )
 		ncvars["dI"].setncattr( "description" , "Change in intensity between Factual and Counter factual world" )
 		
-		## Find the blocks to write netcdf
-		blocks  = [1,1,1,1]
-		sizes   = [n_RT,n_modes,time.size,len(clim.dpers)]
-		nsizes  = [n_RT,n_modes,time.size,len(clim.dpers)]
-		sp_mem  = SizeOf( n = int(np.prod(clim.s_spatial) * np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) , unit = "o" )
-		tot_mem = SizeOf( n = int(min( 0.8 , 3 * bsacParams.frac_memory_per_array ) * bsacParams.total_memory.o) , unit = "o" )
-		nfind   = [True,True,True,True]
-		while any(nfind):
-			i = np.argmin(nsizes)
-			blocks[i] = sizes[i]
-			while int(np.prod(blocks)) * sp_mem > tot_mem:
-				if blocks[i] < 2:
-					blocks[i] = 1
-					break
-				blocks[i] = blocks[i] // 2
-			nfind[i]  = False
-			nsizes[i] = np.inf
-		logger.info( f"   => Blocks size {blocks}" )
-		## Fill
-		idx_sp = tuple([slice(None) for _ in range(len(clim._spatial))])
-		for idx in itt.product(*[range(0,s,block) for s,block in zip(sizes,blocks)]):
-			
-			s_idx = tuple([slice(s,s+block,1) for s,block in zip(idx,blocks)])
-			idxs = s_idx + idx_sp
-			
-			for key in out:
-				xdata = out[key].get_orthogonal_selection(idxs)
-				ncvars[key][idxs] = xdata.values
+		## And fill variables
+		for key in out:
+			ncvars[key][:] = out[key]._internal.zdata[:]
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
@@ -804,89 +337,97 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 ##}}}
 
 
-def _attribute_fintensity_parallel( hpar , hcov , bias , xIF , clim , side , mode , n_samples , ci ):##{{{
+## zattribute_fintensity ##{{{
+
+@disable_warnings
+def zattribute_fintensity( hpar , hcov , bias , xIF , projF , projC , nslaw_class , side , mode , n_samples , ci ):
 	
-	## Extract parameters from clim
-	_,_,designF_,designC_ = clim.build_design_XFC()
-	nslaw_class = clim._nslaw_class
-	nslaw   = clim._nslaw_class()
-	n_pers  = len(clim.dpers)
-	n_times = len(clim.time)
+	## Coordinates
+	nhpar = hpar.shape[-1]
+	ssp   = hpar.shape[:-2]
+	nper  = projF.shape[0]
+	ntime = projF.shape[-2]
 	
-	## Init output
-	n_modes = n_samples if mode == "sample" else 3
+	##
+	projF = projF.reshape( projF.shape[-3:] )
+	projC = projC.reshape( projF.shape[-3:] )
+	nslaw = nslaw_class()
 	
-	## If nan, return
-	if not np.isfinite(hpar).all():
-		return tuple([ np.zeros((n_modes,n_pers,n_times)) for _ in range(8) ])
+	## Prepare output
+	pF = np.zeros( ssp + (nper,ntime,n_samples) ) + np.nan
+	pC = np.zeros( ssp + (nper,ntime,n_samples) ) + np.nan
+	IF = np.zeros( ssp + (nper,ntime,n_samples) ) + xIF.reshape( ssp + (1,1,1) )
+	IC = np.zeros( ssp + (nper,ntime,n_samples) ) + np.nan
 	
-	## Draw parameters
-	hpars = xr.DataArray( rvs_multivariate_normal( n_samples , hpar , hcov ) , dims = ["sample","hpar"] , coords = [range(n_samples),clim.hpar_names] )
 	
-	## Design
-	_,_,designF_,designC_ = clim.build_design_XFC()
-	hpar_coords = designF_.hpar.values.tolist()
-	name        = clim.namesX[-1]
-	
-	## Build XFC
-	XF = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).assign_coords( period = clim.dpers )
-	XC = xr.concat(
-	        [
-	         xr.concat( [hpars[:,clim.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designC_
-	         for per in clim.dpers
-	        ],
-	        dim = "period"
-	    ).assign_coords( period = clim.dpers )
-	
-	## Build params
-	kwargsF = nslaw.draw_params( XF , hpars )
-	kwargsC = nslaw.draw_params( XC , hpars )
-	
-	## Factual and counter factual probabilities
-	IF = np.zeros( (n_samples,n_pers,n_times) ) + xIF
-	pF = nslaw.cdf_sf( IF , side = side , **kwargsF )
-	pC = nslaw.cdf_sf( IF , side = side , **kwargsC )
-	
-	## Remove 0 and 1
-	e  = 10 * sys.float_info.epsilon
-	pF = np.where( pF >     e , pF ,     e )
-	pC = np.where( pC >     e , pC ,     e )
-	pF = np.where( pF < 1 - e , pF , 1 - e )
-	pC = np.where( pC < 1 - e , pC , 1 - e )
-	
-	## Factual and counter factual intensities
-	IC = nslaw.icdf_sf( pF , side = side , **kwargsC )
+	## Loop
+	for idx in itt.product(*[range(s) for s in ssp]):
+		
+		ih = hpar[idx+(0,slice(None))]
+		ic = hcov[idx+(0,slice(None),slice(None))]
+		
+		if not np.isfinite(ih).all() or not np.isfinite(ic).all():
+			continue
+		
+		## Find hpars
+		hpars = np.random.multivariate_normal( mean = ih , cov = ic , size = (n_samples,nper) )
+		
+		## Transform in XF: nper,samples,time
+		dims   = ["period","sample","time"]
+		coords = [range(nper),range(n_samples),range(ntime)]
+		XF     = xr.DataArray( np.array( [hpars[:,i,:] @ projF[i,:,:].T for i in range(nper)] ).reshape(nper,n_samples,ntime) , dims = dims , coords = coords )
+		XC     = xr.DataArray( np.array( [hpars[:,i,:] @ projC[i,:,:].T for i in range(nper)] ).reshape(nper,n_samples,ntime) , dims = dims , coords = coords )
+		
+		## Find law parameters
+		dims    = ["sample","period","hpar"]
+		coords  = [range(n_samples),range(nper),nslaw.coef_name]
+		nspars  = xr.DataArray( hpars[:,:,-nslaw.n_coef:] , dims = dims , coords = coords )
+		kwargsF = nslaw.draw_params( XF , nspars )
+		kwargsC = nslaw.draw_params( XC , nspars )
+		
+		## Transpose
+		kwargsF = { key : kwargsF[key].transpose("period","time","sample") for key in kwargsF }
+		kwargsC = { key : kwargsC[key].transpose("period","time","sample") for key in kwargsF }
+		
+		## Attribution
+		idxp = idx + tuple([slice(None) for _ in range(3)])
+		pF[idxp] = nslaw.cdf_sf( IF[idxp] , side = side , **kwargsF )
+		pC[idxp] = nslaw.cdf_sf( IF[idxp] , side = side , **kwargsC )
+		
+		## Remove 0 and 1
+		e  = 10 * sys.float_info.epsilon
+		pF[idxp] = np.where( pF[idxp] >     e , pF[idxp] ,     e )
+		pC[idxp] = np.where( pC[idxp] >     e , pC[idxp] ,     e )
+		pF[idxp] = np.where( pF[idxp] < 1 - e , pF[idxp] , 1 - e )
+		pC[idxp] = np.where( pC[idxp] < 1 - e , pC[idxp] , 1 - e )
+		
+		## Factual and counter factual intensities
+		IC[idxp] = nslaw.icdf_sf( pF[idxp] , side = side , **kwargsC )
 	
 	## Others variables
-	with warnings.catch_warnings():
-		warnings.simplefilter("ignore")
-		IF  = IF + bias
-		IC  = IC + bias
-		RF  = 1. / pF
-		RC  = 1. / pC
-		dI  = IF - IC
-		PR  = pF / pC
+	IF  = IF + bias.reshape( ssp + tuple([1 for _ in range(3)]) )
+	IC  = IC + bias.reshape( ssp + tuple([1 for _ in range(3)]) )
+	RF  = 1. / pF
+	RC  = 1. / pC
+	dI  = IF - IC
+	PR  = pF / pC
 	
 	## Compute CI
 	if mode == "quantile":
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			pF = np.quantile( pF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			pC = np.quantile( pC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			RF = np.quantile( RF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			RC = np.quantile( RC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			IF = np.quantile( IF , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			IC = np.quantile( IC , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			dI = np.quantile( dI , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
-			PR = np.quantile( PR , [ci/2,0.5,1-ci/2] , axis = 0 , method = "median_unbiased" )
+		trsp = tuple( [ i + 1 for i in range(pF.ndim-1) ] + [0] )
+		pF = np.quantile( pF , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		pC = np.quantile( pC , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		RF = np.quantile( RF , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		RC = np.quantile( RC , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		IF = np.quantile( IF , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		IC = np.quantile( IC , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		dI = np.quantile( dI , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		PR = np.quantile( PR , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
 	
-	return tuple([pF,pC,RF,RC,IF,IC,dI,PR])
+	
+	out = [pF,pC,RF,RC,IF,IC,dI,PR]
+	
+	return tuple(out)
 ##}}}
 
 ## run_bsac_cmd_attribute_fintensity ##{{{
@@ -900,9 +441,8 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	tmp       = bsacParams.tmp
 	side      = bsacParams.config.get("side","right")
 	mode      = bsacParams.config.get("mode","sample")
-	ci        = bsacParams.config.get("ci",0.05)
+	ci        = float(bsacParams.config.get("ci",0.05))
 	nslaw     = clim._nslaw_class()
-	sp_dims   = clim.d_spatial
 	
 	## Logs
 	logger.info(  " * Configuration" )
@@ -912,7 +452,7 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	
 	## Mode dimension
 	if mode == "sample":
-		modes = coords_samples( n_samples )
+		modes = np.array(coords_samples( n_samples ))
 	elif mode == "quantile":
 		modes = np.array(["QL","BE","QU"])
 	else:
@@ -920,97 +460,90 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	n_modes = modes.size
 	
 	## Read the intensity
-	name,ifile = bsacParams.input[0].split(",")
-	xIF = xr.open_dataset(ifile)[name]
+	try:
+		xIF = float(bsacParams.input[0]) + clim.bias[clim.names[-1]] * 0
+	except:
+		name,ifile = bsacParams.input[0].split(",")
+		xIF = xr.open_dataset(ifile)[name]
+	
+	## Remove bias
+	xIF = xIF - clim.bias[clim.names[-1]]
 	
 	## Check the spatial dimensions
-	for d in clim._spatial:
+	for d in clim.d_spatial:
 		if d not in xIF.dims:
 			raise Exception( f"Spatial dimension missing: {d}" )
 		if not xIF[d].size == clim._spatial[d].size:
 			raise Exception( f"Bad size of the dimension {d}: {xIF[d].size} != {clim._spatial[d].size}" )
 	
-	## Reorganize dimension
-	sdims   = list(clim._spatial)
-	cdims   = [ d for d in xIF.dims if d not in sdims ]
-	ccoords = [xIF[d] for d in cdims]
-	cshape  = [xIF[d].size for d in cdims]
-	dims    = tuple(cdims + sdims)
-	xIF     = xIF.transpose(*dims)
+	## Reorganize dimension and transform in zarr
+	zIF = zr.ZXArray.from_xarray( xIF.transpose(*clim.d_spatial).copy() )
 	
-	for i,d in enumerate(cdims):
-		if d in [mode,"time"]: # + list(zdraw[ovars[0]].dims)[1:]:
-			xIF = xIF.rename( { d : "BSAC_" + d } )
-			cdims[i] = "BSAC_" + d
+	## Build projection operator for the covariable
+	time = clim.time
+	spl,lin,_,_ = clim.build_design_XFC()
+	nper = len(clim.dpers)
 	
-	## Remove bias
-	oB  = clim.bias[list(clim.bias)[-1]]
-	xIF = xIF - oB
+	projF = []
+	projC = []
+	for iper,per in enumerate(clim.dpers):
+		zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
+		designF = []
+		designC = []
+		for nameX in clim.namesX:
+			if nameX == clim.namesX[-1]:
+				designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
+			else:
+				designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+			designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
+		designF = designF + [np.zeros( (time.size,clim.sizeY) )]
+		designC = designC + [np.zeros( (time.size,clim.sizeY) )]
+		projF.append( np.hstack(designF) )
+		projC.append( np.hstack(designC) )
 	
-	## Output
-	time   = clim.time
-	period = np.array(clim.dpers)
-	dims   = cdims   + [mode ] + ["time","period"] + list(clim.d_spatial)
-	coords = ccoords + [modes] + [ time , period ] + [ clim.c_spatial[d] for d in clim.c_spatial ]
-	shape  = [len(c) for c in coords]
-	out = {
-	    "pF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "pF" ) ) ),
-	    "pC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "pC" ) ) ),
-	    "RF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "RF" ) ) ),
-	    "RC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "RC" ) ) ),
-	    "IF" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "IF" ) ) ),
-	    "IC" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "IC" ) ) ),
-	    "dI" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "dI" ) ) ),
-	    "PR" : XZarr.from_value( np.nan , shape = shape , dims = dims , coords = coords , zfile = random_zfile( os.path.join( tmp , "PR" ) ) )
-	}
+	projF  = xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
+	zprojF = zr.ZXArray.from_xarray(projF)
+	projC  = xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
+	zprojC = zr.ZXArray.from_xarray(projC)
 	
-	## Build a 'small' climatology
-	## climatology must be pass at each threads, but duplication of mean, cov bias implies a memory leak
-	climB = Climatology.init_from_file( bsacParams.load_clim )
-	del climB._mean
-	del climB._cov
-	del climB._bias
+	## Samples
+	n_samples = bsacParams.n_samples
+	samples   = coords_samples(n_samples)
 	
-	## Select the good function
-	if arg == "fintensity":
-		_attribute_fcintensity_parallel = _attribute_fintensity_parallel
+	##
+	time        = np.array(clim.time)
+	dpers       = np.array(clim.dpers)
+	nslaw_class = clim._nslaw_class
+	d_spatial   = clim.d_spatial
+	c_spatial   = clim.c_spatial
+	zbias       = zr.ZXArray.from_xarray(clim.bias[clim.names[-1]])
 	
-	## Dask parameters
-	dask_gufunc_kwargs = {}
-	dask_gufunc_kwargs["output_sizes"] = { mode : modes.size , "time" : time.size }
+	## Build arguments
+	output_dims      = [ (mode,"time","period") + d_spatial for _ in range(8) ]
+	output_coords    = [ [modes,time,dpers] + [ c_spatial[d] for d in d_spatial ] for _ in range(8) ]
+	output_dtypes    = [clim.hpar.dtype for _ in range(8)]
+	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , [] , [] , ["time","hpar"] , ["time","hpar"] ],
+	                     "output_core_dims" : [ ["time",mode] for _ in range(8) ],
+	                     "kwargs"           : { "nslaw_class" : nslaw_class , "side" : side , "mode" : mode , "n_samples" : n_samples , "ci" : ci } ,
+	                     "dask"             : "parallelized",
+	                     "output_dtypes"    : [clim.hpar.dtype for _ in range(8)],
+		                 "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size } }
+	                    }
 	
-	## Loop on spatial variables
-	block = max( 0 , int( np.power( bsacParams.n_jobs , 1. / len(clim.s_spatial) ) ) ) + 1
-	logger.info( " * Loop on spatial variables" )
-	for idx in itt.product(*[range(0,s,block) for s in clim.s_spatial]):
-		
-		##
-		s_idx = tuple([slice(s,s+block,1) for s in idx])
-		f_idx = tuple( [slice(None) for _ in range(3)] ) + s_idx
-		I_idx = tuple( [slice(None) for _ in range(len(cdims))] ) + s_idx
-		
-		##
-		bias = clim.bias[clim.names[-1]][s_idx]
-		IF   = xIF[I_idx]
-		
-		hpar = clim.xmean_[(slice(None),)+s_idx]
-		hcov = clim.xcov_[(slice(None),slice(None))+s_idx]
-		
-		#
-		res = xr.apply_ufunc( _attribute_fcintensity_parallel , hpar , hcov , bias , IF ,
-		                    input_core_dims    = [["hpar"],["hpar0","hpar1"],[],[]],
-		                    output_core_dims   = [[mode,"period","time"] for _ in range(8)],
-		                    output_dtypes      = [hpar.dtype for _ in range(8)],
-		                    vectorize          = True,
-		                    dask               = "parallelized",
-		                    kwargs             = { "clim" : climB , "side" : side , "mode" : mode , "ci" : ci , "n_samples" : n_samples },
-		                    dask_gufunc_kwargs = dask_gufunc_kwargs
-		                    )
-		
-		res = [ r.transpose( *out["pF"].dims ).compute() for r in res ]
-		
-		for key,r in zip(out,res):
-			out[key].set_orthogonal_selection( tuple( [slice(None) for _ in range(len(cdims)+3)] ) + s_idx , r.values )
+	## Run with zxarray
+	zargs = [clim.hpar,clim.hcov,zbias,zIF,zprojF,zprojC]
+	out = zr.apply_ufunc( zattribute_fintensity , *zargs,
+	                      bdims         = ("period",) + clim.d_spatial,
+	                      max_mem       = bsacParams.total_memory,
+	                      output_dims   = output_dims,
+	                      output_coords = output_coords,
+	                      output_dtypes = output_dtypes,
+	                      dask_kwargs   = dask_kwargs,
+	                    )
+	
+	## Transform in dict
+	keys = ["pF","pC","RF","RC","IF","IC","dI","PR"]
+	out  = { key : out[ikey] for ikey,key in enumerate(keys) }
 	
 	## And save
 	logger.info( " * Save in netcdf" )
@@ -1023,14 +556,10 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		       "period" : ncf.createDimension( "period"      , len(clim.dpers) ),
 		       "time"   : ncf.createDimension(   "time" ),
 		}
-		for d,s in zip(cdims,cshape):
-			ncdims[d] = ncf.createDimension( d , s )
-		
 		spatial = ()
-		if clim._spatial is not None:
-			for d in clim._spatial:
-				ncdims[d] = ncf.createDimension( d , clim._spatial[d].size )
-			spatial = tuple([d for d in clim._spatial])
+		if clim.has_spatial is not None:
+			for d in d_spatial:
+				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
 		
 		## Define variables
 		ncvars = {
@@ -1039,17 +568,11 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		       "time"   : ncf.createVariable( "time"        , "float32" , ("time"  ,) )
 		}
 		ncvars[mode    ][:]      = modes
-		ncvars["period"][:]      = period
-		if clim._spatial is not None:
-			for d in clim._spatial:
+		ncvars["period"][:]      = dpers
+		if clim.has_spatial:
+			for d in d_spatial:
 				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
-				ncvars[d][:] = np.array(clim._spatial[d]).ravel()
-		for d in cdims:
-			if isinstance(xIF[d][0].values,tuple([dt.datetime,np.datetime64,cftime.datetime])):
-				ncvars[d] = ncf.createVariable( d , "float32" , (d,) )
-			else:
-				ncvars[d] = ncf.createVariable( d , xIF[d].values.dtype , (d,) )
-				ncvars[d][:] = xIF[d].values
+				ncvars[d][:] = np.array(c_spatial[d]).ravel()
 		
 		if mode == "quantile":
 			ncvars[mode].setncattr( "confidence_level" , ci )
@@ -1068,7 +591,7 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		
 		## Variables
 		for key in out:
-			ncvars[key] = ncf.createVariable( key , "float32" , tuple(cdims) + (mode,"time","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = tuple([1 for _ in range(len(cdims))]) + (1,1,1) + clim.s_spatial )
+			ncvars[key] = ncf.createVariable( key , "float32" , (mode,"time","period") + d_spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
 		
 		## Attributes
 		ncvars["pF"].setncattr( "description" , "Probability in the Factual world" )
@@ -1080,41 +603,309 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		ncvars["PR"].setncattr( "description" , "Change in probability between Factual and Counter factual world" )
 		ncvars["dI"].setncattr( "description" , "Change in intensity between Factual and Counter factual world" )
 		
-		## Find the blocks to write netcdf
-		blocks  = [1 for _ in range(len(cdims))] + [1,1,1]
-		sizes   = list(cshape) + [n_modes,time.size,len(clim.dpers)]
-		nsizes  = list(cshape) + [n_modes,time.size,len(clim.dpers)]
-		sp_mem  = SizeOf( n = int(np.prod(clim.s_spatial) * np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) , unit = "o" )
-		tot_mem = SizeOf( n = int(min( 0.8 , 3 * bsacParams.frac_memory_per_array ) * bsacParams.total_memory.o) , unit = "o" )
-		nfind   = [True for _ in range(len(cdims))] + [True,True,True]
-		while any(nfind):
-			i = np.argmin(nsizes)
-			blocks[i] = sizes[i]
-			while int(np.prod(blocks)) * sp_mem > tot_mem:
-				if blocks[i] < 2:
-					blocks[i] = 1
-					break
-				blocks[i] = blocks[i] // 2
-			nfind[i]  = False
-			nsizes[i] = np.inf
-		logger.info( f"   => Blocks size {blocks}" )
-		
-		## Fill
-		idx_sp = tuple([slice(None) for _ in range(len(clim._spatial))])
-		for idx in itt.product(*[range(0,s,block) for s,block in zip(sizes,blocks)]):
-			
-			s_idx = tuple([slice(s,s+block,1) for s,block in zip(idx,blocks)])
-			idxs = s_idx + idx_sp
-			
-			for key in out:
-				xdata = out[key].get_orthogonal_selection(idxs)
-				ncvars[key][idxs] = xdata.values
+		## And fill variables
+		for key in out:
+			ncvars[key][:] = out[key]._internal.zdata[:]
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
 		ncf.setncattr( "BSAC_version"  , version )
 		ncf.setncattr( "description" , f"Attribute {arg}" )
+	
 ##}}}
+
+
+## zattribute_event ##{{{
+
+@disable_warnings
+def zattribute_event( hpar , hcov , bias , event , projF , projC , idx_event , nslaw_class , side , mode , n_samples , ci ):
+	
+	## Coordinates
+	nhpar = hpar.shape[-1]
+	ssp   = hpar.shape[:-2]
+	nper  = projF.shape[0]
+	ntime = projF.shape[-2]
+	
+	##
+	projF = projF.reshape( projF.shape[-3:] )
+	projC = projC.reshape( projF.shape[-3:] )
+	nslaw = nslaw_class()
+	
+	## Prepare output
+	pF = np.zeros( ssp + (nper,ntime,n_samples) ) + np.nan
+	pC = np.zeros( ssp + (nper,ntime,n_samples) ) + np.nan
+	IF = np.zeros( ssp + (nper,ntime,n_samples) ) + np.nan
+	IC = np.zeros( ssp + (nper,ntime,n_samples) ) + np.nan
+	
+	##
+	event = event.reshape( ssp + (1,1,1) )
+	
+	## Loop
+	for idx in itt.product(*[range(s) for s in ssp]):
+		
+		ih = hpar[idx+(0,slice(None))]
+		ic = hcov[idx+(0,slice(None),slice(None))]
+		
+		if not np.isfinite(ih).all() or not np.isfinite(ic).all():
+			continue
+		
+		## Find hpars
+		hpars = np.random.multivariate_normal( mean = ih , cov = ic , size = (n_samples,nper) )
+		
+		## Transform in XF: nper,samples,time
+		dims   = ["period","sample","time"]
+		coords = [range(nper),range(n_samples),range(ntime)]
+		XF     = xr.DataArray( np.array( [hpars[:,i,:] @ projF[i,:,:].T for i in range(nper)] ).reshape(nper,n_samples,ntime) , dims = dims , coords = coords )
+		XC     = xr.DataArray( np.array( [hpars[:,i,:] @ projC[i,:,:].T for i in range(nper)] ).reshape(nper,n_samples,ntime) , dims = dims , coords = coords )
+		
+		## Find law parameters
+		dims    = ["sample","period","hpar"]
+		coords  = [range(n_samples),range(nper),nslaw.coef_name]
+		nspars  = xr.DataArray( hpars[:,:,-nslaw.n_coef:] , dims = dims , coords = coords )
+		kwargsF = nslaw.draw_params( XF , nspars )
+		kwargsC = nslaw.draw_params( XC , nspars )
+		
+		## Transpose
+		kwargsF = { key : kwargsF[key].transpose("period","time","sample") for key in kwargsF }
+		kwargsC = { key : kwargsC[key].transpose("period","time","sample") for key in kwargsF }
+		
+		## Attribution
+		idxp = idx + tuple([slice(None) for _ in range(3)])
+		pF[idxp] = nslaw.cdf_sf( event[idxp] , side = side , **kwargsF )
+		pC[idxp] = nslaw.cdf_sf( event[idxp] , side = side , **kwargsC )
+		
+		## Remove 0 and 1
+		e  = 10 * sys.float_info.epsilon
+		pF[idxp] = np.where( pF[idxp] >     e , pF[idxp] ,     e )
+		pC[idxp] = np.where( pC[idxp] >     e , pC[idxp] ,     e )
+		pF[idxp] = np.where( pF[idxp] < 1 - e , pF[idxp] , 1 - e )
+		pC[idxp] = np.where( pC[idxp] < 1 - e , pC[idxp] , 1 - e )
+		
+		##
+		pf = np.zeros_like(pF) + pF[ idx + (slice(None),idx_event,slice(None)) ].reshape( *([1 for _ in range(len(ssp))] + [nper,1,n_samples]) )
+		
+		## Factual and counter factual intensities
+		IF[idxp] = nslaw.icdf_sf( pf[idxp] , side = side , **kwargsC )
+		IC[idxp] = nslaw.icdf_sf( pf[idxp] , side = side , **kwargsC )
+	
+	## Others variables
+	IF  = IF + bias.reshape( ssp + tuple([1 for _ in range(3)]) )
+	IC  = IC + bias.reshape( ssp + tuple([1 for _ in range(3)]) )
+	RF  = 1. / pF
+	RC  = 1. / pC
+	dI  = IF - IC
+	PR  = pF / pC
+	
+	## Compute CI
+	if mode == "quantile":
+		trsp = tuple( [ i + 1 for i in range(pF.ndim-1) ] + [0] )
+		pF = np.quantile( pF , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		pC = np.quantile( pC , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		RF = np.quantile( RF , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		RC = np.quantile( RC , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		IF = np.quantile( IF , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		IC = np.quantile( IC , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		dI = np.quantile( dI , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+		PR = np.quantile( PR , [ci/2,0.5,1-ci/2] , axis = -1 , method = "median_unbiased" ).transpose(trsp)
+	
+	
+	out = [pF,pC,RF,RC,IF,IC,dI,PR]
+	
+	return tuple(out)
+##}}}
+
+## run_bsac_cmd_attribute_event ##{{{
+@log_start_end(logger)
+def run_bsac_cmd_attribute_event():
+	
+	## Parameters
+	clim      = bsacParams.clim
+	time      = clim.time
+	n_samples = bsacParams.n_samples
+	tmp       = bsacParams.tmp
+	side      = bsacParams.config.get("side","right")
+	mode      = bsacParams.config.get("mode","sample")
+	ci        = float(bsacParams.config.get("ci",0.05))
+	t_event   = int(bsacParams.config["time"])
+	idx_event = int(np.argwhere( time == t_event ).ravel())
+	nslaw     = clim._nslaw_class()
+	
+	## Logs
+	logger.info(  " * Configuration" )
+	logger.info( f"   => mode: {mode}" )
+	logger.info( f"   => side: {side}" )
+	logger.info( f"   => ci  : {ci}" )
+	
+	## Mode dimension
+	if mode == "sample":
+		modes = np.array(coords_samples( n_samples ))
+	elif mode == "quantile":
+		modes = np.array(["QL","BE","QU"])
+	else:
+		raise ValueError( f"Invalid mode ({mode})" )
+	n_modes = modes.size
+	
+	## Load observations
+	name,ifile = bsacParams.input[0].split(",")
+	Yo  = xr.open_dataset(ifile)[name]
+	
+	## Select year
+	if "time" in Yo.dims:
+		Yo = Yo.assign_coords( time = Yo.time.dt.year )
+		if Yo.time.size > 1:
+			Yo = Yo.sel( time = int(t_event) )
+		else:
+			Yo = Yo.sel( time = Yo.time[0] )
+		Yo = Yo.drop_vars("time")
+	
+	## Remove bias
+	Yo = Yo - clim.bias[clim.names[-1]]
+	
+	## Check the spatial dimensions
+	for d in clim.d_spatial:
+		if d not in Yo.dims:
+			raise Exception( f"Spatial dimension missing: {d}" )
+		if not Yo[d].size == clim._spatial[d].size:
+			raise Exception( f"Bad size of the dimension {d}: {Yo[d].size} != {clim._spatial[d].size}" )
+	
+	## Reorganize dimension and transform in zarr
+	zYo = zr.ZXArray.from_xarray( Yo.transpose(*clim.d_spatial).copy() )
+	
+	## Build projection operator for the covariable
+	time = clim.time
+	spl,lin,_,_ = clim.build_design_XFC()
+	nper = len(clim.dpers)
+	
+	projF = []
+	projC = []
+	for iper,per in enumerate(clim.dpers):
+		zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
+		designF = []
+		designC = []
+		for nameX in clim.namesX:
+			if nameX == clim.namesX[-1]:
+				designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
+			else:
+				designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+			designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
+		designF = designF + [np.zeros( (time.size,clim.sizeY) )]
+		designC = designC + [np.zeros( (time.size,clim.sizeY) )]
+		projF.append( np.hstack(designF) )
+		projC.append( np.hstack(designC) )
+	
+	projF  = xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
+	zprojF = zr.ZXArray.from_xarray(projF)
+	projC  = xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
+	zprojC = zr.ZXArray.from_xarray(projC)
+	
+	## Samples
+	n_samples = bsacParams.n_samples
+	samples   = coords_samples(n_samples)
+	
+	##
+	time        = np.array(clim.time)
+	dpers       = np.array(clim.dpers)
+	nslaw_class = clim._nslaw_class
+	d_spatial   = clim.d_spatial
+	c_spatial   = clim.c_spatial
+	zbias       = zr.ZXArray.from_xarray(clim.bias[clim.names[-1]])
+	
+	## Build arguments
+	output_dims      = [ (mode,"time","period") + d_spatial for _ in range(8) ]
+	output_coords    = [ [modes,time,dpers] + [ c_spatial[d] for d in d_spatial ] for _ in range(8) ]
+	output_dtypes    = [clim.hpar.dtype for _ in range(8)]
+	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , [] , [] , ["time","hpar"] , ["time","hpar"] ],
+	                     "output_core_dims" : [ ["time",mode] for _ in range(8) ],
+	                     "kwargs"           : { "idx_event" : idx_event , "nslaw_class" : nslaw_class , "side" : side , "mode" : mode , "n_samples" : n_samples , "ci" : ci } ,
+	                     "dask"             : "parallelized",
+	                     "output_dtypes"    : [clim.hpar.dtype for _ in range(8)],
+		                 "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size } }
+	                    }
+	
+	## Run with zxarray
+	zargs = [clim.hpar,clim.hcov,zbias,zYo,zprojF,zprojC]
+	out = zr.apply_ufunc( zattribute_event , *zargs,
+	                      bdims         = ("period",) + clim.d_spatial,
+	                      max_mem       = bsacParams.total_memory,
+	                      output_dims   = output_dims,
+	                      output_coords = output_coords,
+	                      output_dtypes = output_dtypes,
+	                      dask_kwargs   = dask_kwargs,
+	                    )
+	
+	## Transform in dict
+	keys = ["pF","pC","RF","RC","IF","IC","dI","PR"]
+	out  = { key : out[ikey] for ikey,key in enumerate(keys) }
+	
+	## And save
+	logger.info( " * Save in netcdf" )
+	ofile = bsacParams.output
+	with netCDF4.Dataset( ofile , "w" ) as ncf:
+		
+		## Define dimensions
+		ncdims = {
+		           mode : ncf.createDimension(     mode      , n_modes ),
+		       "period" : ncf.createDimension( "period"      , len(clim.dpers) ),
+		       "time"   : ncf.createDimension(   "time" ),
+		}
+		spatial = ()
+		if clim.has_spatial is not None:
+			for d in d_spatial:
+				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
+		
+		## Define variables
+		ncvars = {
+		           mode : ncf.createVariable(     mode      , str       , (mode,)     ),
+		       "period" : ncf.createVariable( "period"      , str       , ("period",) ),
+		       "time"   : ncf.createVariable( "time"        , "float32" , ("time"  ,) )
+		}
+		ncvars[mode    ][:]      = modes
+		ncvars["period"][:]      = dpers
+		if clim.has_spatial:
+			for d in d_spatial:
+				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
+				ncvars[d][:] = np.array(c_spatial[d]).ravel()
+		
+		if mode == "quantile":
+			ncvars[mode].setncattr( "confidence_level" , ci )
+			ncvars["quantile_level"] = ncf.createVariable( "quantile_levels" , "float32" , ("quantile") )
+			ncvars["quantile_level"][:] = np.array([ci/2,0.5,1-ci/2])
+		
+		## Fill time axis
+		calendar = "standard"
+		units    = "days since 1750-01-01 00:00"
+		ncvars["time"][:]  = cftime.date2num( [cftime.DatetimeGregorian( int(y) , 1 , 1 ) for y in time] , units = units , calendar = calendar )
+		ncvars["time"].setncattr( "standard_name" , "time"      )
+		ncvars["time"].setncattr( "long_name"     , "time_axis" )
+		ncvars["time"].setncattr( "units"         , units       )
+		ncvars["time"].setncattr( "calendar"      , calendar    )
+		ncvars["time"].setncattr( "axis"          , "T"         )
+		
+		## Variables
+		for key in out:
+			ncvars[key] = ncf.createVariable( key , "float32" , (mode,"time","period") + d_spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
+		
+		## Attributes
+		ncvars["pF"].setncattr( "description" , "Probability in the Factual world" )
+		ncvars["pC"].setncattr( "description" , "Probability in the Counter factual world" )
+		ncvars["RF"].setncattr( "description" , "Return time in the Factual world" )
+		ncvars["RC"].setncattr( "description" , "Return time in the Counter factual world" )
+		ncvars["IF"].setncattr( "description" , "Intensity in the Factual world" )
+		ncvars["IC"].setncattr( "description" , "Intensity in the Counter factual world" )
+		ncvars["PR"].setncattr( "description" , "Change in probability between Factual and Counter factual world" )
+		ncvars["dI"].setncattr( "description" , "Change in intensity between Factual and Counter factual world" )
+		
+		## And fill variables
+		for key in out:
+			ncvars[key][:] = out[key]._internal.zdata[:]
+		
+		## Global attributes
+		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
+		ncf.setncattr( "BSAC_version"  , version )
+		ncf.setncattr( "description" , f"Attribute event {t_event}" )
+	
+##}}}
+
 
 
 ## run_bsac_cmd_attribute ##{{{

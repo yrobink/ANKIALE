@@ -148,9 +148,9 @@ class GEVModel(AbstractModel):##{{{
 	
 	def draw_params( self , X , coef ):##{{{
 		
-		loc   = coef.loc[:,"loc0"] + coef.loc[:,"loc1"] * X
-		scale = np.exp( coef.loc[:,"scale0"] + coef.loc[:,"scale1"] * X )
-		shape = coef.loc[:,"shape0"] + 0 * X
+		loc   = coef.sel( hpar = "loc0" ) + coef.sel( hpar = "loc1" ) * X
+		scale = np.exp( coef.sel( hpar = "scale0" ) + coef.sel( hpar = "scale1" ) * X )
+		shape = coef.sel( hpar = "shape0" ) + 0 * X
 		
 		return { "loc" : loc , "scale" : scale , "shape" : shape }
 	##}}}
