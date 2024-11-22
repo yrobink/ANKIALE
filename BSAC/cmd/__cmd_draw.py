@@ -25,14 +25,16 @@ import logging
 
 from ..__logs import LINE
 from ..__logs import log_start_end
+from ..__logs import disable_warnings
 
 from ..__BSACParams import bsacParams
 
-from ..__sys import SizeOf
-
-from ..stats.__rvs import rvs_climatology
+from ..__sys import coords_samples
 
 import numpy as np
+import xarray as xr
+import zxarray as zr
+
 import netCDF4
 import cftime
 
@@ -49,67 +51,189 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-## run_bsac_cmd_draw_Y ##{{{
+## zdraw ##{{{
+
+@disable_warnings
+def zdraw( hpar , hcov , projF , projC , nslaw_class , n_samples ):
+	
+	## Coordinates
+	nhpar = hpar.shape[-1]
+	ssp   = hpar.shape[:-2]
+	nper  = projF.shape[0]
+	nname = projF.shape[1]
+	ntime = projF.shape[-2]
+	
+	##
+	projF = projF.reshape( projF.shape[-4:] )
+	projC = projC.reshape( projF.shape[-4:] )
+	nslaw = nslaw_class()
+	
+	## Build output
+	ohpars  = np.zeros( ssp + (nper,n_samples,nhpar) ) + np.nan
+	oXF     = np.zeros( ssp + (nper,nname,n_samples,ntime) ) + np.nan
+	oXC     = np.zeros( ssp + (nper,nname,n_samples,ntime) ) + np.nan
+	onsparF = [ np.zeros( ssp + (nper,n_samples,ntime) ) + np.nan for _ in range(len(nslaw.coef_kind)) ]
+	onsparC = [ np.zeros( ssp + (nper,n_samples,ntime) ) + np.nan for _ in range(len(nslaw.coef_kind)) ]
+	
+	## Loop
+	for idx in itt.product(*[range(s) for s in ssp]):
+		
+		ih = hpar[idx+(0,slice(None))]
+		ic = hcov[idx+(0,slice(None),slice(None))]
+		
+		if not np.isfinite(ih).all() or not np.isfinite(ic).all():
+			continue
+		
+		## Find hpars
+		hpars = np.random.multivariate_normal( mean = ih , cov = ic , size = (n_samples,nper) )
+		
+		## Transform in XF: nper,name,samples,time
+		dims   = ["period","name","sample","time"]
+		coords = [range(nper),range(nname),range(n_samples),range(ntime)]
+		XF     = xr.DataArray( np.array( [[hpars[:,i,:] @ projF[i,j,:,:].T for j in range(nname)] for i in range(nper)] ) , dims = dims , coords = coords )
+		XC     = xr.DataArray( np.array( [[hpars[:,i,:] @ projC[i,j,:,:].T for j in range(nname)] for i in range(nper)] ) , dims = dims , coords = coords )
+		
+		## Find law parameters
+		dims    = ["sample","period","hpar"]
+		coords  = [range(n_samples),range(nper),nslaw.coef_name]
+		nspars  = xr.DataArray( hpars[:,:,-nslaw.n_coef:] , dims = dims , coords = coords )
+		kwargsF = nslaw.draw_params( XF[:,-1,:,:].drop_vars("name") , nspars )
+		kwargsC = nslaw.draw_params( XC[:,-1,:,:].drop_vars("name") , nspars )
+		
+		## Transpose
+		kwargsF = { key : kwargsF[key].transpose("period","time","sample") for key in kwargsF }
+		kwargsC = { key : kwargsC[key].transpose("period","time","sample") for key in kwargsF }
+		
+		## Store
+		idx0 = idx + tuple([slice(None) for _ in range(3)])
+		idx1 = idx + tuple([slice(None) for _ in range(4)])
+		ohpars[idx0] = hpars.transpose(1,0,2)[:]
+		oXF[idx1] = XF[:]
+		oXC[idx1] = XC[:]
+		for ikey,key in enumerate(kwargsF):
+			onsparF[ikey][idx0] = kwargsF[key].values.transpose(0,2,1)[:]
+			onsparC[ikey][idx0] = kwargsC[key].values.transpose(0,2,1)[:]
+	
+	##
+	out = [ohpars,oXF,oXC] + onsparF + onsparC
+	
+	return tuple(out)
+##}}}
+
+## run_bsac_cmd_draw ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_draw_Y():
+def run_bsac_cmd_draw():
 	
-	## Draw data
-	logger.info("Draw parameters...")
-	n_samples = bsacParams.n_samples
-	clim      = bsacParams.clim
-#	draw      = clim.rvsY( size = n_samples , add_BE = True , return_hpar = True )
-	draw      = rvs_climatology( clim , n_samples , tmp = bsacParams.tmp , add_BE = True , n_jobs = bsacParams.n_jobs , mem_limit = bsacParams.total_memory )
-	logger.info("Draw parameters. Done.")
+	## Parameters
+	clim        = bsacParams.clim
+	n_samples   = bsacParams.n_samples
+	nslaw_class = clim._nslaw_class
 	
-	## Extract parameters
-	XF   = draw["XF"]
-	samples = XF.coords[0]
-	time    = XF.coords[1]
-	periods = XF.coords[2]
-	namesX  = XF.coords[3]
-	hpars   = draw["hpar"].coords[1]
-	pars    = [key for key in draw if key not in ["XF","XC","hpar"]]
+	## Build projection operator for the covariable
+	logger.info(" * Build projection operator")
+	time = clim.time
+	spl,lin,_,_ = clim.build_design_XFC()
+	nper = len(clim.dpers)
 	
-	## And save
-	logger.info("Save in netCDF...")
+	lprojF = []
+	lprojC = []
+	for name in clim.namesX:
+		projF = []
+		projC = []
+		for iper,per in enumerate(clim.dpers):
+			zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
+			designF = []
+			designC = []
+			for nameX in clim.namesX:
+				if nameX == name:
+					designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
+				else:
+					designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+				designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
+			designF = designF + [np.zeros( (time.size,clim.sizeY) )]
+			designC = designC + [np.zeros( (time.size,clim.sizeY) )]
+			projF.append( np.hstack(designF) )
+			projC.append( np.hstack(designC) )
+		
+		lprojF.append( xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] ) )
+		lprojC.append( xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] ) )
+	
+	projF  = xr.concat( lprojF , dim = "name" ).assign_coords( {"name" : clim.namesX} )
+	projC  = xr.concat( lprojC , dim = "name" ).assign_coords( {"name" : clim.namesX} )
+	zprojF = zr.ZXArray.from_xarray(projF)
+	zprojC = zr.ZXArray.from_xarray(projC)
+	
+	##
+	zargs = [clim.hpar,clim.hcov,zprojF,zprojC]
+	
+	d_spatial  = clim.d_spatial
+	c_spatial  = clim.c_spatial
+	hpar_names = clim.hpar_names
+	dpers   = clim.dpers
+	samples = coords_samples(n_samples)
+	time    = clim.time
+	ncoef   = len(nslaw_class().coef_kind)
+	
+	output_dims      = [ ("period","sample","hpar") + d_spatial ] + [ ("name","period","sample","time") + d_spatial for _ in range(2) ]  + [ ("period","sample","time") + d_spatial for _ in range(2 * ncoef) ]
+	output_coords    = [ [dpers,samples,hpar_names] + [ c_spatial[d] for d in d_spatial ] ] + [ [clim.namesX,dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2) ] + [ [dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2*ncoef) ]
+	output_dtypes    = [clim.hpar.dtype for _ in range( 3 + 2 * ncoef)]
+	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["name","time","hpar"] , ["name","time","hpar"] ],
+	                     "output_core_dims" : [ ["sample","hpar"] , ["name","sample","time"] , ["name","sample","time"] ] + [ ["sample","time"] for _ in range(2 * ncoef) ],
+	                     "kwargs"           : { "nslaw_class" : nslaw_class , "n_samples" : n_samples } ,
+	                     "dask"             : "parallelized",
+	                     "output_dtypes"    : [clim.hpar.dtype for _ in range(3 + 2*ncoef)],
+		                 "dask_gufunc_kwargs" : { "output_sizes"     : { "sample" : n_samples } }
+	                    }
+	
+	##
+#	xargs = [ K.dataarray for K in zargs ]
+#	out = xr.apply_ufunc( zdraw , *xargs , **dask_kwargs )
+	
+	## Run with zxarray
+	logger.info(" * Draw parameters")
+	out = zr.apply_ufunc( zdraw , *zargs,
+	                      bdims         = ("period",) + clim.d_spatial,
+	                      max_mem       = bsacParams.total_memory,
+	                      output_dims   = output_dims,
+	                      output_coords = output_coords,
+	                      output_dtypes = output_dtypes,
+	                      dask_kwargs   = dask_kwargs,
+	                    )
+	
+	## Transform in dict with names
+	keys = ["hpars","XF","XC"] + [ f"{n}F" for n in nslaw_class().coef_kind ] + [ f"{n}C" for n in nslaw_class().coef_kind ]
+	out  = { key : out[i] for i,key in enumerate(keys) }
+	
+	## Save in netcdf
+	logger.info(" * Save in netCDF")
 	with netCDF4.Dataset( bsacParams.output , "w" ) as ncf:
 		
 		## Define dimensions
 		ncdims = {
 		       "sample"   : ncf.createDimension( "sample" , len(samples) ),
+		       "name"     : ncf.createDimension(   "name" , len(clim.namesX) ),
 		       "time"     : ncf.createDimension(   "time" , len(time)    ),
-		       "period"   : ncf.createDimension( "period" , len(periods) ),
-		       "name"     : ncf.createDimension(   "name" , len(namesX)  ),
-		       "hyper_parameter" : ncf.createDimension( "hyper_parameter" , len(hpars)  ),
+		       "period"   : ncf.createDimension( "period" , len(dpers)   ),
+		       "hyper_parameter" : ncf.createDimension( "hyper_parameter" , len(hpar_names)  ),
 		}
+		if clim.has_spatial is not None:
+			for d in d_spatial:
+				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
 		
-		if len(XF.coords) > 4:
-			d_spatial = tuple(XF.dims[4:])
-			c_spatial = XF.coords[4:]
-			s_spatial = tuple([len(c) for c in c_spatial])
-			for d,s in zip(d_spatial,s_spatial):
-				ncdims[d] = ncf.createDimension( d , s )
-		else:
-			d_spatial = ()
-			c_spatial = ()
-			s_spatial = ()
 		
 		## Define variables
 		ncvars = {
 		       "sample" : ncf.createVariable( "sample" , str       , ("sample",) ),
-		       "name"   : ncf.createVariable(   "name" , str       ,   ("name",) ),
+		         "name" : ncf.createVariable(   "name" , str       , ("name",) ),
 		       "period" : ncf.createVariable( "period" , str       , ("period",) ),
 		       "time"   : ncf.createVariable(   "time" , "float32" ,   ("time",) ),
 		       "hyper_parameter" : ncf.createVariable( "hyper_parameter" , str ,   ("hyper_parameter",) ),
 		}
-		for d,c in zip(d_spatial,c_spatial):
-			ncvars[d] = ncf.createVariable( d , "double" , (d,) )
-			ncvars[d][:] = np.array(c).ravel()
 		
+		ncvars["name"][:]   = np.array( clim.namesX , dtype = str )
 		ncvars["sample"][:] = np.array( samples , dtype = str )
-		ncvars["period"][:] = np.array( periods , dtype = str )
-		ncvars[  "name"][:] = np.array(  namesX , dtype = str )
-		ncvars["hyper_parameter"][:] = np.array( hpars , dtype = str )
+		ncvars["period"][:] = np.array(   dpers , dtype = str )
+		ncvars["hyper_parameter"][:] = np.array( hpar_names , dtype = str )
 		
 		## Fill time axis
 		calendar = "standard"
@@ -121,66 +245,18 @@ def run_bsac_cmd_draw_Y():
 		ncvars["time"].setncattr( "calendar"      , calendar    )
 		ncvars["time"].setncattr( "axis"          , "T"         )
 		
-		## Create final variables
-		ncXF   = ncf.createVariable( "XF"   , "float32" , ("sample","time","period","name") + d_spatial , fill_value = np.nan , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + s_spatial )
-		ncXC   = ncf.createVariable( "XC"   , "float32" , ("sample","time","period","name") + d_spatial , fill_value = np.nan , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + s_spatial )
-		nchpar = ncf.createVariable( "hpar" , "float32" , ("sample","hyper_parameter")      + d_spatial , fill_value = np.nan , compression = "zlib" , complevel = 5 , chunksizes =     (1,1) + s_spatial )
-		ncPar  = { key : ncf.createVariable( key , "float32" , ("sample","time","period")   + d_spatial , fill_value = np.nan , compression = "zlib" , complevel = 5 , chunksizes =   (1,1,1) + s_spatial ) for key in pars }
+		## Add spatial
+		if clim.has_spatial:
+			for d in d_spatial:
+				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
+				ncvars[d][:] = np.array(c_spatial[d]).ravel()
 		
-		## Find the blocks to write netcdf
-		blocks  = [1,1,1,1]
-		sizes   = [n_samples,len(time),len(periods),len(namesX)]
-		nsizes  = [n_samples,len(time),len(periods),len(namesX)]
-		sp_mem  = SizeOf( n = int(np.prod(clim.s_spatial) * np.finfo('float32').bits // SizeOf(n = 0).bits_per_octet) , unit = "o" )
-		tot_mem = SizeOf( n = int(min( 0.8 , 3 * bsacParams.frac_memory_per_array ) * bsacParams.total_memory.o) , unit = "o" )
-		nfind   = [True,True,True,True]
-		while any(nfind):
-			i = np.argmin(nsizes)
-			blocks[i] = sizes[i]
-			while int(np.prod(blocks)) * sp_mem > tot_mem:
-				if blocks[i] < 2:
-					blocks[i] = 1
-					break
-				blocks[i] = blocks[i] // 2
-			nfind[i]  = False
-			nsizes[i] = np.inf
-		logger.info( f"   => Blocks size {blocks}" )
+		replace_hpar = lambda n: "hyper_parameter" if n == "hpar" else n
+		for key in out:
+			dims = [ replace_hpar(d) for d in out[key].dims ]
+			ncvars[key] = ncf.createVariable( key , out[key].dtype , dims , fill_value = np.nan , compression = "zlib" , complevel = 5 )
+			ncvars[key][:] = out[key]._internal.zdata[:]
 		
-		## Fill
-		idx_sp = tuple([slice(None) for _ in range(len(s_spatial))])
-		for idx in itt.product(*[range(0,s,block) for s,block in zip(sizes,blocks)]):
-			
-			s_idx = tuple([slice(s,s+block,1) for s,block in zip(idx,blocks)])
-			idx_hpar = (s_idx[0],slice(None)) + idx_sp
-			idx_X    =  s_idx      + idx_sp
-			idx_P    =  s_idx[:-1] + idx_sp
-			
-			K = draw["hpar"].get_orthogonal_selection(idx_hpar)
-			nchpar[idx_hpar] = K
-			ncXF[idx_X]      = draw["XF"].get_orthogonal_selection(idx_X)
-			ncXC[idx_X]      = draw["XC"].get_orthogonal_selection(idx_X)
-			for key in pars:
-				ncPar[key][idx_P] = draw[key].get_orthogonal_selection(idx_P)
-	
-	logger.info("Save in netCDF. Done.")
-	
-##}}}
-
-## run_bsac_cmd_draw ##{{{
-@log_start_end(logger)
-def run_bsac_cmd_draw():
-	
-	## Check the command
-	if not len(bsacParams.arg) == 1:
-		raise ValueError(f"Bad numbers of arguments of the show command: {', '.join(bsacParams.arg)}")
-	
-	available_commands = ["Y"]
-	if not bsacParams.arg[0] in available_commands:
-		raise ValueError(f"Bad argument of the show command ({bsacParams.arg[0]}), must be: {', '.join(available_commands)}")
-	
-	## OK, run the good command
-	if bsacParams.arg[0] == "Y":
-		run_bsac_cmd_draw_Y()
 ##}}}
 
 

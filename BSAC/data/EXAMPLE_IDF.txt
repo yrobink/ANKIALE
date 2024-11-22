@@ -158,6 +158,12 @@ bsac attribute event --log info $HPATH/LOG/ANALYSIS_ATTR-EVENT2019.log\
                      --n-workers $N_WORKERS\
                      --threads-per-worker $THREADS_PER_WORKER
 
-
+bsac draw --log info $HPATH/LOG/ANALYSIS_DRAW.log\
+          --n-samples $N_SAMPLES\
+          --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
+          --output $DPATH/ANALYSIS/DRAW.nc\
+          --total-memory $TOTAL_MEMORY\
+          --n-workers $N_WORKERS\
+          --threads-per-worker $THREADS_PER_WORKER
 
 ## END OF SCRIPT
