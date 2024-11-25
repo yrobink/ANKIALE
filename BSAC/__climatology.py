@@ -355,8 +355,6 @@ class Climatology:##{{{
 		return self
 	##}}}
 	
-	## Statistics of X ##{{{ 
-	
 	def build_design_XFC(self):##{{{
 		
 		dof  = self.GAM_dof + 1
@@ -371,6 +369,43 @@ class Climatology:##{{{
 		
 		return spl,lin,designF_,designC_
 	##}}}
+	
+	def projection(self):##{{{
+		
+		time = self.time
+		spl,lin,_,_ = self.build_design_XFC()
+		nper = len(self.dpers)
+		
+		lprojF = []
+		lprojC = []
+		for name in self.namesX:
+			projF = []
+			projC = []
+			for iper,per in enumerate(self.dpers):
+				zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
+				designF = []
+				designC = []
+				for nameX in self.namesX:
+					if nameX == name:
+						designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
+					else:
+						designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+					designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
+				designF = designF + [np.zeros( (time.size,self.sizeY) )]
+				designC = designC + [np.zeros( (time.size,self.sizeY) )]
+				projF.append( np.hstack(designF) )
+				projC.append( np.hstack(designC) )
+			
+			lprojF.append( xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [self.dpers,time,self.hpar_names] ) )
+			lprojC.append( xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [self.dpers,time,self.hpar_names] ) )
+		
+		projF  = xr.concat( lprojF , dim = "name" ).assign_coords( {"name" : self.namesX} )
+		projC  = xr.concat( lprojC , dim = "name" ).assign_coords( {"name" : self.namesX} )
+		
+		return projF,projC
+	##}}}
+	
+	## Statistics of X ##{{{ 
 	
 	def rvsX( self , size , add_BE = False , return_hpar = False ):##{{{
 		

@@ -166,4 +166,15 @@ bsac draw --log info $HPATH/LOG/ANALYSIS_DRAW.log\
           --n-workers $N_WORKERS\
           --threads-per-worker $THREADS_PER_WORKER
 
+bsac misc wpe --log info $HPATH/LOG/WPE.log\
+              --n-samples $N_SAMPLES\
+              --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
+              --input IPCC\
+              --output $DPATH/ANALYSIS/WPE.nc\
+              --config period=2024/2060,mode=quantile,ci=0.05\
+              --total-memory $TOTAL_MEMORY\
+              --n-workers $N_WORKERS\
+              --threads-per-worker $THREADS_PER_WORKER
+
+
 ## END OF SCRIPT
