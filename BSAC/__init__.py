@@ -30,7 +30,7 @@ from .__exec import start_bsac
 from .__sys import coords_samples
 from .__sys import sort_run
 
-from .__ebm import EBM
+from .__natural import get_XN
 
 from .__climatology import Climatology
 

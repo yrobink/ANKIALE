@@ -70,8 +70,8 @@ Common arguments
 
 The 'show' command
 ------------------
-* show EBM
-    Plot a figure of the response of the EBM used for covariates.
+* show XN
+    Plot a figure of the response of the natural forcings used for covariates.
     --output ofile
         A file to save the figure. If not given the function
         matplotlib.pyplot.show() is called.
@@ -121,6 +121,7 @@ The 'fit' command
     --config param0=value0,param1=value1,...
         GAM_dof: Number of degree of freedom of the GAM model, default = 7
         GAM_degree: Degree of the splines in the GAM model, default = 3
+        XN_version: set the version of natural forcings, must be CMIP5 or CMIP6
 * fit Y
     Fit the variable with the covariable fitted from --load-clim (again, dont
     forgive the --save-clim parameter)

@@ -83,6 +83,7 @@ class BSACParams:
 	different_periods : list | None = None
 	bias_period       : tuple[int,int] | str = "1961/1990"
 	n_samples         : int = 10000
+	XN_version        : str = "CMIP6"
 	
 	clim      : Climatology | None = None
 	load_clim :         str | None = None
@@ -123,6 +124,7 @@ class BSACParams:
 		parser.add_argument( "--different-periods" , default = None )
 		parser.add_argument( "--bias-period"       , default = "1961/1990" )
 		parser.add_argument( "--n-samples"         , default = 10000 , type = int )
+		parser.add_argument( "--XN-version"        , default = "CMIP6" , type = str )
 		
 		## Transform in dict
 		kwargs = vars(parser.parse_args(argv))

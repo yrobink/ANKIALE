@@ -104,6 +104,9 @@ def run_bsac_cmd_fit_X():
 		logger.info( f" * {name}: {bias[name]}" )
 	bsacParams.clim._bias = bias
 	
+	## Find natural forcings version
+	bsacParams.clim._vXN = bsacParams.XN_version
+	
 	## Build the natural forcings
 	logger.info( "Build XN" )
 	XN   = { name : { p : bsacParams.clim.XN.loc[X[name][p].time] for p in X[name] } for name in X }

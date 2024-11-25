@@ -37,7 +37,7 @@ import zxarray as zr
 from .__release import version
 from .__sys     import as_list
 from .__sys     import coords_samples
-from .__ebm     import EBM
+from .__natural import get_XN
 from .stats.__tools import nslawid_to_class
 
 
@@ -77,7 +77,7 @@ class Climatology:##{{{
 		self._nslaw_class = None
 		self._spatial     = None
 		
-		self._Xconfig = { "GAM_dof" : 7 , "GAM_degree" : 3 }
+		self._Xconfig = { "GAM_dof" : 7 , "GAM_degree" : 3 , "XN_version" : "CMIP6" }
 		self._Yconfig = {}
 	##}}}
 	
@@ -167,7 +167,7 @@ class Climatology:##{{{
 			
 			
 			clim._Xconfig = {}
-			for c,t in zip( ["GAM_dof","GAM_degree"] , [int,int] ):
+			for c,t in zip( ["GAM_dof","GAM_degree","XN_version"] , [int,int,str] ):
 				clim._Xconfig[c] = t(incf.variables["X"].getncattr(c))
 			
 			try:
@@ -271,6 +271,7 @@ class Climatology:##{{{
 			ncvars["X"][:] = 1
 			ncvars["X"].setncattr( "GAM_dof"    , self.GAM_dof    )
 			ncvars["X"].setncattr( "GAM_degree" , self.GAM_degree )
+			ncvars["X"].setncattr( "XN_version" , self.XN_version )
 			
 			if not self.onlyX:
 				ncvars["Y"][:] = 1
@@ -485,7 +486,7 @@ class Climatology:##{{{
 	@property
 	def XN(self):
 		if self._XN is None:
-			self._XN = EBM().run( t = self.time )
+			self._XN = get_XN( time = self.time , version = self.XN_version )
 		return self._XN
 	
 	@property
@@ -616,6 +617,10 @@ class Climatology:##{{{
 	@property
 	def GAM_degree(self):
 		return self._Xconfig["GAM_degree"]
+	
+	@property
+	def XN_version(self):
+		return self._Xconfig["XN_version"]
 	
 	
 	@property
