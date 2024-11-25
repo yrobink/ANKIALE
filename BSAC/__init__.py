@@ -28,7 +28,6 @@ from .__exec import start_bsac
 ##########
 
 from .__sys import coords_samples
-from .__sys import SizeOf
 from .__sys import sort_run
 
 from .__ebm import EBM

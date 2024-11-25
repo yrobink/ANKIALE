@@ -117,7 +117,18 @@ bsac constrain Y --log info $HPATH/LOG/CONSTRAINY.log\
                  --n-workers $N_WORKERS\
                  --threads-per-worker $THREADS_PER_WORKER
 
+## Draw parameters
+echo " * Draw"
+bsac draw --log info $HPATH/LOG/ANALYSIS_DRAW.log\
+          --n-samples $N_SAMPLES\
+          --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
+          --output $DPATH/ANALYSIS/DRAW.nc\
+          --total-memory $TOTAL_MEMORY\
+          --n-workers $N_WORKERS\
+          --threads-per-worker $THREADS_PER_WORKER
+
 ## Attribution
+echo " * Attribution: freturnt"
 bsac attribute freturnt --log info $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
                         --n-samples $N_SAMPLES\
                         --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
@@ -128,6 +139,7 @@ bsac attribute freturnt --log info $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
                         --n-workers $N_WORKERS\
                         --threads-per-worker $THREADS_PER_WORKER
 
+echo " * Attribution: fintensity"
 bsac attribute fintensity --log info $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --n-samples $N_SAMPLES\
                           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
@@ -138,6 +150,7 @@ bsac attribute fintensity --log info $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --n-workers $N_WORKERS\
                           --threads-per-worker $THREADS_PER_WORKER
 
+echo " * Attribution: fintensity"
 bsac attribute fintensity --log info $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --n-samples $N_SAMPLES\
                           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
@@ -148,6 +161,7 @@ bsac attribute fintensity --log info $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --n-workers $N_WORKERS\
                           --threads-per-worker $THREADS_PER_WORKER
 
+echo " * Attribution: event"
 bsac attribute event --log info $HPATH/LOG/ANALYSIS_ATTR-EVENT2019.log\
                      --n-samples $N_SAMPLES\
                      --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
@@ -158,14 +172,7 @@ bsac attribute event --log info $HPATH/LOG/ANALYSIS_ATTR-EVENT2019.log\
                      --n-workers $N_WORKERS\
                      --threads-per-worker $THREADS_PER_WORKER
 
-bsac draw --log info $HPATH/LOG/ANALYSIS_DRAW.log\
-          --n-samples $N_SAMPLES\
-          --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
-          --output $DPATH/ANALYSIS/DRAW.nc\
-          --total-memory $TOTAL_MEMORY\
-          --n-workers $N_WORKERS\
-          --threads-per-worker $THREADS_PER_WORKER
-
+echo " * WPE"
 bsac misc wpe --log info $HPATH/LOG/WPE.log\
               --n-samples $N_SAMPLES\
               --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
