@@ -31,8 +31,8 @@ import xarray as xr
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from ..__ebm   import EBM
-from .__utils  import mpl_rcParams
+from ..__natural import get_XN
+from .__utils    import mpl_rcParams
 
 
 ##################
@@ -47,9 +47,9 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-## plot_EBM ##{{{
+## plot_XN ##{{{
 @log_start_end(logger)
-def plot_EBM( ofile = None ):
+def plot_XN( ofile = None ):
 	
 	## Matplotlib parameters
 	mpl.rcdefaults()
@@ -58,8 +58,8 @@ def plot_EBM( ofile = None ):
 	
 	## Data
 	time = np.arange( 1850 , 2101 , 1 )
-	XN5  = EBM("CMIP5").run( t = time )
-	XN6  = EBM("CMIP6").run( t = time )
+	XN5  = get_XN( time = time , version = "CMIP5")
+	XN6  = get_XN( time = time , version = "CMIP6")
 	now  = dt.datetime.utcnow().year
 	
 	## Figure
@@ -74,7 +74,7 @@ def plot_EBM( ofile = None ):
 	ax.set_yticks([-2,-1.5,-1,-0.5,0,0.5,1])
 	ax.set_xlim(1840,2110)
 	ax.set_xlabel("Year")
-	ax.set_ylabel("EBM response (K)")
+	ax.set_ylabel("Natural response (K)")
 	ax.legend( loc = "upper right" )
 	plt.tight_layout()
 	
