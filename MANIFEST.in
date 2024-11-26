@@ -1,7 +1,9 @@
 include BSAC/data/XN_CMIP5.nc
 include BSAC/data/XN_CMIP6.csv
-include BSAC/data/STAN_GEV-MODEL.stan
-include BSAC/data/STAN_NORMAL-MODEL.stan
+include BSAC/data/STAN_GEVMODEL_PRIOR-MULTINORMAL.stan
+include BSAC/data/STAN_GEVMODEL_PRIOR-NORMAL.stan
+include BSAC/data/STAN_NORMALMODEL_PRIOR-MULTINORMAL.stan
+include BSAC/data/STAN_NORMALMODEL_PRIOR-NORMAL.stan
 include BSAC/data/EXAMPLE_GMST.tar.gz
 include BSAC/data/EXAMPLE_GMST.txt
 include BSAC/data/EXAMPLE_IDF.tar.gz
