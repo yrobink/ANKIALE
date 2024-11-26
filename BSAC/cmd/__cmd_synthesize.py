@@ -127,9 +127,10 @@ def run_bsac_cmd_synthesize():
 		
 		## Read clim
 		iclim = Climatology.init_from_file(ifile)
+		cname = iclim.cname
 		time  = iclim.time
 		bper  = iclim._bper
-		bias  = iclim.bias[iclim.names[-1]]
+		bias  = iclim.bias[iclim.vname]
 		hpar  = iclim.hpar.dataarray
 		hcov  = iclim.hcov.dataarray
 		
@@ -178,7 +179,7 @@ def run_bsac_cmd_synthesize():
 		for n in clim.namesX:
 			clim._bias[n] += iclim.bias[n]
 		if not clim.onlyX:
-			clim._bias[clim.names[-1]] += bias
+			clim._bias[clim.vname] += bias
 	
 	## Final bias
 	for n in clim.names:
@@ -212,6 +213,7 @@ def run_bsac_cmd_synthesize():
 	logger.info( " * Copy to the clim" )
 	clim.hpar = hpar
 	clim.hcov = hcov
+	clim.cname = cname
 	clim._time = time
 	clim._bper = bper
 	bsacParams.clim = clim

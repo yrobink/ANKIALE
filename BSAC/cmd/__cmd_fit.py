@@ -144,9 +144,7 @@ def run_bsac_cmd_fit_Y():
 	d_spatial = tuple(d_spatial)
 	
 	## Set the covariate
-	cname = bsacParams.config.get("cname")
-	if cname is None:
-		cname = clim.names[-1]
+	cname = bsacParams.config.get("cname",clim.names[-1])
 	
 	## Open the data
 	ifile = bsacParams.input[0]
@@ -250,8 +248,9 @@ def run_bsac_cmd_fit_Y():
 	                            dask_kwargs   = dask_kwargs )
 	
 	## Update the climatology
-	clim.hpar = hpar
-	clim.hcov = hcov
+	clim.hpar  = hpar
+	clim.hcov  = hcov
+	clim.cname = cname
 	clim._names.append(name)
 	clim._bias[name]  = biasY
 	clim._nslawid     = nslawid

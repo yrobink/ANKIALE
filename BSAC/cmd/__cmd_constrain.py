@@ -253,7 +253,7 @@ def run_bsac_cmd_constrain_Y():
 		pass
 	if clim.spatial_is_fake:
 		bias = xr.DataArray( [bias] , dims = clim.d_spatial , coords = clim.c_spatial )
-	clim._bias[clim.names[-1]] = bias
+	clim._bias[clim.vname] = bias
 	
 	## Transform in ZXArray
 	zYo = zr.ZXArray.from_xarray(Yo)
@@ -282,7 +282,7 @@ def run_bsac_cmd_constrain_Y():
 	
 	design_ = []
 	for nameX in clim.namesX:
-		if nameX == clim.namesX[-1]:
+		if nameX == clim.cname:
 			design_ = design_ + [spl for _ in range(nper)] + [nper * lin]
 		else:
 			design_ = design_ + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]

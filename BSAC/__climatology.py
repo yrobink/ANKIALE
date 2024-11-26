@@ -87,6 +87,14 @@ class Climatology:##{{{
 		
 		try:
 			## Build strings
+			try:
+				cname = self.cname
+			except:
+				cname = ""
+			try:
+				vname = self.vname
+			except:
+				vname = ""
 			hpar = ', '.join(self.hpar_names[:3]+['...']+self.hpar_names[-3:])
 			bper = '/'.join([str(i) for i in self.bper])
 			try:
@@ -101,6 +109,8 @@ class Climatology:##{{{
 			sns = [
 			       "onlyX",
 			       "names",
+			       "cname",
+			       "vname",
 			       "nslaw",
 			       "hyper_parameter",
 			       "bias_period",
@@ -115,6 +125,8 @@ class Climatology:##{{{
 			ss  = [
 			       str(self.onlyX),
 			       ", ".join(self.names),
+			       cname,
+			       vname,
 			       str(self._nslawid),
 			       hpar,
 			       bper,
@@ -185,6 +197,12 @@ class Climatology:##{{{
 					clim._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
 				else:
 					clim._spatial = { "fake" : xr.DataArray( [0] , dims = ["fake"] , coords = [[0]] ) }
+			except:
+				pass
+			
+			try:
+				cname = str(incf.variables["Y"].getncattr("cname"))
+				clim.cname = cname
 			except:
 				pass
 			
@@ -293,6 +311,7 @@ class Climatology:##{{{
 			if not self.onlyX:
 				ncvars["Y"][:] = 1
 				ncvars["Y"].setncattr( "nslawid" , self._nslawid )
+				ncvars["Y"].setncattr( "cname"   , self.cname    )
 				if self._spatial is not None:
 					if self.spatial_is_fake:
 						ncvars["Y"].setncattr( "spatial" , "fake" )
@@ -301,7 +320,7 @@ class Climatology:##{{{
 			
 			## Global attributes
 			logger.info(" * Add global attributes")
-			ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
+			ncf.setncattr( "creation_date" , str(dt.datetime.now(dt.UTC))[:19] + " (UTC)" )
 			ncf.setncattr( "BSAC_version"  , version )
 	##}}}
 	
@@ -332,12 +351,11 @@ class Climatology:##{{{
 		return slice(t0,t1)
 	##}}}
 	
-	def restrict_spatial( self , coords ):##{{{
-		
+	def restrict_spatial( self , coords , drop = False ):##{{{
 		clim = Climatology()
 		
-		clim._mean = self.xmean_.sel( coords ).values
-		clim._cov  = self.xcov_.sel( coords ).values
+		clim._hpar = self.hpar.zsel( drop = drop , **coords )
+		clim._hcov = self.hpar.zsel( drop = drop , **coords )
 		clim._bias = { key : self._bias[key].sel( coords ) for key in self._bias }
 		
 		clim._names = self._names
@@ -576,12 +594,21 @@ class Climatology:##{{{
 	
 	@property
 	def cname(self):
-		return self.namesX[-1]
+		cname = self._Yconfig.get("cname")
+		if cname is None:
+			raise ValueError( f"Covariable name is not set" )
+		return cname
+	
+	@cname.setter
+	def cname( self , value ):
+		if not value in self.namesX:
+			raise ValueError( f"Covariable name {cname} must be in possible names" )
+		self._Yconfig["cname"] = value
 	
 	@property
 	def vname(self):
 		if self.onlyX:
-			return ""
+			raise ValueError( "No variable set in this climatology" )
 		else:
 			return self.names[-1]
 	
