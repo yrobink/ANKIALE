@@ -6,3 +6,13 @@ include BSAC/data/EXAMPLE_GMST.tar.gz
 include BSAC/data/EXAMPLE_GMST.txt
 include BSAC/data/EXAMPLE_IDF.tar.gz
 include BSAC/data/EXAMPLE_IDF.txt
+include BSAC/data/EXAMPLE_PARIS.tar.gz
+include BSAC/data/EXAMPLE_PARIS.txt
+include BSAC/data/EXAMPLE_PARIS-SSP126.tar.gz
+include BSAC/data/EXAMPLE_PARIS-SSP126.txt
+include BSAC/data/EXAMPLE_PARIS-SSP245.tar.gz
+include BSAC/data/EXAMPLE_PARIS-SSP245.txt
+include BSAC/data/EXAMPLE_PARIS-SSP370.tar.gz
+include BSAC/data/EXAMPLE_PARIS-SSP370.txt
+include BSAC/data/EXAMPLE_PARIS-SSP585.tar.gz
+include BSAC/data/EXAMPLE_PARIS-SSP585.txt

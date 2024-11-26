@@ -174,6 +174,13 @@ def run_bsac_cmd_fit_Y():
 	except:
 		pass
 	
+	## Force to add a spatial dimension
+	if len(d_spatial) == 0:
+		d_spatial = ("fake",)
+		c_spatial = { "fake" : xr.DataArray( [0] , dims = ["fake"] , coords = [[0]] ) }
+		Y         = xr.DataArray( Y.values.reshape( Y.shape + (1,) ) , dims = Y.dims + ("fake",) , coords = { **c_spatial , **dict(Y.coords) } )
+		biasY     = xr.DataArray( [biasY] , dims = ("fake",) , coords = c_spatial )
+	
 	## Transform in ZXArray
 	zY = zr.ZXArray.from_xarray(Y)
 	

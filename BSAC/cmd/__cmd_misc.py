@@ -55,7 +55,6 @@ logger.addHandler(logging.NullHandler())
 
 
 ## zwpe ##{{{
-##TODO: add dI
 
 @disable_warnings
 def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mode , ci ):
@@ -192,7 +191,7 @@ def run_bsac_cmd_misc_wpe():
 	
 	ihpar     = clim.hpar
 	ihcov     = clim.hcov
-	zbias     = zr.ZXArray.from_xarray(clim.bias[clim.names[-1]])
+	zbias     = zr.ZXArray.from_xarray(clim.bias[clim.vname])
 	samples   = np.array(coords_samples(n_samples))
 	
 	## Find mode
@@ -247,10 +246,14 @@ def run_bsac_cmd_misc_wpe():
 		           mode : ncf.createDimension(  mode    , len(modes)   ),
 		       "period" : ncf.createDimension( "period" , len(periods) )
 		}
-		if clim.has_spatial:
+		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in clim.d_spatial:
 				ncdims[d] = ncf.createDimension( d , clim._spatial[d].size )
-			spatial = tuple([d for d in clim.d_spatial])
+			spatial   = tuple([d for d in clim.d_spatial])
+			s_spatial = clim.s_spatial
+		else:
+			spatial   = tuple()
+			s_spatial = tuple()
 		
 		## Define variables
 		ncvars = {
@@ -261,7 +264,7 @@ def run_bsac_cmd_misc_wpe():
 		ncvars["probability"][:] = np.array([pwpe]).squeeze()
 		ncvars[mode][:]          = np.array([modes]).squeeze()
 		ncvars["period"][:]      = np.array([periods]).squeeze()
-		if clim.has_spatial:
+		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in clim.d_spatial:
 				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
 				ncvars[d][:] = np.array(clim._spatial[d]).ravel()
@@ -271,16 +274,23 @@ def run_bsac_cmd_misc_wpe():
 			ncvars["quantile_level"][:] = np.array([ci/2,0.5,1-ci/2])
 		
 		## Variables
-		ncvars["IFC"] = ncf.createVariable( "IFC" , zIFC.dtype , (mode,"probability","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
-		ncvars["dI"]  = ncf.createVariable( "dI"  ,  zdI.dtype , (mode,"probability","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
+		ncvars["IFC"] = ncf.createVariable( "IFC" , zIFC.dtype , (mode,"probability","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + s_spatial )
+		ncvars["dI"]  = ncf.createVariable( "dI"  ,  zdI.dtype , (mode,"probability","period") + spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + s_spatial )
 		
 		## Attributes
 		ncvars["IFC"].setncattr( "description" , "Intensity in Factual / Counter factual world of the Worst Possible Event with Probability probability" )
 		ncvars["dI"].setncattr( "description" , "Change in intensity in between factual and counter factual world of the Worst Possible Event with Probability probability" )
 		
 		## Fill
-		ncvars["IFC"][:] = zIFC._internal.zdata[:]
-		ncvars["dI"][:]  =  zdI._internal.zdata[:]
+		idx = [slice(None) for _ in range(3)]
+		if not clim.spatial_is_fake:
+			idx = idx + [slice(None) for _ in range(len(clim.d_spatial))]
+		else:
+			idx.append(0)
+		idx = tuple(idx)
+		
+		ncvars["IFC"][:] = zIFC._internal.zdata.get_orthogonal_selection(idx)
+		ncvars["dI"][:]  =  zdI._internal.zdata.get_orthogonal_selection(idx)
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )

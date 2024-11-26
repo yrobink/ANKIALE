@@ -177,18 +177,29 @@ class Climatology:##{{{
 				pass
 			
 			try:
-				spatial = incf.variables["Y"].getncattr("spatial").split(":")
-				clim._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
+				spatial = str(incf.variables["Y"].getncattr("spatial"))
+				if ":" in spatial:
+					spatial = spatial.split(":")
+				
+				if not spatial == "fake":
+					clim._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
+				else:
+					clim._spatial = { "fake" : xr.DataArray( [0] , dims = ["fake"] , coords = [[0]] ) }
 			except:
 				pass
 			
 			if clim._spatial is not None:
 				for name in clim.names:
-					if isinstance(clim._bias[name],np.ndarray):
+					if isinstance(clim._bias[name],np.ndarray) or (name == clim.vname and clim.spatial_is_fake):
 						clim._bias[name] = xr.DataArray( clim._bias[name] , dims = list(clim._spatial) , coords = clim._spatial )
 			
-			clim.hpar = np.array(incf.variables["hpar"][:])
-			clim.hcov = np.array(incf.variables["hcov"][:])
+			hpar = np.array(incf.variables["hpar"][:])
+			hcov = np.array(incf.variables["hcov"][:])
+			if clim.spatial_is_fake:
+				hpar = hpar.reshape( hpar.shape + (1,) )
+				hcov = hcov.reshape( hcov.shape + (1,) )
+			clim.hpar = hpar
+			clim.hcov = hcov
 			
 		return clim
 	##}}}
@@ -209,7 +220,7 @@ class Climatology:##{{{
 			       "time"              : ncf.createDimension(              "time" , len(self.time)  ),
 			}
 			spatial = tuple()
-			if self._spatial is not None:
+			if self._spatial is not None and not self.spatial_is_fake:
 				for d in self._spatial:
 					ncdims[d] = ncf.createDimension( d , self._spatial[d].size )
 				spatial = tuple([d for d in self._spatial])
@@ -235,7 +246,7 @@ class Climatology:##{{{
 					ncvars[f"bias_{name}"]    = ncf.createVariable( f"bias_{name}" , "float32" , spatial )
 					ncvars[f"bias_{name}"][:] = self._bias[name][:]
 				ncvars[f"bias_{name}"].setncattr( "period" , "{}/{}".format(*self.bper) )
-			if self._spatial is not None:
+			if self._spatial is not None and not self.spatial_is_fake:
 				for d in self._spatial:
 					ncvars[d] = ncf.createVariable( d , "double" , (d,) )
 					ncvars[d][:] = np.array(self._spatial[d]).ravel()
@@ -263,8 +274,14 @@ class Climatology:##{{{
 			
 			## Fill variables
 			logger.info(" * Fill variables")
-			ncvars["hpar"][:] = self.hpar.dataarray.values
-			ncvars["hcov"][:] = self.hcov.dataarray.values
+			if self.spatial_is_fake:
+				idx1d = tuple([slice(None) for _ in range(self.hpar.ndim-1)]) + (0,)
+				idx2d = tuple([slice(None) for _ in range(self.hcov.ndim-1)]) + (0,)
+			else:
+				idx1d = tuple([slice(None) for _ in range(self.hpar.ndim)])
+				idx2d = tuple([slice(None) for _ in range(self.hcov.ndim)])
+			ncvars["hpar"][:] = self.hpar._internal.zdata.get_orthogonal_selection(idx1d)
+			ncvars["hcov"][:] = self.hcov._internal.zdata.get_orthogonal_selection(idx2d)
 			
 			## Fill informations variables
 			logger.info(" * Fill informations variables")
@@ -277,7 +294,10 @@ class Climatology:##{{{
 				ncvars["Y"][:] = 1
 				ncvars["Y"].setncattr( "nslawid" , self._nslawid )
 				if self._spatial is not None:
-					ncvars["Y"].setncattr( "spatial" , ":".join(self._spatial) )
+					if self.spatial_is_fake:
+						ncvars["Y"].setncattr( "spatial" , "fake" )
+					else:
+						ncvars["Y"].setncattr( "spatial" , ":".join(self._spatial) )
 			
 			## Global attributes
 			logger.info(" * Add global attributes")
@@ -494,6 +514,18 @@ class Climatology:##{{{
 		return self._spatial is not None
 	
 	@property
+	def spatial_is_fake(self):
+		try:
+			d = self.d_spatial[0]
+			test_ndim = len(self.d_spatial) == 1
+			test_sdim = len(self.c_spatial[d]) == 1
+			test_name = (d == "fake")
+			test = test_ndim and test_sdim and test_name
+		except:
+			test = False
+		return test
+	
+	@property
 	def d_spatial(self):
 		if self._spatial is None:
 			return ()
@@ -541,6 +573,17 @@ class Climatology:##{{{
 	@property
 	def onlyX(self):
 		return self._nslawid is None
+	
+	@property
+	def cname(self):
+		return self.namesX[-1]
+	
+	@property
+	def vname(self):
+		if self.onlyX:
+			return ""
+		else:
+			return self.names[-1]
 	
 	@property
 	def names(self):

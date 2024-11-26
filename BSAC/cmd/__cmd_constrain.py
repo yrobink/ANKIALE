@@ -239,7 +239,10 @@ def run_bsac_cmd_constrain_Y():
 	## Load observations
 	name,ifile = bsacParams.input[0].split(",")
 	Yo = xr.open_dataset(ifile)[name]
-	Yo = xr.DataArray( Yo.values , dims = Yo.dims , coords = [Yo.time.dt.year.values] + [Yo.coords[d] for d in Yo.dims[1:]] )
+	if clim.spatial_is_fake:
+		Yo = xr.DataArray( Yo.values.reshape(-1,1) , dims = ("time",) + clim.d_spatial , coords = { **{ "time" : Yo.time.dt.year.values } , **clim.c_spatial } )
+	else:
+		Yo = xr.DataArray( Yo.values , dims = Yo.dims , coords = [Yo.time.dt.year.values] + [Yo.coords[d] for d in Yo.dims[1:]] )
 	
 	## Bias
 	bias = Yo.sel( time = slice(*[str(y) for y in clim.bper]) ).mean( dim = "time" )
@@ -248,6 +251,8 @@ def run_bsac_cmd_constrain_Y():
 		bias = float(bias)
 	except:
 		pass
+	if clim.spatial_is_fake:
+		bias = xr.DataArray( [bias] , dims = clim.d_spatial , coords = clim.c_spatial )
 	clim._bias[clim.names[-1]] = bias
 	
 	## Transform in ZXArray
@@ -344,17 +349,28 @@ def run_bsac_cmd_constrain_Y():
 		names = lambda n : "hyper_parameter" if n == "hpar" else n
 		with netCDF4.Dataset( bsacParams.output , "w" ) as oncf:
 			
+			odims  = []
+			oshape = []
+			for d,s in zip(ohpars.dims,ohpars.shape):
+				if not d == "fake":
+					odims.append(d)
+					oshape.append(s)
+			
 			## Create dimensions
-			ncdims = { names(d) : oncf.createDimension( names(d) , s ) for d,s in zip(ohpars.dims,ohpars.shape) }
+			ncdims = { names(d) : oncf.createDimension( names(d) , s ) for d,s in zip(odims,oshape) }
 			
 			## Create variables
-			ncvars = { names(d) : oncf.createVariable( names(d) , ohpars.coords[d].dtype , (names(d),) ) for d in ohpars.dims }
-			ncvars["hpars"] = oncf.createVariable( "hpars" , ohpars.dtype , [names(d) for d in ohpars.dims] )
+			ncvars = { names(d) : oncf.createVariable( names(d) , ohpars.coords[d].dtype , (names(d),) ) for d in odims }
+			ncvars["hpars"] = oncf.createVariable( "hpars" , ohpars.dtype , [names(d) for d in odims] )
 			
 			## And fill
-			for d in ohpars.dims:
+			for d in odims:
 				ncvars[names(d)][:] = ohpars.coords[d].values[:]
-			ncvars["hpars"][:] = ohpars._internal.zdata[:]
+			idx = [slice(None) for _ in range(len(odims))]
+			if clim.spatial_is_fake:
+				idx.append(0)
+			idx = tuple(idx)
+			ncvars["hpars"][:] = ohpars._internal.zdata.get_orthogonal_selection(idx)
 	
 	## And save
 	clim.hpar = hpar

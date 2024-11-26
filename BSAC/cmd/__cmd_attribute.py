@@ -199,31 +199,9 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	logger.info( f" * Return time: {RT.values}" )
 	
 	## Build projection operator for the covariable
-	time = clim.time
-	spl,lin,_,_ = clim.build_design_XFC()
-	nper = len(clim.dpers)
-	
-	projF = []
-	projC = []
-	for iper,per in enumerate(clim.dpers):
-		zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
-		designF = []
-		designC = []
-		for nameX in clim.namesX:
-			if nameX == clim.namesX[-1]:
-				designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
-			else:
-				designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
-			designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
-		designF = designF + [np.zeros( (time.size,clim.sizeY) )]
-		designC = designC + [np.zeros( (time.size,clim.sizeY) )]
-		projF.append( np.hstack(designF) )
-		projC.append( np.hstack(designC) )
-	
-	projF  = xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
-	zprojF = zr.ZXArray.from_xarray(projF)
-	projC  = xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
-	zprojC = zr.ZXArray.from_xarray(projC)
+	projF,projC = clim.projection()
+	zprojF = zr.ZXArray.from_xarray(projF.loc[clim.cname,:,:,:])
+	zprojC = zr.ZXArray.from_xarray(projC.loc[clim.cname,:,:,:])
 	
 	## Samples
 	n_samples = bsacParams.n_samples
@@ -235,7 +213,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	nslaw_class = clim._nslaw_class
 	d_spatial   = clim.d_spatial
 	c_spatial   = clim.c_spatial
-	zbias       = zr.ZXArray.from_xarray(clim.bias[clim.names[-1]])
+	zbias       = zr.ZXArray.from_xarray(clim.bias[clim.vname])
 	
 	## Build arguments
 	output_dims      = [ ("return_time",mode,"time","period") + d_spatial for _ in range(8) ]
@@ -277,7 +255,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		       "time"   : ncf.createDimension(   "time" ),
 		}
 		spatial = ()
-		if clim.has_spatial is not None:
+		if clim.has_spatial is not None and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
 		
@@ -291,7 +269,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		ncvars["return_time"][:] = RT
 		ncvars[mode    ][:]      = modes
 		ncvars["period"][:]      = dpers
-		if clim.has_spatial:
+		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
 				ncvars[d][:] = np.array(c_spatial[d]).ravel()
@@ -313,7 +291,12 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		
 		## Variables
 		for key in out:
-			ncvars[key] = ncf.createVariable( key , "float32" , ("return_time",mode,"time","period") + d_spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1,1) + clim.s_spatial )
+			dims = ("return_time",mode,"time","period")
+			chks = (1,1,1,1)
+			if not clim.spatial_is_fake:
+				dims = dims + d_spatial
+				chks = chks + clim.s_spatial
+			ncvars[key] = ncf.createVariable( key , "float32" , dims , compression = "zlib" , complevel = 5 , chunksizes = chks )
 		
 		## Attributes
 		ncvars["pF"].setncattr( "description" , "Probability in the Factual world" )
@@ -326,8 +309,12 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		ncvars["dI"].setncattr( "description" , "Change in intensity between Factual and Counter factual world" )
 		
 		## And fill variables
+		idx = [slice(None) for _ in range(4)]
+		if not clim.spatial_is_fake:
+			idx = idx + [slice(None) for _ in range(len(clim.d_spatial))]
+		idx = tuple(idx)
 		for key in out:
-			ncvars[key][:] = out[key]._internal.zdata[:]
+			ncvars[key][:] = out[key]._internal.zdata.get_orthogonal_selection(idx)
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
@@ -461,13 +448,13 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	
 	## Read the intensity
 	try:
-		xIF = float(bsacParams.input[0]) + clim.bias[clim.names[-1]] * 0
+		xIF = float(bsacParams.input[0]) + clim.bias[clim.vname] * 0
 	except:
 		name,ifile = bsacParams.input[0].split(",")
 		xIF = xr.open_dataset(ifile)[name]
 	
 	## Remove bias
-	xIF = xIF - clim.bias[clim.names[-1]]
+	xIF = xIF - clim.bias[clim.vname]
 	
 	## Check the spatial dimensions
 	for d in clim.d_spatial:
@@ -480,31 +467,9 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	zIF = zr.ZXArray.from_xarray( xIF.transpose(*clim.d_spatial).copy() )
 	
 	## Build projection operator for the covariable
-	time = clim.time
-	spl,lin,_,_ = clim.build_design_XFC()
-	nper = len(clim.dpers)
-	
-	projF = []
-	projC = []
-	for iper,per in enumerate(clim.dpers):
-		zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
-		designF = []
-		designC = []
-		for nameX in clim.namesX:
-			if nameX == clim.namesX[-1]:
-				designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
-			else:
-				designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
-			designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
-		designF = designF + [np.zeros( (time.size,clim.sizeY) )]
-		designC = designC + [np.zeros( (time.size,clim.sizeY) )]
-		projF.append( np.hstack(designF) )
-		projC.append( np.hstack(designC) )
-	
-	projF  = xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
-	zprojF = zr.ZXArray.from_xarray(projF)
-	projC  = xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
-	zprojC = zr.ZXArray.from_xarray(projC)
+	projF,projC = clim.projection()
+	zprojF = zr.ZXArray.from_xarray(projF.loc[clim.cname,:,:,:])
+	zprojC = zr.ZXArray.from_xarray(projC.loc[clim.cname,:,:,:])
 	
 	## Samples
 	n_samples = bsacParams.n_samples
@@ -516,7 +481,7 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	nslaw_class = clim._nslaw_class
 	d_spatial   = clim.d_spatial
 	c_spatial   = clim.c_spatial
-	zbias       = zr.ZXArray.from_xarray(clim.bias[clim.names[-1]])
+	zbias       = zr.ZXArray.from_xarray(clim.bias[clim.vname])
 	
 	## Build arguments
 	output_dims      = [ (mode,"time","period") + d_spatial for _ in range(8) ]
@@ -557,7 +522,7 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		       "time"   : ncf.createDimension(   "time" ),
 		}
 		spatial = ()
-		if clim.has_spatial is not None:
+		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
 		
@@ -569,7 +534,7 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		}
 		ncvars[mode    ][:]      = modes
 		ncvars["period"][:]      = dpers
-		if clim.has_spatial:
+		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
 				ncvars[d][:] = np.array(c_spatial[d]).ravel()
@@ -591,7 +556,12 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		
 		## Variables
 		for key in out:
-			ncvars[key] = ncf.createVariable( key , "float32" , (mode,"time","period") + d_spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
+			dims = (mode,"time","period")
+			chks = (1,1,1)
+			if not clim.spatial_is_fake:
+				dims = dims + d_spatial
+				chks = chks + clim.s_spatial
+			ncvars[key] = ncf.createVariable( key , "float32" , dims , compression = "zlib" , complevel = 5 , chunksizes = chks )
 		
 		## Attributes
 		ncvars["pF"].setncattr( "description" , "Probability in the Factual world" )
@@ -604,8 +574,12 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		ncvars["dI"].setncattr( "description" , "Change in intensity between Factual and Counter factual world" )
 		
 		## And fill variables
+		idx = [slice(None) for _ in range(3)]
+		if not clim.spatial_is_fake:
+			idx = idx + [slice(None) for _ in range(len(clim.d_spatial))]
+		idx = tuple(idx)
 		for key in out:
-			ncvars[key][:] = out[key]._internal.zdata[:]
+			ncvars[key][:] = out[key]._internal.zdata.get_orthogonal_selection(idx)
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
@@ -759,7 +733,7 @@ def run_bsac_cmd_attribute_event():
 		Yo = Yo.drop_vars("time")
 	
 	## Remove bias
-	Yo = Yo - clim.bias[clim.names[-1]]
+	Yo = Yo - clim.bias[clim.vname]
 	
 	## Check the spatial dimensions
 	for d in clim.d_spatial:
@@ -772,31 +746,9 @@ def run_bsac_cmd_attribute_event():
 	zYo = zr.ZXArray.from_xarray( Yo.transpose(*clim.d_spatial).copy() )
 	
 	## Build projection operator for the covariable
-	time = clim.time
-	spl,lin,_,_ = clim.build_design_XFC()
-	nper = len(clim.dpers)
-	
-	projF = []
-	projC = []
-	for iper,per in enumerate(clim.dpers):
-		zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
-		designF = []
-		designC = []
-		for nameX in clim.namesX:
-			if nameX == clim.namesX[-1]:
-				designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
-			else:
-				designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
-			designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
-		designF = designF + [np.zeros( (time.size,clim.sizeY) )]
-		designC = designC + [np.zeros( (time.size,clim.sizeY) )]
-		projF.append( np.hstack(designF) )
-		projC.append( np.hstack(designC) )
-	
-	projF  = xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
-	zprojF = zr.ZXArray.from_xarray(projF)
-	projC  = xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] )
-	zprojC = zr.ZXArray.from_xarray(projC)
+	projF,projC = clim.projection()
+	zprojF = zr.ZXArray.from_xarray(projF.loc[clim.cname,:,:,:])
+	zprojC = zr.ZXArray.from_xarray(projC.loc[clim.cname,:,:,:])
 	
 	## Samples
 	n_samples = bsacParams.n_samples
@@ -808,7 +760,7 @@ def run_bsac_cmd_attribute_event():
 	nslaw_class = clim._nslaw_class
 	d_spatial   = clim.d_spatial
 	c_spatial   = clim.c_spatial
-	zbias       = zr.ZXArray.from_xarray(clim.bias[clim.names[-1]])
+	zbias       = zr.ZXArray.from_xarray(clim.bias[clim.vname])
 	
 	## Build arguments
 	output_dims      = [ (mode,"time","period") + d_spatial for _ in range(8) ]
@@ -849,7 +801,7 @@ def run_bsac_cmd_attribute_event():
 		       "time"   : ncf.createDimension(   "time" ),
 		}
 		spatial = ()
-		if clim.has_spatial is not None:
+		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
 		
@@ -861,7 +813,7 @@ def run_bsac_cmd_attribute_event():
 		}
 		ncvars[mode    ][:]      = modes
 		ncvars["period"][:]      = dpers
-		if clim.has_spatial:
+		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
 				ncvars[d][:] = np.array(c_spatial[d]).ravel()
@@ -883,7 +835,12 @@ def run_bsac_cmd_attribute_event():
 		
 		## Variables
 		for key in out:
-			ncvars[key] = ncf.createVariable( key , "float32" , (mode,"time","period") + d_spatial , compression = "zlib" , complevel = 5 , chunksizes = (1,1,1) + clim.s_spatial )
+			dims = (mode,"time","period")
+			chks = (1,1,1)
+			if not clim.spatial_is_fake:
+				dims = dims + d_spatial
+				chks = chks + clim.s_spatial
+			ncvars[key] = ncf.createVariable( key , "float32" , dims , compression = "zlib" , complevel = 5 , chunksizes = chks )
 		
 		## Attributes
 		ncvars["pF"].setncattr( "description" , "Probability in the Factual world" )
@@ -896,8 +853,12 @@ def run_bsac_cmd_attribute_event():
 		ncvars["dI"].setncattr( "description" , "Change in intensity between Factual and Counter factual world" )
 		
 		## And fill variables
+		idx = [slice(None) for _ in range(3)]
+		if not clim.spatial_is_fake:
+			idx = idx + [slice(None) for _ in range(len(clim.d_spatial))]
+		idx = tuple(idx)
 		for key in out:
-			ncvars[key][:] = out[key]._internal.zdata[:]
+			ncvars[key][:] = out[key]._internal.zdata.get_orthogonal_selection(idx)
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )

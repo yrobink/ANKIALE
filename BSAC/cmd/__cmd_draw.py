@@ -128,40 +128,13 @@ def run_bsac_cmd_draw():
 	clim        = bsacParams.clim
 	n_samples   = bsacParams.n_samples
 	nslaw_class = clim._nslaw_class
+	time        = clim.time
 	
 	## Build projection operator for the covariable
 	logger.info(" * Build projection operator")
-	time = clim.time
-	spl,lin,_,_ = clim.build_design_XFC()
-	nper = len(clim.dpers)
-	
-	lprojF = []
-	lprojC = []
-	for name in clim.namesX:
-		projF = []
-		projC = []
-		for iper,per in enumerate(clim.dpers):
-			zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
-			designF = []
-			designC = []
-			for nameX in clim.namesX:
-				if nameX == name:
-					designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
-				else:
-					designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
-				designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
-			designF = designF + [np.zeros( (time.size,clim.sizeY) )]
-			designC = designC + [np.zeros( (time.size,clim.sizeY) )]
-			projF.append( np.hstack(designF) )
-			projC.append( np.hstack(designC) )
-		
-		lprojF.append( xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] ) )
-		lprojC.append( xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [clim.dpers,clim.time,clim.hpar_names] ) )
-	
-	projF  = xr.concat( lprojF , dim = "name" ).assign_coords( {"name" : clim.namesX} )
-	projC  = xr.concat( lprojC , dim = "name" ).assign_coords( {"name" : clim.namesX} )
-	zprojF = zr.ZXArray.from_xarray(projF)
-	zprojC = zr.ZXArray.from_xarray(projC)
+	projF,projC = clim.projection()
+	zprojF      = zr.ZXArray.from_xarray(projF)
+	zprojC      = zr.ZXArray.from_xarray(projC)
 	
 	##
 	zargs = [clim.hpar,clim.hcov,zprojF,zprojC]
@@ -216,7 +189,7 @@ def run_bsac_cmd_draw():
 		       "period"   : ncf.createDimension( "period" , len(dpers)   ),
 		       "hyper_parameter" : ncf.createDimension( "hyper_parameter" , len(hpar_names)  ),
 		}
-		if clim.has_spatial is not None:
+		if clim.has_spatial is not None and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
 		
@@ -246,16 +219,19 @@ def run_bsac_cmd_draw():
 		ncvars["time"].setncattr( "axis"          , "T"         )
 		
 		## Add spatial
-		if clim.has_spatial:
+		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncvars[d] = ncf.createVariable( d , "double" , (d,) )
 				ncvars[d][:] = np.array(c_spatial[d]).ravel()
 		
 		replace_hpar = lambda n: "hyper_parameter" if n == "hpar" else n
 		for key in out:
-			dims = [ replace_hpar(d) for d in out[key].dims ]
+			dims = [ replace_hpar(d) for d in out[key].dims if not d == "fake" ]
 			ncvars[key] = ncf.createVariable( key , out[key].dtype , dims , fill_value = np.nan , compression = "zlib" , complevel = 5 )
-			ncvars[key][:] = out[key]._internal.zdata[:]
+			idx = [slice(None) for _ in range(out[key].ndim)]
+			if clim.spatial_is_fake:
+				idx[-1] = 0
+			ncvars[key][:] = out[key]._internal.zdata.get_orthogonal_selection(tuple(idx))
 		
 ##}}}
 
