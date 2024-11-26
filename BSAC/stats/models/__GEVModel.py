@@ -29,6 +29,7 @@ import scipy.stats as sc
 
 from ...__sys import copy_files
 from .__AbstractModel import AbstractModel
+from ...__linalg import sqrtm
 
 import cmdstanpy as stan
 
@@ -74,11 +75,11 @@ class GEVModel(AbstractModel):##{{{
 	def init_stan( tmp , force_compile = False ):
 		### Define stan model
 		stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" )
-		stan_ifile = os.path.join( stan_path , "STAN_GEV-MODEL.stan" )
-		stan_ofile = os.path.join(       tmp , "STAN_GEV-MODEL.stan" )
+		stan_ifile = os.path.join( stan_path , "STAN_GEVMODEL_PRIOR-NORMAL.stan" )
+		stan_ofile = os.path.join(       tmp , "STAN_GEVMODEL_PRIOR-NORMAL.stan" )
 		if not os.path.isfile(stan_ofile):
 			copy_files( stan_ifile , stan_ofile )
-		stan_model = stan.CmdStanModel( stan_file = stan_ofile , force_compile = force_compile , stanc_options = { "O" : 3 } , cpp_options = { "O" : 3 } )
+		stan_model = stan.CmdStanModel( stan_file = stan_ofile , force_compile = force_compile )
 		
 		return stan_model
 	##}}}
@@ -117,6 +118,7 @@ class GEVModel(AbstractModel):##{{{
 					"nhpar" : prior.mean.size,
 					"prior_hpar" : prior.mean,
 					"prior_hcov" : prior.cov,
+					"prior_hstd" : sqrtm(prior.cov),
 					"nXY"        : Y.size,
 					"X"          : X,
 					"Y"          : Y,

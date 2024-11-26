@@ -28,7 +28,7 @@ data
 
 parameters
 {
-	vector[nhpar] hpar;
+	vector[nhpar] npar;
 }
 
 transformed parameters
@@ -36,6 +36,7 @@ transformed parameters
 	vector[nXY] mu  ;
 	vector[nXY] sig ;
 	real xi ;
+	vector[nhpar] hpar = prior_hstd * npar + prior_hpar ;
 	mu  = hpar[1] + hpar[2] * X ;
 	sig = exp( hpar[3] + hpar[4] * X ) ;
 	xi  = hpar[5] ;
@@ -43,7 +44,7 @@ transformed parameters
 
 model
 {
-	hpar ~ multi_normal( prior_hpar , prior_hcov );
+	hpar ~ normal( 0 , 1 );
 	Y ~  gev( mu , sig , xi ) ;
 }
 
