@@ -192,6 +192,8 @@ class Climatology:##{{{
 				spatial = str(incf.variables["Y"].getncattr("spatial"))
 				if ":" in spatial:
 					spatial = spatial.split(":")
+				else:
+					spatial = [spatial]
 				
 				if not spatial == "fake":
 					clim._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
