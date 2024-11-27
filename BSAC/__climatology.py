@@ -634,7 +634,7 @@ class Climatology:##{{{
 			hparnames = hparnames + [f"cst_{name}",f"slope_{name}"]
 		
 		if not self.onlyX:
-			hparnames = hparnames + self._nslaw_class().coef_name
+			hparnames = hparnames + list(self._nslaw_class().h_name)
 		
 		return hparnames
 	
@@ -701,7 +701,7 @@ class Climatology:##{{{
 	def sizeY(self):
 		if self._nslawid is None:
 			return 0
-		return len(self._nslaw_class().coef_name)
+		return self._nslaw_class().nhpar
 	
 	@property
 	def size(self):

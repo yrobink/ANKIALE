@@ -68,7 +68,7 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 		s_spatial = tuple(Y.shape[:-4])
 	
 	## Init output
-	s_hparY = hpar.size + nslaw.n_coef
+	s_hparY = hpar.size + nslaw.nhpar
 	ndpers  = Y.shape[-2]-1
 	hpars   = np.zeros( s_spatial + (samples.size,ndpers,s_hparY) ) + np.nan
 	nrun    = Y.shape[-1]
@@ -77,7 +77,7 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 	hpars[*([slice(None) for _ in range(hpars.ndim-1)] + [range(hpar.size)] ) ] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = hpars.size // hpar.size ).reshape( hpars.shape[:-1] + (hpar.size,) )
 	
 	## Find parameters used to build covariate
-	xhpars  = xr.DataArray( hpars , dims = [f"s{i}" for i in range(len(s_spatial))] + ["sample","period","hpar"] , coords = [ range(s) for s in s_spatial ] + [range(samples.size),range(ndpers),hpar_names+nslaw.coef_name] )
+	xhpars  = xr.DataArray( hpars , dims = [f"s{i}" for i in range(len(s_spatial))] + ["sample","period","hpar"] , coords = [ range(s) for s in s_spatial ] + [range(samples.size),range(ndpers),hpar_names+list(nslaw.h_name)] )
 	xhpars = xhpars.sel( hpar = [ h for h in xhpars.hpar.values.tolist() if cname in h ] )
 	xhpars = xhpars.assign_coords( hpar = [ h.replace( f"_{cname}" , "" ) for h in xhpars.hpar.values.tolist() ] )
 	lxXF   = [ ( design @ xhpars.sel( hpar = [ h for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).assign_coords( hpar = [ h.replace( f"_{dper}" , "" ) for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).sel( period = dpers.index(dper) ) ).sel( time = time ) for dper in dpers ]
@@ -101,8 +101,7 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 			p  = np.random.choice( xX.size , xX.size , replace = True )
 			
 			## Fit
-			nslaw.fit_mle( xY[p] , xX[p] )
-			ns_hpar = nslaw.coef_
+			ns_hpar = nslaw.fit_mle( xY[p] , xX[p] )
 			
 			## Save
 			hpars[ idx0 + (iper,slice(hpar.size,s_hparY,1)) ] = ns_hpar

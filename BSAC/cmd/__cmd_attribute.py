@@ -105,8 +105,8 @@ def zattribute_fcreturnt( hpar , hcov , bias , projF , projC , RT , nslaw_class 
 		
 		## Find law parameters
 		dims    = ["sample","RT","period","hpar"]
-		coords  = [range(n_samples),range(RT.size),range(nper),nslaw.coef_name]
-		nspars  = xr.DataArray( hpars[:,:,:,-nslaw.n_coef:] , dims = dims , coords = coords )
+		coords  = [range(n_samples),range(RT.size),range(nper),list(nslaw.h_name)]
+		nspars  = xr.DataArray( hpars[:,:,:,-nslaw.nhpar:] , dims = dims , coords = coords )
 		kwargsF = nslaw.draw_params( XF , nspars )
 		kwargsC = nslaw.draw_params( XC , nspars )
 		
@@ -367,8 +367,8 @@ def zattribute_fintensity( hpar , hcov , bias , xIF , projF , projC , nslaw_clas
 		
 		## Find law parameters
 		dims    = ["sample","period","hpar"]
-		coords  = [range(n_samples),range(nper),nslaw.coef_name]
-		nspars  = xr.DataArray( hpars[:,:,-nslaw.n_coef:] , dims = dims , coords = coords )
+		coords  = [range(n_samples),range(nper),list(nslaw.h_name)]
+		nspars  = xr.DataArray( hpars[:,:,-nslaw.nhpar:] , dims = dims , coords = coords )
 		kwargsF = nslaw.draw_params( XF , nspars )
 		kwargsC = nslaw.draw_params( XC , nspars )
 		
@@ -634,8 +634,8 @@ def zattribute_event( hpar , hcov , bias , event , projF , projC , idx_event , n
 		
 		## Find law parameters
 		dims    = ["sample","period","hpar"]
-		coords  = [range(n_samples),range(nper),nslaw.coef_name]
-		nspars  = xr.DataArray( hpars[:,:,-nslaw.n_coef:] , dims = dims , coords = coords )
+		coords  = [range(n_samples),range(nper),list(nslaw.h_name)]
+		nspars  = xr.DataArray( hpars[:,:,-nslaw.nhpar:] , dims = dims , coords = coords )
 		kwargsF = nslaw.draw_params( XF , nspars )
 		kwargsC = nslaw.draw_params( XC , nspars )
 		

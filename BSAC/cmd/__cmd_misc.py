@@ -102,8 +102,8 @@ def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mo
 		
 		## Find law parameters
 		dims   = ["sample","pwpe","hpar"]
-		coords = [range(n_samples),range(npwpe),nslaw.coef_name]
-		nspars = xr.DataArray( hpars.reshape(n_samples,npwpe,nhpar)[:,:,-nslaw.n_coef:] , dims = dims , coords = coords )
+		coords = [range(n_samples),range(npwpe),list(nslaw.h_name)]
+		nspars = xr.DataArray( hpars.reshape(n_samples,npwpe,nhpar)[:,:,-nslaw.nhpar:] , dims = dims , coords = coords )
 		kwargs = nslaw.draw_params( XFC , nspars )
 		kwargs = { key : kwargs[key].transpose("period","time","pwpe","sample") for key in kwargs }
 		

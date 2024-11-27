@@ -81,11 +81,11 @@ def mcmc( hpar , hcov , Y , A , size_chain , nslaw_class , use_STAN , tmp_stan =
 	
 	## Law
 	nslaw   = nslaw_class()
-	nnscoef = nslaw.n_coef
+	nnshpar = nslaw.nhpar
 	
 	## Prior
-	prior_hpar = hpar[-nnscoef:]
-	prior_hcov = hcov[-nnscoef:,:][:,-nnscoef:]
+	prior_hpar = hpar[-nnshpar:]
+	prior_hcov = hcov[-nnshpar:,:][:,-nnshpar:]
 	prior      = sc.multivariate_normal( mean = prior_hpar , cov = prior_hcov , allow_singular = True )
 	
 	## Output
@@ -104,7 +104,7 @@ def mcmc( hpar , hcov , Y , A , size_chain , nslaw_class , use_STAN , tmp_stan =
 		draw = nslaw.fit_bayesian( Y , X , prior , size_chain , use_STAN = use_STAN , tmp = tmp_stan )
 		
 		## Store
-		hpars[-nnscoef:,:] = draw.T
+		hpars[-nnshpar:,:] = draw.T
 		
 		##
 		chain_is_valid = np.isfinite(draw).all()

@@ -72,8 +72,8 @@ def zdraw( hpar , hcov , projF , projC , nslaw_class , n_samples ):
 	ohpars  = np.zeros( ssp + (nper,n_samples,nhpar) ) + np.nan
 	oXF     = np.zeros( ssp + (nper,nname,n_samples,ntime) ) + np.nan
 	oXC     = np.zeros( ssp + (nper,nname,n_samples,ntime) ) + np.nan
-	onsparF = [ np.zeros( ssp + (nper,n_samples,ntime) ) + np.nan for _ in range(len(nslaw.coef_kind)) ]
-	onsparC = [ np.zeros( ssp + (nper,n_samples,ntime) ) + np.nan for _ in range(len(nslaw.coef_kind)) ]
+	onsparF = [ np.zeros( ssp + (nper,n_samples,ntime) ) + np.nan for _ in range(nslaw.npar) ]
+	onsparC = [ np.zeros( ssp + (nper,n_samples,ntime) ) + np.nan for _ in range(nslaw.npar) ]
 	
 	## Loop
 	for idx in itt.product(*[range(s) for s in ssp]):
@@ -95,8 +95,8 @@ def zdraw( hpar , hcov , projF , projC , nslaw_class , n_samples ):
 		
 		## Find law parameters
 		dims    = ["sample","period","hpar"]
-		coords  = [range(n_samples),range(nper),nslaw.coef_name]
-		nspars  = xr.DataArray( hpars[:,:,-nslaw.n_coef:] , dims = dims , coords = coords )
+		coords  = [range(n_samples),range(nper),list(nslaw.h_name)]
+		nspars  = xr.DataArray( hpars[:,:,-nslaw.nhpar:] , dims = dims , coords = coords )
 		kwargsF = nslaw.draw_params( XF[:,-1,:,:].drop_vars("name") , nspars )
 		kwargsC = nslaw.draw_params( XC[:,-1,:,:].drop_vars("name") , nspars )
 		
@@ -145,16 +145,17 @@ def run_bsac_cmd_draw():
 	dpers   = clim.dpers
 	samples = coords_samples(n_samples)
 	time    = clim.time
-	ncoef   = len(nslaw_class().coef_kind)
+	nslaw   = nslaw_class()
+	npar    = nslaw.npar
 	
-	output_dims      = [ ("period","sample","hpar") + d_spatial ] + [ ("name","period","sample","time") + d_spatial for _ in range(2) ]  + [ ("period","sample","time") + d_spatial for _ in range(2 * ncoef) ]
-	output_coords    = [ [dpers,samples,hpar_names] + [ c_spatial[d] for d in d_spatial ] ] + [ [clim.namesX,dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2) ] + [ [dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2*ncoef) ]
-	output_dtypes    = [clim.hpar.dtype for _ in range( 3 + 2 * ncoef)]
+	output_dims      = [ ("period","sample","hpar") + d_spatial ] + [ ("name","period","sample","time") + d_spatial for _ in range(2) ]  + [ ("period","sample","time") + d_spatial for _ in range(2 * npar) ]
+	output_coords    = [ [dpers,samples,hpar_names] + [ c_spatial[d] for d in d_spatial ] ] + [ [clim.namesX,dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2) ] + [ [dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2*npar) ]
+	output_dtypes    = [clim.hpar.dtype for _ in range( 3 + 2 * npar)]
 	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["name","time","hpar"] , ["name","time","hpar"] ],
-	                     "output_core_dims" : [ ["sample","hpar"] , ["name","sample","time"] , ["name","sample","time"] ] + [ ["sample","time"] for _ in range(2 * ncoef) ],
+	                     "output_core_dims" : [ ["sample","hpar"] , ["name","sample","time"] , ["name","sample","time"] ] + [ ["sample","time"] for _ in range(2 * npar) ],
 	                     "kwargs"           : { "nslaw_class" : nslaw_class , "n_samples" : n_samples } ,
 	                     "dask"             : "parallelized",
-	                     "output_dtypes"    : [clim.hpar.dtype for _ in range(3 + 2*ncoef)],
+	                     "output_dtypes"    : [clim.hpar.dtype for _ in range(3 + 2*npar)],
 		                 "dask_gufunc_kwargs" : { "output_sizes"     : { "sample" : n_samples } }
 	                    }
 	
@@ -174,7 +175,7 @@ def run_bsac_cmd_draw():
 	                    )
 	
 	## Transform in dict with names
-	keys = ["hpars","XF","XC"] + [ f"{n}F" for n in nslaw_class().coef_kind ] + [ f"{n}C" for n in nslaw_class().coef_kind ]
+	keys = ["hpars","XF","XC"] + [ f"{n}F" for n in nslaw.p_name ] + [ f"{n}C" for n in nslaw.p_name ]
 	out  = { key : out[i] for i,key in enumerate(keys) }
 	
 	## Save in netcdf

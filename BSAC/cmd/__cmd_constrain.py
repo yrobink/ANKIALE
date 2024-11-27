@@ -298,7 +298,7 @@ def run_bsac_cmd_constrain_Y():
 	## Init stan
 	if use_STAN:
 		logger.info(" * STAN compilation...")
-		nslaw_class.init_stan( tmp = bsacParams.tmp_stan , force_compile = True )
+		nslaw_class().init_stan( tmp = bsacParams.tmp_stan , force_compile = True )
 		logger.info(" * STAN compilation... Done.")
 	
 	## Apply parameters

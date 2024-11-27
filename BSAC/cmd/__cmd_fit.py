@@ -191,7 +191,8 @@ def run_bsac_cmd_fit_Y():
 	
 	## Find the nslaw
 	nslaw_class = nslawid_to_class(nslawid)
-	hpar_namesY = clim.hpar_names + nslaw_class().coef_name
+	nslaw       = nslaw_class()
+	hpar_namesY = clim.hpar_names + list(nslaw.h_name)
 	
 	## Design matrix of the covariate
 	_,_,design,_ = clim.build_design_XFC()
