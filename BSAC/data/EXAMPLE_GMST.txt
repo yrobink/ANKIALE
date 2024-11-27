@@ -14,7 +14,7 @@ do
 done
 
 ## Find the model list
-MODELS=$(ls $DPATH/INPUT/GMST/X)
+MODELS=$(ls $DPATH/INPUT/X)
 
 ## Loop on models to fit the statistical model
 echo "Loop on models"
@@ -25,7 +25,7 @@ do
     echo "   => fit X"
     bsac fit X --n-samples $N_SAMPLES --log info $HPATH/LOG/'FITX_'$MOD.log\
                --bias-period $BIAS_PERIOD\
-               --input GMST,$DPATH/INPUT/GMST/X/$MODNC\
+               --input GMST,$DPATH/INPUT/X/$MODNC\
                --save-clim $DPATH/FIT/$MOD'_fitX.nc'\
                --common-period historical --different-periods ssp126,ssp245,ssp370,ssp585\
                --config GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
@@ -37,7 +37,7 @@ do
     bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/'SHOWX_'$MOD.log\
                 --bias-period $BIAS_PERIOD\
                 --load-clim $DPATH/FIT/$MOD'_fitX.nc'\
-                --input GMST,$DPATH/INPUT/GMST/X/$MODNC\
+                --input GMST,$DPATH/INPUT/X/$MODNC\
                 --output $DPATH/FIGURES/BSAC_SHOW_X_$MOD.pdf\
                 --total-memory $TOTAL_MEMORY\
                 --n-workers $N_WORKERS\
@@ -72,7 +72,7 @@ bsac constrain X --log info $HPATH/LOG/CONSTRAINX.log\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-                 --input GMST,$DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
+                 --input GMST,$DPATH/INPUT/Xo/GISTEMP_tas_year_1880-2023.nc\
                  --total-memory $TOTAL_MEMORY\
                  --n-workers $N_WORKERS\
                  --threads-per-worker $THREADS_PER_WORKER
@@ -81,7 +81,7 @@ echo " * show X of constraint"
 bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_CONSTRAINX.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-            --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
+            --input $DPATH/INPUT/Xo/GISTEMP_tas_year_1880-2023.nc\
             --output $DPATH/FIGURES/BSAC_SHOW_X_CONSTRAINX.pdf\
             --total-memory $TOTAL_MEMORY\
             --n-workers $N_WORKERS\

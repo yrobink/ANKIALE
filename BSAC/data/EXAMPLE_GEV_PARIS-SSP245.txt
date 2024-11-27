@@ -17,7 +17,7 @@ done
 DPERS='ssp245'
 
 ## Find the model list
-MODELS=$(ls $DPATH/INPUT/PARIS-SSP245/X-GMST)
+MODELS=$(ls $DPATH/INPUT/X-GMST)
 
 ## Loop on models to fit the statistical model
 echo "Loop on models"
@@ -28,7 +28,7 @@ do
     echo "   => fit X"
     bsac fit X --n-samples $N_SAMPLES --log info $HPATH/LOG/'FITX_'$MOD.log\
                --bias-period $BIAS_PERIOD\
-               --input GMST,$DPATH/INPUT/PARIS-SSP245/X-GMST/$MODNC EU,$DPATH/INPUT/PARIS-SSP245/X-EU/$MODNC\
+               --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
                --save-clim $DPATH/FIT/$MOD'_fitX.nc'\
                --common-period historical --different-periods $DPERS\
                --config GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
@@ -40,7 +40,7 @@ do
     bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/'SHOWX_'$MOD.log\
                 --bias-period $BIAS_PERIOD\
                 --load-clim $DPATH/FIT/$MOD'_fitX.nc'\
-                --input GMST,$DPATH/INPUT/PARIS-SSP245/X-GMST/$MODNC EU,$DPATH/INPUT/PARIS-SSP245/X-EU/$MODNC\
+                --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
                 --output $DPATH/FIGURES/BSAC_SHOW_X_$MOD.pdf\
                 --total-memory $TOTAL_MEMORY\
                 --n-workers $N_WORKERS\
@@ -49,7 +49,7 @@ do
     echo "   => fit Y"
     bsac fit Y --n-samples $N_SAMPLES --log info $HPATH/LOG/'FITY_'$MOD.log\
                --bias-period $BIAS_PERIOD\
-               --input $DPATH/INPUT/PARIS-SSP245/Y/$MODNC\
+               --input $DPATH/INPUT/Y/$MODNC\
 		       --config name=TX3x,nslaw=GEV,GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
                --load-clim $DPATH/FIT/$MOD'_fitX.nc'\
                --save-clim $DPATH/FIT/$MOD'_fitY.nc'\
@@ -87,7 +87,7 @@ bsac constrain X --log info $HPATH/LOG/CONSTRAINX.log\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-                 --input GMST,$DPATH/INPUT/PARIS-SSP245/Xo/GMST_GISTEMP_tas_year_1880-2023.nc EU,$DPATH/INPUT/PARIS-SSP245/Xo/EU_HadCRUT_tas_year_1850-2023.nc\
+                 --input GMST,$DPATH/INPUT/Xo/GMST_GISTEMP_tas_year_1880-2023.nc EU,$DPATH/INPUT/Xo/EU_HadCRUT_tas_year_1850-2023.nc\
                  --total-memory $TOTAL_MEMORY\
                  --n-workers $N_WORKERS\
                  --threads-per-worker $THREADS_PER_WORKER
@@ -118,7 +118,7 @@ bsac constrain Y --log info $HPATH/LOG/CONSTRAINY.log\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
-                 --input TX3x,$DPATH/INPUT/PARIS-SSP245/Yo/MF-stations_Paris-Montsouris_TX3x_year_1872-2023.nc\
+                 --input TX3x,$DPATH/INPUT/Yo/MF-stations_Paris-Montsouris_TX3x_year_1872-2023.nc\
                  --output $DPATH/CONSTRAIN/SAMPLES_CONSTRAINY.nc\
                  --config size-chain=10\
                  --total-memory $TOTAL_MEMORY\
@@ -163,7 +163,7 @@ echo " * Attribution: event"
 bsac attribute event --log info $HPATH/LOG/ANALYSIS_ATTR-EVENT2019.log\
                      --n-samples $N_SAMPLES\
                      --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
-                     --input TX3x,$DPATH/INPUT/PARIS-SSP245/Yo/MF-stations_Paris-Montsouris_TX3x_year_1872-2023.nc\
+                     --input TX3x,$DPATH/INPUT/Yo/MF-stations_Paris-Montsouris_TX3x_year_1872-2023.nc\
                      --output $DPATH/ANALYSIS/EVENT2019.nc\
                      --config time=2019,mode=quantile,side=right\
                      --total-memory $TOTAL_MEMORY\
