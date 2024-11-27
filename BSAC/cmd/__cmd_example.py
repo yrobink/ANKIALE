@@ -76,7 +76,7 @@ def run_bsac_cmd_example():
 	if not len(bsacParams.arg) == 1:
 		raise ValueError(f"Bad numbers of arguments of the example command: {', '.join(bsacParams.arg)}")
 	
-	available_commands = ["GMST","FRA08","FRA12","IDF"] + [ f"PARIS{sce}" for sce in ["","-SSP126","-SSP245","-SSP370","-SSP585"]]
+	available_commands = ["GMST","NORMAL_FRA08","GEVMIN_FRA12","GEV_IDF"] + [ f"GEV_PARIS{sce}" for sce in ["","-SSP126","-SSP245","-SSP370","-SSP585"]]
 	cmd = bsacParams.arg[0].upper()
 	if not cmd in available_commands:
 		raise ValueError(f"Bad argument of the fit command ({cmd}), must be: {', '.join(available_commands)}")
