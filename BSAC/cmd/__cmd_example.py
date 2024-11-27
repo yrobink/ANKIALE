@@ -76,7 +76,7 @@ def run_bsac_cmd_example():
 	if not len(bsacParams.arg) == 1:
 		raise ValueError(f"Bad numbers of arguments of the example command: {', '.join(bsacParams.arg)}")
 	
-	available_commands = ["GMST","IDF"] + [ f"PARIS{sce}" for sce in ["","-SSP126","-SSP245","-SSP370","-SSP585"]]
+	available_commands = ["GMST","FRA08","FRA12","IDF"] + [ f"PARIS{sce}" for sce in ["","-SSP126","-SSP245","-SSP370","-SSP585"]]
 	cmd = bsacParams.arg[0].upper()
 	if not cmd in available_commands:
 		raise ValueError(f"Bad argument of the fit command ({cmd}), must be: {', '.join(available_commands)}")
@@ -102,10 +102,7 @@ def run_bsac_cmd_example():
 	f"TOTAL_MEMORY={bsacParams.total_memory}",
 	f"HPATH={hiopath}",
 	f"DPATH={diopath}",
-	f"N_SAMPLES={bsacParams.n_samples}",
-	f"BIAS_PERIOD='1900/1950'",
-	f"GAM_DOF=7",
-	f"GAM_DEGREE=3",""] )
+	f"N_SAMPLES={bsacParams.n_samples}",""] )
 	
 	## Add common part of the script
 	with open( os.path.join( cpath , ".." , "data" , f"EXAMPLE_{cmd}.txt" ) , "r" ) as ish:

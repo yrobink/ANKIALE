@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023, 2024 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -19,13 +19,24 @@
 ## Packages
 ###########
 
+import os
 import warnings
+import tempfile
 import numpy as np
 import SDFC  as sd
 
 import scipy.stats as sc
 
+from ...__sys import copy_files
 from .__AbstractModel import AbstractModel
+from ...__linalg import sqrtm
+
+import cmdstanpy as stan
+
+import logging
+cmdstanpy_logger = logging.getLogger("cmdstanpy")
+cmdstanpy_logger.disabled = True
+
 
 
 ## Classes
@@ -58,20 +69,90 @@ class GEVMinModel(AbstractModel):##{{{
 		self.coef_ = self.law.coef_
 	##}}}
 	
-	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn ):##{{{
-		self.law = self.sd( method = "bayesian" )
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			self.law.fit( -Y , c_loc = -X , c_scale = -X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = n_mcmc_drawn )
-		self.coef_ = self.law.info_.draw[-1,:]
-		return self.law.info_.draw
+	## staticmethod@init_stan ##{{{
+	
+	@staticmethod
+	def init_stan( tmp , force_compile = False ):
+		### Define stan model
+		stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" )
+		stan_ifile = os.path.join( stan_path , "STAN_GEVMODEL_PRIOR-NORMAL.stan" )
+		stan_ofile = os.path.join(       tmp , "STAN_GEVMODEL_PRIOR-NORMAL.stan" )
+		if not os.path.isfile(stan_ofile):
+			copy_files( stan_ifile , stan_ofile )
+		stan_model = stan.CmdStanModel( stan_file = stan_ofile , force_compile = force_compile )
+		
+		return stan_model
+	##}}}
+	
+	def _fit_bayesian_ORIGIN( self , Y , X , prior , n_mcmc_drawn , n_try = 10 ):##{{{
+		
+		for _ in range(n_try):
+			
+			self.law = self.sd( method = "bayesian" )
+			with warnings.catch_warnings():
+				warnings.simplefilter("ignore")
+				self.law.fit( -Y , c_loc = -X , c_scale = -X , l_scale = sd.link.ULExponential() , prior = prior , n_mcmc_drawn = 20 * n_mcmc_drawn , burn = 5000 )
+			rate = self.law.info_.rate_accept
+			draw = self.law.info_.draw[self.law.info_.accept,:][::5,:][-n_mcmc_drawn:,:]
+			
+			if draw.shape[0] < n_mcmc_drawn or rate < 0.3:
+				success = False
+				continue
+			else:
+				success = True
+				break
+		
+		if not success:
+			draw = np.zeros( (n_mcmc_drawn,prior.mean.size) ) + np.nan
+		return draw
+	##}}}
+	
+	def _fit_bayesian_STAN( self , Y , X , prior , n_mcmc_drawn , tmp , n_try = 10 ):##{{{
+		for _ in range(n_try):
+			try:
+				## Load stan model
+				stan_model = self.init_stan( tmp )
+				
+				## Fit the model
+				idata  = {
+					"nhpar" : prior.mean.size,
+					"prior_hpar" : prior.mean,
+					"prior_hcov" : prior.cov,
+					"prior_hstd" : sqrtm(prior.cov),
+					"nXY"        : Y.size,
+					"X"          : -X,
+					"Y"          : -Y,
+				}
+				with tempfile.TemporaryDirectory( dir = tmp ) as tmp_draw:
+					fit  = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp_draw , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
+					draw = fit.draws_xr("hpar")["hpar"][0,:,:].values
+				
+				success = True
+				break
+			except:
+				success = False
+		
+		if not success:
+			draw = self._fit_bayesian_ORIGIN( Y , X , prior , n_mcmc_drawn , n_try )
+		
+		return draw
+	##}}}
+	
+	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , use_STAN , tmp , n_try = 10 ):##{{{
+		
+		if use_STAN:
+			draw = self._fit_bayesian_STAN( Y , X , prior , n_mcmc_drawn , tmp , n_try )
+		else:
+			draw = self._fit_bayesian_ORIGIN( Y , X , prior , n_mcmc_drawn , n_try )
+		
+		return draw
 	##}}}
 	
 	def draw_params( self , X , coef ):##{{{
 		
-		loc   = (coef.loc[:,"loc0"] - coef.loc[:,"loc1"] * X)
-		scale = np.exp( coef.loc[:,"scale0"] - coef.loc[:,"scale1"] * X )
-		shape = coef.loc[:,"shape0"] - 0 * X
+		loc   = coef.sel( hpar = "loc0" ) - coef.sel( hpar = "loc1" ) * X
+		scale = np.exp( coef.sel( hpar = "scale0" ) - coef.sel( hpar = "scale1" ) * X )
+		shape = coef.sel( hpar = "shape0" ) - 0 * X
 		
 		return { "loc" : loc , "scale" : scale , "shape" : shape }
 	##}}}
@@ -83,7 +164,7 @@ class GEVMinModel(AbstractModel):##{{{
 		if side == "right":
 			return sc.genextreme.cdf( -x , **sckwargs )
 		else:
-			return sc.genextreme.ppf( -x , **sckwargs )
+			return sc.genextreme.sf( -x , **sckwargs )
 	##}}}
 	
 	def _icdf_sf( self , p , side , **kwargs ):##{{{
@@ -96,4 +177,5 @@ class GEVMinModel(AbstractModel):##{{{
 	##}}}
 	
 ##}}}
+
 

@@ -1,4 +1,10 @@
 
+## Fixed Parameters
+BIAS_PERIOD='1900/1950'
+GAM_DOF=7
+GAM_DEGREE=3
+
+## Clean and build path
 for p in $HPATH/LOG $DPATH/FIT $DPATH/SYNTHESIS $DPATH/ANALYSIS $DPATH/CONSTRAIN $DPATH/FIGURES
 do
     if [[ ! -d $p ]]

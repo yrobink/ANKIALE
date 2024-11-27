@@ -10,7 +10,11 @@ include BSAC/data/EXAMPLE_IDF.tar.gz
 include BSAC/data/EXAMPLE_IDF.txt
 include BSAC/data/EXAMPLE_PARIS.tar.gz
 include BSAC/data/EXAMPLE_PARIS.txt
-include BSAC/data/EXAMPLE_PARIS-SSP126.tar.gz
+include BSAC/data/EXAMPLE_FRA08.tar.gz
+include BSAC/data/EXAMPLE_FRA08.txt
+include BSAC/data/EXAMPLE_FRA12.tar.gz
+include BSAC/data/EXAMPLE_FRA12.txt
+rnclude BSAC/data/EXAMPLE_PARIS-SSP126.tar.gz
 include BSAC/data/EXAMPLE_PARIS-SSP126.txt
 include BSAC/data/EXAMPLE_PARIS-SSP245.tar.gz
 include BSAC/data/EXAMPLE_PARIS-SSP245.txt
