@@ -188,14 +188,16 @@ class Climatology:##{{{
 			except:
 				pass
 			
+			spatial_is_fake = False
 			try:
 				spatial = str(incf.variables["Y"].getncattr("spatial"))
 				if ":" in spatial:
 					spatial = spatial.split(":")
 				else:
+					spatial_is_fake = (spatial == "fake")
 					spatial = [spatial]
 				
-				if not spatial == "fake":
+				if not spatial_is_fake:
 					clim._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
 				else:
 					clim._spatial = { "fake" : xr.DataArray( [0] , dims = ["fake"] , coords = [[0]] ) }
@@ -210,12 +212,12 @@ class Climatology:##{{{
 			
 			if clim._spatial is not None:
 				for name in clim.names:
-					if isinstance(clim._bias[name],np.ndarray) or (name == clim.vname and clim.spatial_is_fake):
+					if isinstance(clim._bias[name],np.ndarray) or (name == clim.vname and spatial_is_fake):
 						clim._bias[name] = xr.DataArray( clim._bias[name] , dims = list(clim._spatial) , coords = clim._spatial )
 			
 			hpar = np.array(incf.variables["hpar"][:])
 			hcov = np.array(incf.variables["hcov"][:])
-			if clim.spatial_is_fake:
+			if spatial_is_fake:
 				hpar = hpar.reshape( hpar.shape + (1,) )
 				hcov = hcov.reshape( hcov.shape + (1,) )
 			clim.hpar = hpar
