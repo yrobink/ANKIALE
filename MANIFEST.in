@@ -12,7 +12,7 @@ include BSAC/data/EXAMPLE_GEV_IDF.tar.gz
 include BSAC/data/EXAMPLE_GEV_IDF.txt
 include BSAC/data/EXAMPLE_GEV_PARIS.tar.gz
 include BSAC/data/EXAMPLE_GEV_PARIS.txt
-rnclude BSAC/data/EXAMPLE_GEV_PARIS-SSP126.tar.gz
+include BSAC/data/EXAMPLE_GEV_PARIS-SSP126.tar.gz
 include BSAC/data/EXAMPLE_GEV_PARIS-SSP126.txt
 include BSAC/data/EXAMPLE_GEV_PARIS-SSP245.tar.gz
 include BSAC/data/EXAMPLE_GEV_PARIS-SSP245.txt
