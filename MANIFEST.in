@@ -6,8 +6,8 @@ include BSAC/data/STAN_NORMALMODEL_PRIOR-MULTINORMAL.stan
 include BSAC/data/STAN_NORMALMODEL_PRIOR-NORMAL.stan
 include BSAC/data/EXAMPLE_GMST.tar.gz
 include BSAC/data/EXAMPLE_GMST.txt
-include BSAC/data/EXAMPLE_NORMAL_FRA08.tar.gz
-include BSAC/data/EXAMPLE_NORMAL_FRA08.txt
+include BSAC/data/EXAMPLE_NORMAL_FRA03.tar.gz
+include BSAC/data/EXAMPLE_NORMAL_FRA03.txt
 include BSAC/data/EXAMPLE_GEV_IDF.tar.gz
 include BSAC/data/EXAMPLE_GEV_IDF.txt
 include BSAC/data/EXAMPLE_GEV_PARIS.tar.gz

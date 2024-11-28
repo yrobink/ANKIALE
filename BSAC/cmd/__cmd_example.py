@@ -47,7 +47,7 @@ def find_path( output ):##{{{
 	
 	## Find output folder
 	if "," in output:
-		hiopath,diopath = bsacParams.split(",")
+		hiopath,diopath = bsacParams.output.split(",")
 		hiopath = os.path.abspath(hiopath)
 		diopath = os.path.abspath(diopath)
 		for p in [hiopath,diopath]:
@@ -72,11 +72,14 @@ def find_path( output ):##{{{
 @log_start_end(logger)
 def run_bsac_cmd_example():
 	
+	cpath = os.path.dirname(os.path.abspath(__file__))
+	
 	## Check the command
 	if not len(bsacParams.arg) == 1:
 		raise ValueError(f"Bad numbers of arguments of the example command: {', '.join(bsacParams.arg)}")
 	
-	available_commands = ["GMST","NORMAL_FRA08","GEVMIN_FRA12","GEV_IDF"] + [ f"GEV_PARIS{sce}" for sce in ["","-SSP126","-SSP245","-SSP370","-SSP585"]]
+	## Find available commands
+	available_commands = sorted( list( set( [ "_".join( f.split(".")[0].split("_")[1:] ) for f in os.listdir( os.path.join( cpath , ".." , "data" ) ) if "EXAMPLE_" in f ] ) ) )
 	cmd = bsacParams.arg[0].upper()
 	if not cmd in available_commands:
 		raise ValueError(f"Bad argument of the fit command ({cmd}), must be: {', '.join(available_commands)}")
@@ -86,7 +89,6 @@ def run_bsac_cmd_example():
 	
 	## Copy data
 	logger.info( f" * Copy data" )
-	cpath = os.path.dirname(os.path.abspath(__file__))
 	idata = os.path.join( cpath , ".." , "data" , f"EXAMPLE_{cmd}.tar.gz" )
 	with tarfile.open( idata , mode = "r" ) as ifile:
 		ifile.extractall( os.path.join( diopath , "INPUT" ) )
