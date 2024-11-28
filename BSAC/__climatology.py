@@ -259,12 +259,17 @@ class Climatology:##{{{
 			       "hcov"              : ncf.createVariable(              "hcov" , "float32" ,   ("hyper_parameter","hyper_parameter") + spatial ),
 			}
 			for name in self.names:
-				if isinstance(self.bias[name],float):
+				B = self.bias[name]
+				try:
+					B = float(B)
+				except:
+					pass
+				if isinstance(B,float):
 					ncvars[f"bias_{name}"]    = ncf.createVariable( f"bias_{name}" , "float32" )
-					ncvars[f"bias_{name}"][:] = float(self._bias[name])
+					ncvars[f"bias_{name}"][:] = B
 				else:
 					ncvars[f"bias_{name}"]    = ncf.createVariable( f"bias_{name}" , "float32" , spatial )
-					ncvars[f"bias_{name}"][:] = self._bias[name][:]
+					ncvars[f"bias_{name}"][:] = B[:]
 				ncvars[f"bias_{name}"].setncattr( "period" , "{}/{}".format(*self.bper) )
 			if self._spatial is not None and not self.spatial_is_fake:
 				for d in self._spatial:
@@ -357,8 +362,22 @@ class Climatology:##{{{
 		clim = Climatology()
 		
 		clim._hpar = self.hpar.zsel( drop = drop , **coords )
-		clim._hcov = self.hpar.zsel( drop = drop , **coords )
+		clim._hcov = self.hcov.zsel( drop = drop , **coords )
 		clim._bias = { key : self._bias[key].sel( coords ) for key in self._bias }
+		clim._spatial = coords
+		
+		if clim._hpar.ndim > 1:
+			if np.prod(clim._hpar.shape[1:]) == 1:
+				fakes = xr.DataArray( [0] , dims = ["fake"] , coords = [[0]] )
+				hpar_names = self.hpar_names
+				nhpar = len(hpar_names)
+				hpar  = zr.ZXArray( clim._hpar.dataarray.values.reshape(nhpar,1)       , dims = ["hpar",         "fake"] , coords = [hpar_names,fakes] )
+				hcov  = zr.ZXArray( clim._hcov.dataarray.values.reshape(nhpar,nhpar,1) , dims = ["hpar0","hpar1","fake"] , coords = [hpar_names,hpar_names,fakes] )
+				clim.hpar = hpar
+				clim.hcov = hcov
+				clim._spatial = { "fake" : fakes }
+				if not self.onlyX:
+					clim._bias[self.vname] = xr.DataArray( [float(clim._bias[self.vname])] , dims = ["fake"] , coords = [fakes] )
 		
 		clim._names = self._names
 		clim._cper  = self._cper
@@ -369,7 +388,6 @@ class Climatology:##{{{
 		
 		clim._nslawid     = self._nslawid
 		clim._nslaw_class = self._nslaw_class
-		clim._spatial     = coords
 		
 		clim._Xconfig = self._Xconfig
 		clim._Yconfig = self._Yconfig
