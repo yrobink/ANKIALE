@@ -82,7 +82,7 @@ class BSACParams:
 	common_period     : list | None = None
 	different_periods : list | None = None
 	bias_period       : tuple[int,int] | str = "1961/1990"
-	n_samples         : int = 10000
+	n_samples         : int = 100
 	XN_version        : str = "CMIP6"
 	
 	clim      : Climatology | None = None

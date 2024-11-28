@@ -18,7 +18,7 @@
 
 version_major = 0
 version_minor = 31
-version_patch = 1
+version_patch = 2
 version_extra = ""
 version      = f"{version_major}.{version_minor}.{version_patch}{version_extra}"
 
@@ -30,12 +30,22 @@ license      = "GNU-GPL3"
 src_url      = "https://github.com/yrobink/BSAC"
 
 long_description = """\
-Bayesian Statistical Analysis of the Climatology
+BSAC -- Bayesian Statistical Analysis of the Climatology -- is a program for
+the inference, analysis and attribution of extreme events. The methodology is
+as follows:
+
+- Inference of the law (which can be specified) for several climate models,
+- Estimation of a multi-model synthesis,
+- The synthesis is considered as a prior of reality, and the observations are
+  used to derive the posterior using Bayesian methods.
+
+These different steps can be called up from the command line. Attributions and
+analyses of the inferred laws can then be performed.
 """
 
 authors_doc = author
 license_txt = """\
-Copyright(c) 2023 / 2024 Yoann Robin
+Copyright(c) 2023, 2024 Yoann Robin
 
 This file is part of BSAC.
 
