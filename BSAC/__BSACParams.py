@@ -61,10 +61,7 @@ class BSACParams:
 	n_workers            : int                = 1
 	threads_per_worker   : int                = 1
 	memory_per_worker    : str                = "auto"
-	frac_memory_per_array: float              = 0.2
 	total_memory         : str                = "auto"
-	client               : distributed.client.Client | None = None
-	disable_dask         : bool               = False
 	
 	tmp_base    : str | None         = None
 	tmp_gen     : tempfile.TemporaryDirectory | None = None
@@ -106,9 +103,7 @@ class BSACParams:
 		parser.add_argument( "--n-workers"              , default = 1 , type = int )
 		parser.add_argument( "--threads-per-worker"     , default = 1 , type = int )
 		parser.add_argument( "--memory-per-worker"      , default = "auto" )
-		parser.add_argument( "--frac-memory-per-array"  , default = 0.15 , type = float )
 		parser.add_argument( "--total-memory"           , default = "auto" )
-		parser.add_argument( "--disable-dask" , action = "store_const" , const = True , default = False )
 		
 		parser.add_argument( "--config" , default = None )
 		parser.add_argument( "--no-STAN" , action = "store_const" , const = True , default = False )
@@ -208,17 +203,10 @@ class BSACParams:
 	
 	def init_dask(self):##{{{
 		
-		if self.disable_dask:
-			return
-		
 		dask_config  = { "temporary_directory" : self.tmp_dask ,
 		                 "logging.distributed" : "error" }
-		client_config = { "n_workers"          :self.n_workers ,
-		                  "threads_per_worker" :self.threads_per_worker ,
-		                  "memory_limit"       : f"{self.memory_per_worker.B}B" }
 		
 		dask.config.set(**dask_config)
-		self.client = distributed.Client(**client_config)
 	##}}}
 	
 	def init_clim(self):##{{{
@@ -243,12 +231,7 @@ class BSACParams:
 	##}}}
 	
 	def stop_dask(self):##{{{
-		if self.disable_dask:
-			return
-		
-		self.client.close()
-		del self.client
-		self.client = None
+		pass
 	##}}}
 	
 	def check( self ): ##{{{

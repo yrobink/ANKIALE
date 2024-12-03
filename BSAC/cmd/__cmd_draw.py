@@ -163,15 +163,22 @@ def run_bsac_cmd_draw():
 #	xargs = [ K.dataarray for K in zargs ]
 #	out = xr.apply_ufunc( zdraw , *xargs , **dask_kwargs )
 	
+	## Block memory function
+	nhpar = len(clim.hpar_names)
+	block_memory = lambda x : 2 * ( nhpar + nhpar**2 + 5 * len(clim.namesX) * time.size * nhpar + n_samples * nhpar + 2 * npar * n_samples * time.size ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
 	## Run with zxarray
 	logger.info(" * Draw parameters")
 	out = zr.apply_ufunc( zdraw , *zargs,
-	                      bdims         = ("period",) + clim.d_spatial,
-	                      max_mem       = bsacParams.total_memory,
-	                      output_dims   = output_dims,
-	                      output_coords = output_coords,
-	                      output_dtypes = output_dtypes,
-	                      dask_kwargs   = dask_kwargs,
+	                      block_dims         = ("period",) + clim.d_spatial,
+	                      total_memory       = bsacParams.total_memory,
+	                      block_memory       = block_memory,
+	                      output_dims        = output_dims,
+	                      output_coords      = output_coords,
+	                      output_dtypes      = output_dtypes,
+	                      dask_kwargs        = dask_kwargs,
+	                      n_workers          = bsacParams.n_workers,
+	                      threads_per_worker = bsacParams.threads_per_worker,
 	                    )
 	
 	## Transform in dict with names

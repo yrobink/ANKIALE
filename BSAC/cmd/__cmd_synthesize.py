@@ -199,13 +199,22 @@ def run_bsac_cmd_synthesize():
 		                  "dask" : "parallelized",
 		                  "output_dtypes"  : [hpars.dtype,hpars.dtype]
 		                    }
+		
+		## Block memory function
+		nhpar = len(hpar_names)
+		block_memory = lambda x : 2 * ( len(ifiles) * (nhpar + nhpar**2) + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+		
+		## Run
 		hpar,hcov = zr.apply_ufunc( zsynthesis , hpars , hcovs, 
-		                            bdims         = d_spatial,
-		                            max_mem       = bsacParams.total_memory,
-		                            output_coords = output_coords,
-		                            output_dims   = output_dims,
-		                            output_dtypes = output_dtypes,
-		                            dask_kwargs   = dask_kwargs
+		                            block_dims         = d_spatial,
+		                            total_memory       = bsacParams.total_memory,
+		                            block_memory       = block_memory,
+		                            output_coords      = output_coords,
+		                            output_dims        = output_dims,
+		                            output_dtypes      = output_dtypes,
+		                            dask_kwargs        = dask_kwargs,
+		                            n_workers          = bsacParams.n_workers,
+		                            threads_per_worker = bsacParams.threads_per_worker,
 		                            )
 	else:
 		hpar,hcov = synthesis( hpars.dataarray , hcovs.dataarray )

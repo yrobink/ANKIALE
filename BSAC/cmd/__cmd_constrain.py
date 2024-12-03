@@ -185,13 +185,22 @@ def run_bsac_cmd_constrain_X():
 	                     "output_dtypes"  : [clim.hpar.dtype,clim.hcov.dtype]
 	                    }
 	
+	## Block memory function
+	nhpar = len(clim.hpar_names)
+	block_memory = lambda x : 2 * ( nhpar + nhpar**2 +  len(zXo) * time.size + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
 	##
 	hpar,hcov = zr.apply_ufunc( zgaussian_conditionning , *args ,
-	                            bdims = d_spatial , max_mem = bsacParams.total_memory,
-	                            output_coords = output_coords,
-	                            output_dims   = output_dims,
-	                            output_dtypes = output_dtypes,
-	                            dask_kwargs   = dask_kwargs )
+	                            block_dims         = d_spatial,
+	                            total_memory       = bsacParams.total_memory,
+	                            block_memory       = block_memory,
+	                            output_coords      = output_coords,
+	                            output_dims        = output_dims,
+	                            output_dtypes      = output_dtypes,
+	                            dask_kwargs        = dask_kwargs,
+	                            n_workers          = bsacParams.n_workers,
+	                            threads_per_worker = bsacParams.threads_per_worker
+	                         )
 	
 	## Save
 	clim.hpar = hpar
@@ -313,14 +322,23 @@ def run_bsac_cmd_constrain_Y():
 	                     "output_dtypes"  : [clim.hpar.dtype]
 	                    }
 	
+	## Block memory function
+	nhpar = len(clim.hpar_names)
+	block_memory = lambda x : 2 * ( nhpar + nhpar**2 + time.size + nhpar * size_chain ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
 	## Draw samples
 	logger.info(" * Draw samples")
 	ohpars = zr.apply_ufunc( zmcmc , ihpar , ihcov , zYo , zsamples ,
-	                         bdims = d_spatial , max_mem = bsacParams.total_memory,
-	                         output_coords = output_coords,
-	                         output_dims   = output_dims,
-	                         output_dtypes = output_dtypes,
-	                         dask_kwargs   = dask_kwargs )
+	                         block_dims         = d_spatial,
+	                         total_memory       = bsacParams.total_memory,
+	                         block_memory       = block_memory,
+	                         output_coords      = output_coords,
+	                         output_dims        = output_dims,
+	                         output_dtypes      = output_dtypes,
+	                         dask_kwargs        = dask_kwargs,
+	                         n_workers          = bsacParams.n_workers,
+	                         threads_per_worker = bsacParams.threads_per_worker
+	                        )
 	
 	## And find parameters of the distribution
 	logger.info(" * Compute mean and covariance of parameters")
@@ -334,13 +352,22 @@ def run_bsac_cmd_constrain_Y():
 	                     "dask_gufunc_kwargs" : { "output_sizes" : { "hpar0" : len(hpar_names) , "hpar1" : len(hpar_names) } },
 	                     "output_dtypes"  : [ohpars.dtype,ohpars.dtype]
 	                    }
+	
+	## Block memory function
+	block_memory = lambda x : 2 * ( nhpar * n_samples * size_chain + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
+	## Apply
 	hpar,hcov = zr.apply_ufunc( mean_cov_hpars , ohpars,
-	                            bdims         = d_spatial,
-	                            max_mem       = bsacParams.total_memory,
-	                            output_dims   = output_dims,
-	                            output_coords = output_coords,
-	                            output_dtypes = output_dtypes,
-	                            dask_kwargs   = dask_kwargs )
+	                            block_dims         = d_spatial,
+	                            total_memory       = bsacParams.total_memory,
+	                            block_memory       = block_memory,
+	                            output_dims        = output_dims,
+	                            output_coords      = output_coords,
+	                            output_dtypes      = output_dtypes,
+	                            dask_kwargs        = dask_kwargs,
+	                            n_workers          = bsacParams.n_workers,
+	                            threads_per_worker = bsacParams.threads_per_worker,
+	                            )
 	
 	## Store (or not) the samples
 	if bsacParams.output is not None:

@@ -227,15 +227,22 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		                 "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size } }
 	                    }
 	
+	## Block memory function
+	nhpar = projF.hpar.size
+	block_memory = lambda x : 2 * ( nhpar + nhpar**2 + 2 * time.size * nhpar + 8 * time.size * n_samples ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
 	## Run with zxarray
 	zargs = [clim.hpar,clim.hcov,zbias,zprojF,zprojC,zRT]
 	out = zr.apply_ufunc( zattribute_fcreturnt , *zargs,
-	                      bdims         = ("period","return_time") + clim.d_spatial,
-	                      max_mem       = bsacParams.total_memory,
-	                      output_dims   = output_dims,
-	                      output_coords = output_coords,
-	                      output_dtypes = output_dtypes,
-	                      dask_kwargs   = dask_kwargs,
+	                      block_dims         = ("period","return_time") + clim.d_spatial,
+	                      total_memory       = bsacParams.total_memory,
+	                      block_memory       = block_memory,
+	                      output_dims        = output_dims,
+	                      output_coords      = output_coords,
+	                      output_dtypes      = output_dtypes,
+	                      dask_kwargs        = dask_kwargs,
+	                      n_workers          = bsacParams.n_workers,
+	                      threads_per_worker = bsacParams.threads_per_worker
 	                    )
 	
 	## Transform in dict
@@ -495,15 +502,22 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		                 "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size } }
 	                    }
 	
+	## Block memory function
+	nhpar = projF.hpar.size
+	block_memory = lambda x : 2 * ( nhpar + 2 * nhpar + 2 * time.size * nhpar + 8 * time.size * n_samples ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
 	## Run with zxarray
 	zargs = [clim.hpar,clim.hcov,zbias,zIF,zprojF,zprojC]
 	out = zr.apply_ufunc( zattribute_fintensity , *zargs,
-	                      bdims         = ("period",) + clim.d_spatial,
-	                      max_mem       = bsacParams.total_memory,
-	                      output_dims   = output_dims,
-	                      output_coords = output_coords,
-	                      output_dtypes = output_dtypes,
-	                      dask_kwargs   = dask_kwargs,
+	                      block_dims         = ("period",) + clim.d_spatial,
+	                      total_memory       = bsacParams.total_memory,
+	                      block_memory       = block_memory,
+	                      output_dims        = output_dims,
+	                      output_coords      = output_coords,
+	                      output_dtypes      = output_dtypes,
+	                      dask_kwargs        = dask_kwargs,
+	                      n_workers          = bsacParams.n_workers,
+	                      threads_per_worker = bsacParams.threads_per_worker
 	                    )
 	
 	## Transform in dict
@@ -774,15 +788,22 @@ def run_bsac_cmd_attribute_event():
 		                 "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size } }
 	                    }
 	
+	## Block memory function
+	nhpar = projF.hpar.size
+	block_memory = lambda x : 2 * ( nhpar + 2 * nhpar + 2 * time.size * nhpar + 8 * time.size * n_samples ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
 	## Run with zxarray
 	zargs = [clim.hpar,clim.hcov,zbias,zYo,zprojF,zprojC]
 	out = zr.apply_ufunc( zattribute_event , *zargs,
-	                      bdims         = ("period",) + clim.d_spatial,
-	                      max_mem       = bsacParams.total_memory,
-	                      output_dims   = output_dims,
-	                      output_coords = output_coords,
-	                      output_dtypes = output_dtypes,
-	                      dask_kwargs   = dask_kwargs,
+	                      block_dims         = ("period",) + clim.d_spatial,
+	                      total_memory       = bsacParams.total_memory,
+	                      block_memory       = block_memory,
+	                      output_dims        = output_dims,
+	                      output_coords      = output_coords,
+	                      output_dtypes      = output_dtypes,
+	                      dask_kwargs        = dask_kwargs,
+	                      n_workers          = bsacParams.n_workers,
+	                      threads_per_worker = bsacParams.threads_per_worker
 	                    )
 	
 	## Transform in dict

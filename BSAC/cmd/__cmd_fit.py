@@ -218,16 +218,23 @@ def run_bsac_cmd_fit_Y():
 	                     "output_dtypes"  : [clim.hpar.dtype]
 	                    }
 	
+	## Block memory function
+	nhpar = len(clim.hpar_names)
+	block_memory = lambda x : 2 * ( nhpar + nhpar**2 + len(time) * (len(clim.dpers)+1) * Y["run"].size + len(hpar_namesY) * len(clim.dpers) ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
 	## Fit samples of parameters
 	hpar  = clim.hpar
 	hcov  = clim.hcov
 	hpars = zr.apply_ufunc( nslaw_fit , hpar , hcov , zY, samples,
-	                        bdims         = ("sample",) + d_spatial,
-	                        max_mem       = bsacParams.total_memory,
-	                        output_dims   = output_dims,
-	                        output_coords = output_coords,
-	                        output_dtypes = output_dtypes,
-	                        dask_kwargs   = dask_kwargs )
+	                        block_dims         = ("sample",) + d_spatial,
+	                        total_memory       = bsacParams.total_memory,
+	                        output_dims        = output_dims,
+	                        output_coords      = output_coords,
+	                        output_dtypes      = output_dtypes,
+	                        dask_kwargs        = dask_kwargs,
+	                        n_workers          = bsacParams.n_workers,
+	                        threads_per_worker = bsacParams.threads_per_worker,
+	                        )
 	
 	## And find parameters of the distribution
 	output_dims      = [ ("hpar",) + d_spatial , ("hpar0","hpar1") + d_spatial ]
@@ -240,13 +247,22 @@ def run_bsac_cmd_fit_Y():
 	                     "dask_gufunc_kwargs" : { "output_sizes" : { "hpar" : len(hpar_namesY) , "hpar0" : len(hpar_namesY) , "hpar1" : len(hpar_namesY) } },
 	                     "output_dtypes"  : [hpars.dtype,hpars.dtype]
 	                    }
+	
+	## Block memory function
+	block_memory = lambda x : 2 * ( nhpar * len(clim.dpers) * n_samples + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
+	## Apply
 	hpar,hcov = zr.apply_ufunc( mean_cov_hpars , hpars,
-	                            bdims         = d_spatial,
-	                            max_mem       = bsacParams.total_memory,
-	                            output_dims   = output_dims,
-	                            output_coords = output_coords,
-	                            output_dtypes = output_dtypes,
-	                            dask_kwargs   = dask_kwargs )
+	                            block_dims         = d_spatial,
+	                            total_memory       = bsacParams.total_memory,
+	                            block_memory       = block_memory,
+	                            output_dims        = output_dims,
+	                            output_coords      = output_coords,
+	                            output_dtypes      = output_dtypes,
+	                            dask_kwargs        = dask_kwargs,
+	                            n_workers          = bsacParams.n_workers,
+	                            threads_per_worker = bsacParams.threads_per_worker,
+	                            )
 	
 	## Update the climatology
 	clim.hpar  = hpar

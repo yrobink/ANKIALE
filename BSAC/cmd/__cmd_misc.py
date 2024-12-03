@@ -222,15 +222,22 @@ def run_bsac_cmd_misc_wpe():
 		                 "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size} }
 	                    }
 	
+	## Block memory function
+	nhpar = len(hpar_names)
+	block_memory = lambda x : 2 * ( nhpar + nhpar**2 + clim.time.size * nhpar + 2 * n_samples ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	
 	## Run
 	logger.info( " * and run" )
 	zIFC,zdI = zr.apply_ufunc( zwpe , *zargs,
-	                           bdims         = d_spatial + ("pwpe",),
-	                           max_mem       = bsacParams.total_memory,
-	                           output_dims   = output_dims,
-	                           output_coords = output_coords,
-	                           output_dtypes = output_dtypes,
-	                           dask_kwargs   = dask_kwargs
+	                           block_dims         = d_spatial + ("pwpe",),
+	                           total_memory       = bsacParams.total_memory,
+	                           block_memory       = block_memory,
+	                           output_dims        = output_dims,
+	                           output_coords      = output_coords,
+	                           output_dtypes      = output_dtypes,
+	                           dask_kwargs        = dask_kwargs,
+	                           n_workers          = bsacParams.n_workers,
+	                           threads_per_worker = bsacParams.threads_per_worker,
 	                        )
 	
 	##
