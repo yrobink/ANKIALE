@@ -227,6 +227,7 @@ def run_bsac_cmd_fit_Y():
 	hcov  = clim.hcov
 	hpars = zr.apply_ufunc( nslaw_fit , hpar , hcov , zY, samples,
 	                        block_dims         = ("sample",) + d_spatial,
+	                        block_memory       = block_memory,
 	                        total_memory       = bsacParams.total_memory,
 	                        output_dims        = output_dims,
 	                        output_coords      = output_coords,

@@ -186,7 +186,7 @@ class BSACParams:
 		
 		## If it is not an integer, raise an error
 		if not isinstance( level , int ): 
-			raise UserDefinedLoggingLevelError( f"Invalid log level: {level}; nothing, an integer, 'debug', 'info', 'warning', 'error' or 'critical' expected" )
+			raise ValueError( f"Invalid log level: {level}; nothing, an integer, 'debug', 'info', 'warning', 'error' or 'critical' expected" )
 		
 		##
 		log_kwargs = {

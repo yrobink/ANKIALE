@@ -74,7 +74,7 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 	nrun    = Y.shape[-1]
 	
 	## Draw parameters
-	hpars[*([slice(None) for _ in range(hpars.ndim-1)] + [range(hpar.size)] ) ] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = hpars.size // hpar.size ).reshape( hpars.shape[:-1] + (hpar.size,) )
+	hpars[*([slice(None) for _ in range(hpars.ndim-1)] + [range(hpar.size)] ) ] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = hpars.size // s_hparY ).reshape( hpars.shape[:-1] + (hpar.size,) )
 	
 	## Find parameters used to build covariate
 	xhpars  = xr.DataArray( hpars , dims = [f"s{i}" for i in range(len(s_spatial))] + ["sample","period","hpar"] , coords = [ range(s) for s in s_spatial ] + [range(samples.size),range(ndpers),hpar_names+list(nslaw.h_name)] )
@@ -88,7 +88,8 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 			
 			## X / Y and re-sampling
 			xX = np.array( [ lxXF[iper][ (slice(None),) + idx0 ].values for _ in range(nrun) ] ).T.ravel().copy()
-			xY = np.nanmean( Y[ idx0 + (slice(None),[0,iper+1],slice(None)) ] , axis = 0 ).ravel().copy()
+			PPP =  idx0 + (slice(None),[0,iper+1],slice(None))
+			xY = np.nanmean( Y[ idx0[:-1] + (0,slice(None),[0,iper+1],slice(None)) ] , axis = 0 ).ravel().copy()
 			
 			## Keep only finite values
 			idx = np.isfinite(xY)
