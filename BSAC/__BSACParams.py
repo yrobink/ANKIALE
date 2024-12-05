@@ -38,7 +38,7 @@ import zxarray as zr
 try:
 	import dask_jobqueue as djq
 except:
-	djg = None
+	djq = None
 
 import numpy as np
 
