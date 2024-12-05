@@ -225,17 +225,19 @@ def run_bsac_cmd_fit_Y():
 	## Fit samples of parameters
 	hpar  = clim.hpar
 	hcov  = clim.hcov
-	hpars = zr.apply_ufunc( nslaw_fit , hpar , hcov , zY, samples,
-	                        block_dims         = ("sample",) + d_spatial,
-	                        block_memory       = block_memory,
-	                        total_memory       = bsacParams.total_memory,
-	                        output_dims        = output_dims,
-	                        output_coords      = output_coords,
-	                        output_dtypes      = output_dtypes,
-	                        dask_kwargs        = dask_kwargs,
-	                        n_workers          = bsacParams.n_workers,
-	                        threads_per_worker = bsacParams.threads_per_worker,
-	                        )
+	with bsacParams.get_cluster() as cluster:
+		hpars = zr.apply_ufunc( nslaw_fit , hpar , hcov , zY, samples,
+		                        block_dims         = ("sample",) + d_spatial,
+		                        block_memory       = block_memory,
+		                        total_memory       = bsacParams.total_memory,
+		                        output_dims        = output_dims,
+		                        output_coords      = output_coords,
+		                        output_dtypes      = output_dtypes,
+		                        dask_kwargs        = dask_kwargs,
+		                        n_workers          = bsacParams.n_workers,
+		                        threads_per_worker = bsacParams.threads_per_worker,
+		                        cluster            = cluster,
+		                        )
 	
 	## And find parameters of the distribution
 	output_dims      = [ ("hpar",) + d_spatial , ("hpar0","hpar1") + d_spatial ]
@@ -253,17 +255,19 @@ def run_bsac_cmd_fit_Y():
 	block_memory = lambda x : 2 * ( nhpar * len(clim.dpers) * n_samples + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	## Apply
-	hpar,hcov = zr.apply_ufunc( mean_cov_hpars , hpars,
-	                            block_dims         = d_spatial,
-	                            total_memory       = bsacParams.total_memory,
-	                            block_memory       = block_memory,
-	                            output_dims        = output_dims,
-	                            output_coords      = output_coords,
-	                            output_dtypes      = output_dtypes,
-	                            dask_kwargs        = dask_kwargs,
-	                            n_workers          = bsacParams.n_workers,
-	                            threads_per_worker = bsacParams.threads_per_worker,
-	                            )
+	with bsacParams.get_cluster() as cluster:
+		hpar,hcov = zr.apply_ufunc( mean_cov_hpars , hpars,
+		                            block_dims         = d_spatial,
+		                            total_memory       = bsacParams.total_memory,
+		                            block_memory       = block_memory,
+		                            output_dims        = output_dims,
+		                            output_coords      = output_coords,
+		                            output_dtypes      = output_dtypes,
+		                            dask_kwargs        = dask_kwargs,
+		                            n_workers          = bsacParams.n_workers,
+		                            threads_per_worker = bsacParams.threads_per_worker,
+		                            cluster            = cluster,
+		                            )
 	
 	## Update the climatology
 	clim.hpar  = hpar
