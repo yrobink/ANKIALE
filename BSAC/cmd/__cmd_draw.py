@@ -169,17 +169,19 @@ def run_bsac_cmd_draw():
 	
 	## Run with zxarray
 	logger.info(" * Draw parameters")
-	out = zr.apply_ufunc( zdraw , *zargs,
-	                      block_dims         = ("period",) + clim.d_spatial,
-	                      total_memory       = bsacParams.total_memory,
-	                      block_memory       = block_memory,
-	                      output_dims        = output_dims,
-	                      output_coords      = output_coords,
-	                      output_dtypes      = output_dtypes,
-	                      dask_kwargs        = dask_kwargs,
-	                      n_workers          = bsacParams.n_workers,
-	                      threads_per_worker = bsacParams.threads_per_worker,
-	                    )
+	with bsacParams.get_cluster() as cluster:
+		out = zr.apply_ufunc( zdraw , *zargs,
+		                      block_dims         = ("period",) + clim.d_spatial,
+		                      total_memory       = bsacParams.total_memory,
+		                      block_memory       = block_memory,
+		                      output_dims        = output_dims,
+		                      output_coords      = output_coords,
+		                      output_dtypes      = output_dtypes,
+		                      dask_kwargs        = dask_kwargs,
+		                      n_workers          = bsacParams.n_workers,
+		                      threads_per_worker = bsacParams.threads_per_worker,
+		                      cluster            = cluster,
+		                    )
 	
 	## Transform in dict with names
 	keys = ["hpars","XF","XC"] + [ f"{n}F" for n in nslaw.p_name ] + [ f"{n}C" for n in nslaw.p_name ]

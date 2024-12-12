@@ -35,11 +35,6 @@ import dask
 import distributed
 import zxarray as zr
 
-try:
-	import dask_jobqueue as djq
-except:
-	djq = None
-
 import numpy as np
 
 from .__exceptions  import AbortForHelpException
@@ -67,7 +62,7 @@ class BSACParams:
 	threads_per_worker   : int = 1
 	memory_per_worker    : str = "auto"
 	total_memory         : str = "auto"
-	cluster              : str = "THREADING"
+	cluster              : str = "PROCESS"
 	
 	tmp_base    : str | None         = None
 	tmp_gen     : tempfile.TemporaryDirectory | None = None
@@ -239,21 +234,10 @@ class BSACParams:
 	
 	def get_cluster(self):##{{{
 		match self.cluster.upper():
-			case "SLURM":
-				cluster = djq.SLURMCluster( cores               = self.n_workers,
-				                            processes           = 1,
-#				                            queue               = "zen4",
-				                            memory              = f"{self.total_memory.B}B",
-#				                            walltime            = "24:00:00",
-#				                            log_directory       = os.path.join( dask_path , "logs" ),
-#				                            local_directory     = os.path.join( dask_path , "tmp" ),
-				                            job_directives_skip = ['--mem'],
-#				                            scheduler_options   = {'dashboard_address': ':9999'}
-				                            )
 			case "PROCESS":
-				cluster = dask.distributed.LocalCluster( n_workers  = self.n_workers , threads_per_worker = self.threads_per_worker , memory_limit = f"{self.memory_per_worker.B}B" , processes = True ) 
+				cluster = distributed.LocalCluster( n_workers  = self.n_workers , threads_per_worker = self.threads_per_worker , memory_limit = f"{self.memory_per_worker.B}B" , processes = True ) 
 			case _:
-				cluster = dask.distributed.LocalCluster( n_workers  = self.n_workers , threads_per_worker = self.threads_per_worker , memory_limit = f"{self.memory_per_worker.B}B" , processes = False ) 
+				cluster = distributed.LocalCluster( n_workers  = self.n_workers , threads_per_worker = self.threads_per_worker , memory_limit = f"{self.memory_per_worker.B}B" , processes = False ) 
 		
 		return cluster
 	##}}}
@@ -283,11 +267,8 @@ class BSACParams:
 			else:
 				self.memory_per_worker = zr.DMUnit(self.memory_per_worker)
 				self.total_memory      = self.memory_per_worker * self.n_workers
-			if not self.cluster.upper() in ["THREADING","PROCESS","SLURM"]:
+			if not self.cluster.upper() in ["THREADING","PROCESS"]:
 				raise ValueError("Cluster {self.cluster.upper()} is not supported" )
-			
-			if self.cluster.upper() in ["SLURM"] and djq is None:
-				raise ModuleNotFoundError("'dask-jobqueue' must be installed to use SLURM cluster")
 			
 			## Change periods format
 			try:

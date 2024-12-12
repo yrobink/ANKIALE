@@ -228,17 +228,19 @@ def run_bsac_cmd_misc_wpe():
 	
 	## Run
 	logger.info( " * and run" )
-	zIFC,zdI = zr.apply_ufunc( zwpe , *zargs,
-	                           block_dims         = d_spatial + ("pwpe",),
-	                           total_memory       = bsacParams.total_memory,
-	                           block_memory       = block_memory,
-	                           output_dims        = output_dims,
-	                           output_coords      = output_coords,
-	                           output_dtypes      = output_dtypes,
-	                           dask_kwargs        = dask_kwargs,
-	                           n_workers          = bsacParams.n_workers,
-	                           threads_per_worker = bsacParams.threads_per_worker,
-	                        )
+	with bsacParams.get_cluster() as cluster:
+		zIFC,zdI = zr.apply_ufunc( zwpe , *zargs,
+		                           block_dims         = d_spatial + ("pwpe",),
+		                           total_memory       = bsacParams.total_memory,
+		                           block_memory       = block_memory,
+		                           output_dims        = output_dims,
+		                           output_coords      = output_coords,
+		                           output_dtypes      = output_dtypes,
+		                           dask_kwargs        = dask_kwargs,
+		                           n_workers          = bsacParams.n_workers,
+		                           threads_per_worker = bsacParams.threads_per_worker,
+			                       cluster            = cluster,
+		                        )
 	
 	##
 	periods = proj.period.values

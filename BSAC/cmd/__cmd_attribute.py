@@ -69,8 +69,8 @@ def zattribute_fcreturnt( hpar , hcov , bias , projF , projC , RT , nslaw_class 
 	ntime = projF.shape[-2]
 	
 	##
-	projF = projF.reshape( projF.shape[-3:] )
-	projC = projC.reshape( projF.shape[-3:] )
+	projF = projF.reshape( (nper,) + projF.shape[-2:] )
+	projC = projC.reshape( (nper,) + projF.shape[-2:] )
 	nslaw = nslaw_class()
 	
 	## Prepare output
@@ -233,17 +233,19 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	
 	## Run with zxarray
 	zargs = [clim.hpar,clim.hcov,zbias,zprojF,zprojC,zRT]
-	out = zr.apply_ufunc( zattribute_fcreturnt , *zargs,
-	                      block_dims         = ("period","return_time") + clim.d_spatial,
-	                      total_memory       = bsacParams.total_memory,
-	                      block_memory       = block_memory,
-	                      output_dims        = output_dims,
-	                      output_coords      = output_coords,
-	                      output_dtypes      = output_dtypes,
-	                      dask_kwargs        = dask_kwargs,
-	                      n_workers          = bsacParams.n_workers,
-	                      threads_per_worker = bsacParams.threads_per_worker
-	                    )
+	with bsacParams.get_cluster() as cluster:
+		out = zr.apply_ufunc( zattribute_fcreturnt , *zargs,
+		                      block_dims         = ("period","return_time") + clim.d_spatial,
+		                      total_memory       = bsacParams.total_memory,
+		                      block_memory       = block_memory,
+		                      output_dims        = output_dims,
+		                      output_coords      = output_coords,
+		                      output_dtypes      = output_dtypes,
+		                      dask_kwargs        = dask_kwargs,
+		                      n_workers          = bsacParams.n_workers,
+		                      threads_per_worker = bsacParams.threads_per_worker,
+		                      cluster            = cluster,
+		                    )
 	
 	## Transform in dict
 	keys = ["pF","pC","RF","RC","IF","IC","dI","PR"]
@@ -343,8 +345,8 @@ def zattribute_fintensity( hpar , hcov , bias , xIF , projF , projC , nslaw_clas
 	ntime = projF.shape[-2]
 	
 	##
-	projF = projF.reshape( projF.shape[-3:] )
-	projC = projC.reshape( projF.shape[-3:] )
+	projF = projF.reshape( (nper,) + projF.shape[-2:] )
+	projC = projC.reshape( (nper,) + projF.shape[-2:] )
 	nslaw = nslaw_class()
 	
 	## Prepare output
@@ -508,17 +510,19 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	
 	## Run with zxarray
 	zargs = [clim.hpar,clim.hcov,zbias,zIF,zprojF,zprojC]
-	out = zr.apply_ufunc( zattribute_fintensity , *zargs,
-	                      block_dims         = ("period",) + clim.d_spatial,
-	                      total_memory       = bsacParams.total_memory,
-	                      block_memory       = block_memory,
-	                      output_dims        = output_dims,
-	                      output_coords      = output_coords,
-	                      output_dtypes      = output_dtypes,
-	                      dask_kwargs        = dask_kwargs,
-	                      n_workers          = bsacParams.n_workers,
-	                      threads_per_worker = bsacParams.threads_per_worker
-	                    )
+	with bsacParams.get_cluster() as cluster:
+		out = zr.apply_ufunc( zattribute_fintensity , *zargs,
+		                      block_dims         = ("period",) + clim.d_spatial,
+		                      total_memory       = bsacParams.total_memory,
+		                      block_memory       = block_memory,
+		                      output_dims        = output_dims,
+		                      output_coords      = output_coords,
+		                      output_dtypes      = output_dtypes,
+		                      dask_kwargs        = dask_kwargs,
+		                      n_workers          = bsacParams.n_workers,
+		                      threads_per_worker = bsacParams.threads_per_worker,
+		                      cluster            = cluster,
+		                    )
 	
 	## Transform in dict
 	keys = ["pF","pC","RF","RC","IF","IC","dI","PR"]
@@ -615,8 +619,8 @@ def zattribute_event( hpar , hcov , bias , event , projF , projC , idx_event , n
 	ntime = projF.shape[-2]
 	
 	##
-	projF = projF.reshape( projF.shape[-3:] )
-	projC = projC.reshape( projF.shape[-3:] )
+	projF = projF.reshape( (nper,) + projF.shape[-2:] )
+	projC = projC.reshape( (nper,) + projF.shape[-2:] )
 	nslaw = nslaw_class()
 	
 	## Prepare output
@@ -794,17 +798,19 @@ def run_bsac_cmd_attribute_event():
 	
 	## Run with zxarray
 	zargs = [clim.hpar,clim.hcov,zbias,zYo,zprojF,zprojC]
-	out = zr.apply_ufunc( zattribute_event , *zargs,
-	                      block_dims         = ("period",) + clim.d_spatial,
-	                      total_memory       = bsacParams.total_memory,
-	                      block_memory       = block_memory,
-	                      output_dims        = output_dims,
-	                      output_coords      = output_coords,
-	                      output_dtypes      = output_dtypes,
-	                      dask_kwargs        = dask_kwargs,
-	                      n_workers          = bsacParams.n_workers,
-	                      threads_per_worker = bsacParams.threads_per_worker
-	                    )
+	with bsacParams.get_cluster() as cluster:
+		out = zr.apply_ufunc( zattribute_event , *zargs,
+		                      block_dims         = ("period",) + clim.d_spatial,
+		                      total_memory       = bsacParams.total_memory,
+		                      block_memory       = block_memory,
+		                      output_dims        = output_dims,
+		                      output_coords      = output_coords,
+		                      output_dtypes      = output_dtypes,
+		                      dask_kwargs        = dask_kwargs,
+		                      n_workers          = bsacParams.n_workers,
+		                      threads_per_worker = bsacParams.threads_per_worker,
+		                      cluster            = cluster,
+		                    )
 	
 	## Transform in dict
 	keys = ["pF","pC","RF","RC","IF","IC","dI","PR"]

@@ -190,17 +190,19 @@ def run_bsac_cmd_constrain_X():
 	block_memory = lambda x : 2 * ( nhpar + nhpar**2 +  len(zXo) * time.size + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	##
-	hpar,hcov = zr.apply_ufunc( zgaussian_conditionning , *args ,
-	                            block_dims         = d_spatial,
-	                            total_memory       = bsacParams.total_memory,
-	                            block_memory       = block_memory,
-	                            output_coords      = output_coords,
-	                            output_dims        = output_dims,
-	                            output_dtypes      = output_dtypes,
-	                            dask_kwargs        = dask_kwargs,
-	                            n_workers          = bsacParams.n_workers,
-	                            threads_per_worker = bsacParams.threads_per_worker
-	                         )
+	with bsacParams.get_cluster() as cluster:
+		hpar,hcov = zr.apply_ufunc( zgaussian_conditionning , *args ,
+		                            block_dims         = d_spatial,
+		                            total_memory       = bsacParams.total_memory,
+		                            block_memory       = block_memory,
+		                            output_coords      = output_coords,
+		                            output_dims        = output_dims,
+		                            output_dtypes      = output_dtypes,
+		                            dask_kwargs        = dask_kwargs,
+		                            n_workers          = bsacParams.n_workers,
+		                            threads_per_worker = bsacParams.threads_per_worker,
+			                        cluster            = cluster,
+		                         )
 	
 	## Save
 	clim.hpar = hpar
@@ -215,23 +217,25 @@ def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STA
 	nhpar  = ihpar.shape[-1]
 	hpars  = np.zeros( ssp + (samples.size,nhpar,size_chain) ) + np.nan
 	
-	for idx in itt.product(*[range(s) for s in ssp + (samples.size,)]):
-		
-		## Extract
-		idx1d = idx + tuple([slice(None) for _ in range(1)])
-		idx2d = idx + tuple([slice(None) for _ in range(2)])
-		ih    = ihpar[idx1d]
-		ic    = ihcov[idx2d]
-		iYo   = Yo[idx1d]
-		
-		if np.any(~np.isfinite(ih)):
-			continue
-		
-		## MCMC
-		oh = mcmc( ih , ic , iYo , A , size_chain , nslaw_class , use_STAN , bsacParams.tmp_stan )
-		
-		## Store
-		hpars[idx2d] = oh
+	for idx in itt.product(*[range(s) for s in ssp]):
+		for s in range(samples.size):
+			
+			## Extract
+			idx1d = idx + (0,) + tuple([slice(None) for _ in range(1)])
+			idx2d = idx + (0,) + tuple([slice(None) for _ in range(2)])
+			ih    = ihpar[idx1d]
+			ic    = ihcov[idx2d]
+			iYo   = Yo[idx1d]
+			
+			if np.any(~np.isfinite(ih)):
+				continue
+			
+			## MCMC
+			oh = mcmc( ih , ic , iYo , A , size_chain , nslaw_class , use_STAN , bsacParams.tmp_stan )
+			
+			## Store
+			idx2d = idx + (s,) + tuple([slice(None) for _ in range(2)])
+			hpars[idx2d] = oh
 	
 	return hpars
 ##}}}
@@ -328,17 +332,19 @@ def run_bsac_cmd_constrain_Y():
 	
 	## Draw samples
 	logger.info(" * Draw samples")
-	ohpars = zr.apply_ufunc( zmcmc , ihpar , ihcov , zYo , zsamples ,
-	                         block_dims         = d_spatial,
-	                         total_memory       = bsacParams.total_memory,
-	                         block_memory       = block_memory,
-	                         output_coords      = output_coords,
-	                         output_dims        = output_dims,
-	                         output_dtypes      = output_dtypes,
-	                         dask_kwargs        = dask_kwargs,
-	                         n_workers          = bsacParams.n_workers,
-	                         threads_per_worker = bsacParams.threads_per_worker
-	                        )
+	with bsacParams.get_cluster() as cluster:
+		ohpars = zr.apply_ufunc( zmcmc , ihpar , ihcov , zYo , zsamples ,
+		                         block_dims         = d_spatial,
+		                         total_memory       = bsacParams.total_memory,
+		                         block_memory       = block_memory,
+		                         output_coords      = output_coords,
+		                         output_dims        = output_dims,
+		                         output_dtypes      = output_dtypes,
+		                         dask_kwargs        = dask_kwargs,
+		                         n_workers          = bsacParams.n_workers,
+		                         threads_per_worker = bsacParams.threads_per_worker,
+		                         cluster            = cluster,
+		                        )
 	
 	## And find parameters of the distribution
 	logger.info(" * Compute mean and covariance of parameters")
@@ -357,17 +363,19 @@ def run_bsac_cmd_constrain_Y():
 	block_memory = lambda x : 2 * ( nhpar * n_samples * size_chain + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	## Apply
-	hpar,hcov = zr.apply_ufunc( mean_cov_hpars , ohpars,
-	                            block_dims         = d_spatial,
-	                            total_memory       = bsacParams.total_memory,
-	                            block_memory       = block_memory,
-	                            output_dims        = output_dims,
-	                            output_coords      = output_coords,
-	                            output_dtypes      = output_dtypes,
-	                            dask_kwargs        = dask_kwargs,
-	                            n_workers          = bsacParams.n_workers,
-	                            threads_per_worker = bsacParams.threads_per_worker,
-	                            )
+	with bsacParams.get_cluster() as cluster:
+		hpar,hcov = zr.apply_ufunc( mean_cov_hpars , ohpars,
+		                            block_dims         = d_spatial,
+		                            total_memory       = bsacParams.total_memory,
+		                            block_memory       = block_memory,
+		                            output_dims        = output_dims,
+		                            output_coords      = output_coords,
+		                            output_dtypes      = output_dtypes,
+		                            dask_kwargs        = dask_kwargs,
+		                            n_workers          = bsacParams.n_workers,
+		                            threads_per_worker = bsacParams.threads_per_worker,
+		                            cluster            = cluster,
+		                            )
 	
 	## Store (or not) the samples
 	if bsacParams.output is not None:
