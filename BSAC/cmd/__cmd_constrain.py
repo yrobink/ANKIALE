@@ -328,7 +328,7 @@ def run_bsac_cmd_constrain_Y():
 	
 	## Block memory function
 	nhpar = len(clim.hpar_names)
-	block_memory = lambda x : 2 * ( nhpar + nhpar**2 + time.size + nhpar * size_chain ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	block_memory = lambda x : 5 * ( nhpar + nhpar**2 + time.size + nhpar * size_chain ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	## Draw samples
 	logger.info(" * Draw samples")
