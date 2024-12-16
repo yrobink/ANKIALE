@@ -153,12 +153,14 @@ def run_bsac_cmd_synthesize():
 			## Regrid
 			try:
 				logger.info( f"    | * Bias with bilinear..." )
+				raise Exception
 				bias = rgrd2d(bias).where( mask , np.nan )
 			except:
 				logger.info( f"    | * Bias with nearest-neighborhood..." )
 				bias = rgrdnn(bias).where( mask , np.nan )
 			try:
 				logger.info( f"    | * hpar with bilinear..." )
+				raise Exception
 				hpar = rgrd2d(hpar).where( mask , np.nan )
 			except:
 				hpar = rgrdnn(hpar).where( mask , np.nan )
