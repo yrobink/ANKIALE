@@ -154,22 +154,17 @@ def run_bsac_cmd_synthesize():
 			try:
 				logger.info( f"    | * Bias with bilinear..." )
 				bias = rgrd2d(bias).where( mask , np.nan )
-				logger.info( f"    | * OK" )
 			except:
 				logger.info( f"    | * Bias with nearest-neighborhood..." )
 				bias = rgrdnn(bias).where( mask , np.nan )
-				logger.info( f"    | * OK" )
 			try:
 				logger.info( f"    | * hpar with bilinear..." )
 				hpar = rgrd2d(hpar).where( mask , np.nan )
-				logger.info( f"    | * OK" )
 			except:
 				hpar = rgrdnn(hpar).where( mask , np.nan )
 				logger.info( f"    | * hpar with nearest-neighborhood..." )
-				logger.info( f"    | * OK" )
 			logger.info( f"    | * hcov with nearest-neighborhood" )
 			hcov = rgrdnn(hcov).where( mask , np.nan )
-			logger.info( f"    | * OK" )
 		
 		## Store
 		idx0 = tuple([slice(None) for _ in range(len(d_spatial))])

@@ -31,15 +31,18 @@ from .__logs import disable_warnings
 ## Functions ##
 ###############
 
-def _matrix_positive_part( M ):##{{{
-	lbda,v = np.linalg.eig(M)
-	lbda   = np.real(lbda)
-	v      = np.real(v)
-	lbda[lbda<0] = 0
-	return v @ np.diag(lbda) @ v.T
-##}}}
 
 def matrix_positive_part(M):##{{{
+	
+	def _matrix_positive_part( M ):
+		
+		if not np.isfinite(M).all():
+			return M + np.nan
+		lbda,v = np.linalg.eig(M)
+		lbda   = np.real(lbda)
+		v      = np.real(v)
+		lbda[lbda<0] = 0
+		return v @ np.diag(lbda) @ v.T
 	
 	if M.ndim == 2:
 		return _matrix_positive_part(M)
