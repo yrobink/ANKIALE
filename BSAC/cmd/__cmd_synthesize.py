@@ -130,7 +130,8 @@ def run_bsac_cmd_synthesize():
 		cname = iclim.cname
 		time  = iclim.time
 		bper  = iclim._bper
-		bias  = iclim.bias[iclim.vname]
+		if not clim.onlyX:
+			bias  = iclim.bias[iclim.vname]
 		hpar  = iclim.hpar.dataarray
 		hcov  = iclim.hcov.dataarray
 		

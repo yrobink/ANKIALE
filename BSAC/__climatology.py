@@ -616,7 +616,7 @@ class Climatology:##{{{
 	
 	@property
 	def cname(self):
-		if not self.onlyX:
+		if self.onlyX:
 			return ""
 		cname = self._Yconfig.get("cname")
 		if cname is None:
@@ -625,7 +625,7 @@ class Climatology:##{{{
 	
 	@cname.setter
 	def cname( self , value ):
-		if not self.onlyX:
+		if self.onlyX:
 			return
 		if not value in self.namesX:
 			raise ValueError( f"Covariable name {cname} must be in possible names" )
