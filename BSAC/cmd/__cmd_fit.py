@@ -272,11 +272,11 @@ def run_bsac_cmd_fit_Y():
 	## Update the climatology
 	clim.hpar  = hpar
 	clim.hcov  = hcov
-	clim.cname = cname
 	clim._names.append(name)
 	clim._bias[name]  = biasY
 	clim._nslawid     = nslawid
 	clim._nslaw_class = nslaw_class
+	clim.cname    = cname
 	clim._spatial = c_spatial
 	
 ##}}}
