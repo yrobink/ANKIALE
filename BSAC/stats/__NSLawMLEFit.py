@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -83,6 +83,7 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 	lxXF   = [ ( design @ xhpars.sel( hpar = [ h for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).assign_coords( hpar = [ h.replace( f"_{dper}" , "" ) for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).sel( period = dpers.index(dper) ) ).sel( time = time ) for dper in dpers ]
 	
 	## Now loop for fit
+	ns_hpar = None
 	for idx0 in itt.product( *[ range(s) for s in hpars.shape[:-2]] ):
 		for iper,dper in enumerate(dpers):
 			
@@ -102,7 +103,10 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 			p  = np.random.choice( xX.size , xX.size , replace = True )
 			
 			## Fit
-			ns_hpar = nslaw.fit_mle( xY[p] , xX[p] )
+			if ns_hpar is None:
+				ns_hpar = nslaw.fit_mle( xY[p] , xX[p] )
+			else:
+				ns_hpar = nslaw.fit_mle( xY[p] , xX[p] , init = ns_hpar )
 			
 			## Save
 			hpars[ idx0 + (iper,slice(hpar.size,s_hparY,1)) ] = ns_hpar
