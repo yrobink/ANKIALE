@@ -677,7 +677,7 @@ def zattribute_event( hpar , hcov , bias , event , projF , projC , idx_event , n
 		pf = np.zeros_like(pF) + pF[ idx + (slice(None),idx_event,slice(None)) ].reshape( *([1 for _ in range(len(ssp))] + [nper,1,n_samples]) )
 		
 		## Factual and counter factual intensities
-		IF[idxp] = nslaw.icdf_sf( pf[idxp] , side = side , **kwargsC )
+		IF[idxp] = nslaw.icdf_sf( pf[idxp] , side = side , **kwargsF )
 		IC[idxp] = nslaw.icdf_sf( pf[idxp] , side = side , **kwargsC )
 	
 	## Others variables
