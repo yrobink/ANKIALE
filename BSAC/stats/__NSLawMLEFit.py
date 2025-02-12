@@ -83,13 +83,12 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 	lxXF   = [ ( design @ xhpars.sel( hpar = [ h for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).assign_coords( hpar = [ h.replace( f"_{dper}" , "" ) for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).sel( period = dpers.index(dper) ) ).sel( time = time ) for dper in dpers ]
 	
 	## Now loop for fit
-	ns_hpar = None
+	init = [None for _ in dpers]
 	for idx0 in itt.product( *[ range(s) for s in hpars.shape[:-2]] ):
 		for iper,dper in enumerate(dpers):
 			
 			## X / Y and re-sampling
 			xX = np.array( [ lxXF[iper][ (slice(None),) + idx0 ].values for _ in range(nrun) ] ).T.ravel().copy()
-			PPP =  idx0 + (slice(None),[0,iper+1],slice(None))
 			xY = np.nanmean( Y[ idx0[:-1] + (0,slice(None),[0,iper+1],slice(None)) ] , axis = 0 ).ravel().copy()
 			
 			## Keep only finite values
@@ -99,14 +98,14 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 			xX  = xX[idx]
 			xY  = xY[idx]
 			
+			if init[iper] is None:
+				init[iper] = nslaw.fit_mle( xY , xX )
+			
 			## Resampling
 			p  = np.random.choice( xX.size , xX.size , replace = True )
 			
 			## Fit
-			if ns_hpar is None:
-				ns_hpar = nslaw.fit_mle( xY[p] , xX[p] )
-			else:
-				ns_hpar = nslaw.fit_mle( xY[p] , xX[p] , init = ns_hpar )
+			ns_hpar = nslaw.fit_mle( xY[p] , xX[p] , init = init[iper] )
 			
 			## Save
 			hpars[ idx0 + (iper,slice(hpar.size,s_hparY,1)) ] = ns_hpar
@@ -115,6 +114,8 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 	trsp = [i for i in range(hpars.ndim)]
 	trsp[-2],trsp[-1] = trsp[-1],trsp[-2]
 	hpars = np.transpose( hpars , trsp )
+	
+	print("Done")
 	
 	return hpars
 ##}}}

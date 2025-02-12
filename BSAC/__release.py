@@ -18,7 +18,7 @@
 
 version_major = 0
 version_minor = 32
-version_patch = 11
+version_patch = 12
 version_extra = ""
 version      = f"{version_major}.{version_minor}.{version_patch}{version_extra}"
 
@@ -45,7 +45,7 @@ analyses of the inferred laws can then be performed.
 
 authors_doc = author
 license_txt = """\
-Copyright(c) 2023, 2024 Yoann Robin
+Copyright(c) 2023 / 2025 Yoann Robin
 
 This file is part of BSAC.
 

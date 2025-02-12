@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023, 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -105,7 +105,7 @@ class BSACParams:
 		parser.add_argument( "--threads-per-worker"     , default = 1 , type = int )
 		parser.add_argument( "--memory-per-worker"      , default = "auto" )
 		parser.add_argument( "--total-memory"           , default = "auto" )
-		parser.add_argument( "--cluster"                , default = "THREADING" )
+		parser.add_argument( "--cluster"                , default = "PROCESS" )
 		
 		parser.add_argument( "--config" , default = None )
 		parser.add_argument( "--no-STAN" , action = "store_const" , const = True , default = False )
