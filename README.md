@@ -29,7 +29,7 @@ pip3 install zxarray SDFC
 BSAC can then be installed with pip.
 
 
-## Par où commencer ?
+## Where to start ?
 
 BSAC includes several examples described in the documentation. You can build,
 for example, the analysis of the Ile de France using the GEV law with the
