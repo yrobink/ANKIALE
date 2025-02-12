@@ -115,8 +115,6 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 	trsp[-2],trsp[-1] = trsp[-1],trsp[-2]
 	hpars = np.transpose( hpars , trsp )
 	
-	print("Done")
-	
 	return hpars
 ##}}}
 
