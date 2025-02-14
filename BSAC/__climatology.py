@@ -365,7 +365,12 @@ class Climatology:##{{{
 		
 		clim._hpar = self.hpar.zsel( drop = drop , **coords )
 		clim._hcov = self.hcov.zsel( drop = drop , **coords )
-		clim._bias = { key : self._bias[key].sel( coords ) for key in self._bias }
+		clim._bias = {}
+		for key in self._bias:
+			if isinstance( self._bias[key] , xr.DataArray ):
+				clim._bias[key] = self._bias[key].sel( coords )
+			else:
+				clim._bias[key] = self._bias[key]
 		clim._spatial = coords
 		
 		if clim._hpar.ndim > 1:
