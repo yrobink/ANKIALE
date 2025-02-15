@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -325,6 +325,7 @@ def run_bsac_cmd_constrain_Y():
 	                     "dask_gufunc_kwargs" : { "output_sizes" : { "chain" : size_chain } },
 	                     "output_dtypes"  : [clim.hpar.dtype]
 	                    }
+	chunks           = { **{ d : 1 for d in d_spatial } , **{ "sample" : 1 } }
 	
 	## Block memory function
 	nhpar = len(clim.hpar_names)
@@ -344,6 +345,7 @@ def run_bsac_cmd_constrain_Y():
 		                         n_workers          = bsacParams.n_workers,
 		                         threads_per_worker = bsacParams.threads_per_worker,
 		                         cluster            = cluster,
+		                         chunks             = chunks,
 		                        )
 	
 	## And find parameters of the distribution
