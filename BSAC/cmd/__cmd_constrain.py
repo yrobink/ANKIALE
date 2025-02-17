@@ -325,17 +325,17 @@ def run_bsac_cmd_constrain_Y():
 	                     "dask_gufunc_kwargs" : { "output_sizes" : { "chain" : size_chain } },
 	                     "output_dtypes"  : [clim.hpar.dtype]
 	                    }
-	chunks           = { **{ d : 1 for d in d_spatial } , **{ "sample" : 1 } }
+#	chunks           = { **{ d : 1 for d in d_spatial } , **{ "sample" : 1 } }
 	
 	## Block memory function
 	nhpar = len(clim.hpar_names)
-	block_memory = lambda x : 5 * ( nhpar + nhpar**2 + time.size + nhpar * size_chain ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	block_memory = lambda x : 5 * ( nhpar + nhpar**2 + time.size + nhpar * time.size + 1 + nhpar * size_chain ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	## Draw samples
 	logger.info(" * Draw samples")
 	with bsacParams.get_cluster() as cluster:
 		ohpars = zr.apply_ufunc( zmcmc , ihpar , ihcov , zYo , zsamples ,
-		                         block_dims         = d_spatial,
+		                         block_dims         = d_spatial + ("sample",),
 		                         total_memory       = bsacParams.total_memory,
 		                         block_memory       = block_memory,
 		                         output_coords      = output_coords,
@@ -345,7 +345,7 @@ def run_bsac_cmd_constrain_Y():
 		                         n_workers          = bsacParams.n_workers,
 		                         threads_per_worker = bsacParams.threads_per_worker,
 		                         cluster            = cluster,
-		                         chunks             = chunks,
+#		                         chunks             = chunks,
 		                        )
 	
 	## And find parameters of the distribution
