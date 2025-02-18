@@ -152,6 +152,41 @@ class Climatology:##{{{
 		return self.__str__()
 	##}}}
 	
+	def copy(self):##{{{
+		
+		##
+		oclim = Climatology()
+		
+		##
+		oclim.names = self.names
+		oclim.cper  = self.cper
+		oclim.bper  = self.bper
+		oclim.dpers = self.dpers
+		
+		oclim.hpar = self.hpar.copy()
+		oclim.hcov = self.hcov.copy()
+		oclim._bias = {}
+		for key in self._bias:
+			b = self._bias[key]
+			if isinstance( b , (np.ndarray,xr.DataArray) ):
+				oclim._bias[key] = b.copy()
+			else:
+				oclim._bias[key] = float(b)
+		oclim.time = self.time
+		
+		oclim._nslawid     = self._nslawid
+		oclim._nslaw_class = self._nslaw_class
+		oclim._Xconfig     = self._Xconfig
+		oclim._Yconfig     = self._Yconfig
+		
+		if self._spatial is not None:
+			oclim._spatial = {}
+			for key in self._spatial:
+				oclim._spatial[key] = self._spatial[key].copy()
+		
+		return oclim
+	##}}}
+	
 	## staticmethod.init_from_file ##{{{
 	@staticmethod
 	def init_from_file( ifile ):
