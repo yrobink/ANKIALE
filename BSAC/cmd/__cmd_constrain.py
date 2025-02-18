@@ -24,6 +24,7 @@ import os
 import logging
 import tempfile
 import itertools as itt
+import gc
 
 from ..__logs import LINE
 from ..__logs import log_start_end
@@ -325,7 +326,6 @@ def run_bsac_cmd_constrain_Y():
 	                     "dask_gufunc_kwargs" : { "output_sizes" : { "chain" : size_chain } },
 	                     "output_dtypes"  : [clim.hpar.dtype]
 	                    }
-#	chunks           = { **{ d : 1 for d in d_spatial } , **{ "sample" : 1 } }
 	
 	## Block memory function
 	nhpar = len(clim.hpar_names)
@@ -345,8 +345,10 @@ def run_bsac_cmd_constrain_Y():
 		                         n_workers          = bsacParams.n_workers,
 		                         threads_per_worker = bsacParams.threads_per_worker,
 		                         cluster            = cluster,
-#		                         chunks             = chunks,
 		                        )
+	
+	## Clean memory
+	gc.collect()
 	
 	## And find parameters of the distribution
 	logger.info(" * Compute mean and covariance of parameters")
@@ -362,7 +364,7 @@ def run_bsac_cmd_constrain_Y():
 	                    }
 	
 	## Block memory function
-	block_memory = lambda x : 2 * ( nhpar * n_samples * size_chain + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	block_memory = lambda x : 5 * ( nhpar * n_samples * size_chain + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	## Apply
 	with bsacParams.get_cluster() as cluster:
@@ -378,6 +380,9 @@ def run_bsac_cmd_constrain_Y():
 		                            threads_per_worker = bsacParams.threads_per_worker,
 		                            cluster            = cluster,
 		                            )
+	
+	## Clean memory
+	gc.collect()
 	
 	## Store (or not) the samples
 	if bsacParams.output is not None:
