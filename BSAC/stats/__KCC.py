@@ -30,6 +30,7 @@ from ..__logs import LINE
 from ..__logs import log_start_end
 
 import numpy as np
+import xarray as xr
 import scipy.stats as sc
 import scipy.linalg as scl
 import scipy.optimize as sco
