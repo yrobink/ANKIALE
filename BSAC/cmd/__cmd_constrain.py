@@ -41,7 +41,8 @@ import netCDF4
 from ..__sys     import coords_samples
 from ..stats.__tools import nslawid_to_class
 
-from ..stats.__constraint import gaussian_conditionning
+from ..stats.__constraint import gaussian_conditionning_independent
+from ..stats.__constraint import gaussian_conditionning_kcc
 from ..stats.__constraint import mcmc
 
 from ..__linalg import mean_cov_hpars
@@ -59,8 +60,11 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-
-def zgaussian_conditionning( *args , A = None ):##{{{
+def zgaussian_conditionning( *args , A = None , kcc = False , timeXo = None ):##{{{
+	
+	gaussian_conditionning = gaussian_conditionning_independent
+	if kcc:
+		gaussian_conditionning = gaussian_conditionning_kcc
 	
 	ihpar = args[0]
 	ihcov = args[1]
@@ -182,6 +186,7 @@ def run_bsac_cmd_constrain_X():
 	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] ] + [ [f"time{i}"] for i in range(len(zXo)) ],
 	                     "output_core_dims" : [ ["hpar"] , ["hpar0","hpar1"] ],
 	                     "kwargs" : { "A" : A } ,
+	                     "kwargs" : { "A" : A , "kcc" : bsacParams.use_KCC , "timeXo" : [ zXo[name][f"time{iname}"] for iname,name in enumerate(zXo) ] } ,
 	                     "dask" : "parallelized",
 	                     "output_dtypes"  : [clim.hpar.dtype,clim.hcov.dtype]
 	                    }

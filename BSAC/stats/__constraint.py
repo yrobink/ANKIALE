@@ -1,5 +1,5 @@
 
-## Copyright(c) 2024 Yoann Robin
+## Copyright(c) 2024, 2025 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -32,6 +32,7 @@ from ..__logs import log_start_end
 import numpy as np
 import scipy.stats as sc
 
+from .__KCC import KCC
 
 ##################
 ## Init logging ##
@@ -50,7 +51,7 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def gaussian_conditionning( *args , A = None ):##{{{
+def gaussian_conditionning_independent( *args , A = None , timeXo = None ):##{{{
 	
 	## Extract arguments
 	hpar = args[0]
@@ -76,6 +77,60 @@ def gaussian_conditionning( *args , A = None ):##{{{
 	
 	return hpar,hcov
 ##}}}
+
+def _gaussian_conditionning_kcc( *args , A = None , timeXo = None ):##{{{
+	
+	## Extract arguments
+	hpar = args[0]
+	hcov = args[1]
+	lXo  = args[2:]
+	gXo  = np.concatenate( args[2:] , axis = 0 )
+	
+	## Variance of obs
+	R      = gXo - A @ hpar
+	size0  = lXo[0].size
+	size1  = lXo[1].size
+	RXo0   = xr.DataArray( R[:size0] , dims = ["time"] , coords = [timeXo[0].values] )
+	RXo1   = xr.DataArray( R[size0:] , dims = ["time"] , coords = [timeXo[1].values] )
+	
+	hcov_o_meas0 = RXo0.values.reshape(-1,1) @ RXo0.values.reshape(1,-1)
+	hcov_o_meas1 = RXo1.values.reshape(-1,1) @ RXo1.values.reshape(1,-1)
+	kcc          = KCC().fit( RXo0 , RXo1 )
+	hcov_o_iv0   = kcc.cov_iv0
+	hcov_o_iv1   = kcc.cov_iv1
+	hcov_o_iv01  = kcc.cov_iv01
+	hcov_o       = np.block( [ [hcov_o_meas0 + hcov_o_iv0 , hcov_o_iv01  ],
+	                           [hcov_o_iv01.T , hcov_o_meas1 + hcov_o_iv1] ] )
+	
+	## Application
+	K0 = A @ hcov
+	K1 = ( hcov @ A.T ) @ np.linalg.inv( K0 @ A.T + hcov_o )
+	hpar = hpar + K1 @ ( gXo.squeeze() - A @ hpar )
+	hcov = hcov - K1 @ K0
+	
+	hcov_iv = np.block( [ [hcov_o_iv0    , hcov_o_iv01 ],
+	                      [hcov_o_iv01.T , hcov_o_iv1] ] )
+	
+	return hpar,hcov,hcov_iv
+##}}}
+
+def gaussian_conditionning_kcc( *args , A = None , timeXo = None ):##{{{
+	
+	args   = list(args)
+	hpar   = args[0]
+	norm_p = 1e9
+	for i in range(10):
+		args[0] = hpar
+		hpar,hcov,hcov_iv = _gaussian_conditionning_kcc( *args , A = A , timeXo = timeXo )
+		norm_c = np.linalg.norm(hcov_iv)
+		if np.abs( (norm_c - norm_p) / norm_p ) < 1e-2 and i > 0:
+			break
+		norm_p = norm_c
+	print( f"KCC numbers of iterations: {i}" )
+	
+	return hpar,hcov
+##}}}
+
 
 def mcmc( hpar , hcov , Y , A , size_chain , nslaw_class , use_STAN , tmp_stan = None ):##{{{
 	

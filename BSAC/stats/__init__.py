@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023, 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -20,4 +20,8 @@ from .__MultiGAM    import MultiGAM
 from .__NSLawMLEFit import nslaw_fit
 from .__synthesis   import synthesis
 from .__constraint  import gaussian_conditionning
+
+from .__KCC import covariance_matrix_ar1
+from .__KCC import MAR2
+from .__KCC import KCC
 
