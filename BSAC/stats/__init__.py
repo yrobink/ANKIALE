@@ -19,7 +19,8 @@
 from .__MultiGAM    import MultiGAM
 from .__NSLawMLEFit import nslaw_fit
 from .__synthesis   import synthesis
-from .__constraint  import gaussian_conditionning
+from .__constraint  import gaussian_conditionning_independent
+from .__constraint  import gaussian_conditionning_kcc
 
 from .__KCC import covariance_matrix_ar1
 from .__KCC import MAR2
