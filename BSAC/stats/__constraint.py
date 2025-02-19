@@ -31,8 +31,11 @@ from ..__logs import log_start_end
 
 import numpy as np
 import scipy.stats as sc
+import xarray as xr
 
 from .__KCC import KCC
+from .__KCC import MAR2
+
 
 ##################
 ## Init logging ##
@@ -78,7 +81,7 @@ def gaussian_conditionning_independent( *args , A = None , timeXo = None ):##{{{
 	return hpar,hcov
 ##}}}
 
-def _gaussian_conditionning_kcc( *args , A = None , timeXo = None ):##{{{
+def _gaussian_conditionning_kcc_2covariates( *args , A = None , timeXo = None ):##{{{
 	
 	## Extract arguments
 	hpar = args[0]
@@ -114,10 +117,42 @@ def _gaussian_conditionning_kcc( *args , A = None , timeXo = None ):##{{{
 	return hpar,hcov,hcov_iv
 ##}}}
 
+def _gaussian_conditionning_kcc_1covariate( *args , A = None , timeXo = None ):##{{{
+	
+	## Extract arguments
+	hpar = args[0]
+	hcov = args[1]
+	gXo  = args[2]
+	
+	## Variance of obs
+	R      = gXo - A @ hpar
+	size0  = gXo.size
+	RXo0   = xr.DataArray( R , dims = ["time"] , coords = [timeXo[0].values] )
+	
+	hcov_o_meas0 = RXo0.values.reshape(-1,1) @ RXo0.values.reshape(1,-1)
+	mar2         = MAR2().fit( RXo0.values )
+	hcov_o_iv0   = mar2._covariance_matrix()
+	hcov_o       = hcov_o_meas0 + hcov_o_iv0
+	
+	## Application
+	K0 = A @ hcov
+	K1 = ( hcov @ A.T ) @ np.linalg.inv( K0 @ A.T + hcov_o )
+	hpar = hpar + K1 @ ( gXo.squeeze() - A @ hpar )
+	hcov = hcov - K1 @ K0
+	
+	return hpar,hcov,hcov_o_iv0
+##}}}
+
 def gaussian_conditionning_kcc( *args , A = None , timeXo = None ):##{{{
 	
 	args   = list(args)
 	hpar   = args[0]
+	
+	if len(args[2:]) == 1:
+		_gaussian_conditionning_kcc = _gaussian_conditionning_kcc_1covariate
+	else:
+		_gaussian_conditionning_kcc = _gaussian_conditionning_kcc_2covariates
+	
 	norm_p = 1e9
 	for i in range(10):
 		args[0] = hpar
@@ -126,7 +161,6 @@ def gaussian_conditionning_kcc( *args , A = None , timeXo = None ):##{{{
 		if np.abs( (norm_c - norm_p) / norm_p ) < 1e-2 and i > 0:
 			break
 		norm_p = norm_c
-	print( f"KCC numbers of iterations: {i}" )
 	
 	return hpar,hcov
 ##}}}

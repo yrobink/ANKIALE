@@ -81,7 +81,7 @@ def zgaussian_conditionning( *args , A = None , kcc = False , timeXo = None ):##
 		ic    = ihcov[idx2d]
 		iargs = [ih,ic] + [ Xo[idx1d] for Xo in lXo ]
 		
-		oh,oc = gaussian_conditionning( *iargs , A = A )
+		oh,oc = gaussian_conditionning( *iargs , A = A , timeXo = timeXo )
 		ohpar[idx1d] = oh
 		ohcov[idx2d] = oc
 	
@@ -143,6 +143,10 @@ def run_bsac_cmd_constrain_X():
 		
 		## Store zarr file
 		zXo[name] = Xo
+	
+	## Check if KCC can be used
+	if bsacParams.use_KCC and len(zXo) > 2:
+		raise ValueError("KCC can not be used for a constraint with more than 2 covariates ({len(zXo)} required)")
 	
 	##
 	time = clim.time
