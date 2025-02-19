@@ -364,7 +364,7 @@ class Climatology:##{{{
 			
 			## Global attributes
 			logger.info(" * Add global attributes")
-			ncf.setncattr( "creation_date" , str(dt.datetime.now(dt.UTC))[:19] + " (UTC)" )
+			ncf.setncattr( "creation_date" , str(dt.datetime.now(dt.UTC))[:19].replace(" ","T") + "Z" )
 			ncf.setncattr( "BSAC_version"  , version )
 	##}}}
 	
