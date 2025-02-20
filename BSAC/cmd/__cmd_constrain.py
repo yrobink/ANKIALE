@@ -373,7 +373,7 @@ def run_bsac_cmd_constrain_Y():
 	                    }
 	
 	## Block memory function
-	block_memory = lambda x : 5 * ( nhpar * n_samples * size_chain + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	block_memory = lambda x : 10 * ( (nhpar + nhpar**2) * n_samples * size_chain + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	## Apply
 	with bsacParams.get_cluster() as cluster:
@@ -388,6 +388,7 @@ def run_bsac_cmd_constrain_Y():
 		                            n_workers          = bsacParams.n_workers,
 		                            threads_per_worker = bsacParams.threads_per_worker,
 		                            cluster            = cluster,
+		                            chunks             = { d : 1 for d in d_spatial },
 		                            )
 	
 	## Clean memory
