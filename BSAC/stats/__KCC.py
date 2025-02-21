@@ -85,9 +85,13 @@ class MAR2:##{{{
 		return Cf_ar1 + Cs_ar1
 	
 	def _nlll_multivariate_normal( self , Y , m , C ):
+		
+		if not np.isfinite(C).all() or not np.isfinite(m).all():
+			return np.inf
+		
 		mY   = Y - m
 		iC   = np.linalg.pinv(C)
-		ldet = self._size * np.log(C[0,0]) + np.log(np.abs(np.linalg.det(C / C[0,0] )))
+		ldet = self._size * np.log(np.abs(C[0,0])) + np.log(np.abs(np.linalg.det(C / C[0,0] )))
 		nlll = ldet + mY @ iC @ mY
 		
 		return nlll
@@ -119,21 +123,27 @@ class MAR2:##{{{
 	
 	## Link function ##{{{
 	
+	def logit( self , x , a = 0 , b = 1 ):
+		return 1. / ( 1 + np.exp(-x) ) * (b - a) + a
+	
+	def ilogit( self , y , a = 0 , b = 1 ):
+		return - np.log( (b-a) / (y - a) - 1 )
+	
 	def _transform( self , hpar ):
 		thpar    = np.zeros_like(hpar)
 		thpar[0] = np.log(hpar[0])
 		thpar[1] = np.log(hpar[1])
-		thpar[2] = np.tan(hpar[2] * (np.pi / 2) )
-		thpar[3] = np.tan(hpar[3] * (np.pi / 2) )
+		thpar[2] = self.ilogit(hpar[2])
+		thpar[3] = self.ilogit(hpar[3])
 		
 		return thpar
 	
 	def _itransform( self , thpar ):
 		hpar    = np.zeros_like(thpar)
-		hpar[0] = np.exp( thpar[0])
-		hpar[1] = np.exp( thpar[1])
-		hpar[2] = np.arctan(thpar[2]) / (np.pi / 2)
-		hpar[3] = np.arctan(thpar[3]) / (np.pi / 2)
+		hpar[0] = np.exp(thpar[0])
+		hpar[1] = np.exp(thpar[1])
+		hpar[2] = self.logit(thpar[2])
+		hpar[3] = self.logit(thpar[3])
 		
 		return hpar
 	
@@ -211,7 +221,9 @@ class KCC:##{{{
 		d1  = np.sqrt( 1 - alpha_1**2 )
 		d01 = 1 - alpha_0 * alpha_1
 		
-		return n0 / ( d0 * d1 * d01 )
+		cst = n0 / ( d0 * d1 * d01 )
+		
+		return cst
 	##}}}
 	
 	def _build_lag_cov( self , h , L , alpha_0 , alpha_1 , scale_0 , scale_1 ):##{{{
@@ -220,18 +232,13 @@ class KCC:##{{{
 	
 	def _find_L( self , R0 , R1 ):##{{{
 		
-		self._rho_res = float(xr.corr( R0 , R1 ))
-		cf_max = self._mar2_0.scale_f * self._mar2_1.scale_f * np.sqrt( 1 - self._mar2_0.alpha_f**2 ) * np.sqrt( 1 - self._mar2_1.alpha_f**2 ) / ( 1 - self._mar2_0.alpha_f * self._mar2_1.alpha_f )
-		cs_max = self._mar2_0.scale_s * self._mar2_1.scale_s * np.sqrt( 1 - self._mar2_0.alpha_s**2 ) * np.sqrt( 1 - self._mar2_1.alpha_s**2 ) / ( 1 - self._mar2_0.alpha_s * self._mar2_1.alpha_s )
-		self._rho_mar = (cf_max + cs_max) / np.sqrt( (self._mar2_0.scale_f + self._mar2_0.scale_s) * (self._mar2_1.scale_f + self._mar2_1.scale_s) )
-		ratio = self._rho_res / self._rho_mar
+		cf_max = self._build_cst_iv( 1. , self._mar2_0.alpha_f , self._mar2_1.alpha_f , self._mar2_0.scale_f , self._mar2_1.scale_f )
+		cs_max = self._build_cst_iv( 1. , self._mar2_0.alpha_s , self._mar2_1.alpha_s , self._mar2_0.scale_s , self._mar2_1.scale_s )
 		
-		if ratio < -1:
-			self._L = -1
-		elif ratio > 1:
-			self._L = 1
-		else:
-			self._L = ratio
+		self._rho_res = float(xr.corr( R0 , R1 ))
+		self._rho_mar = (cf_max + cs_max) / np.sqrt( (self._mar2_0.scale_f + self._mar2_0.scale_s) * (self._mar2_1.scale_f + self._mar2_1.scale_s) )
+		
+		self._L = max( min( self._rho_res / self._rho_mar , 1 ) , -1 )
 	##}}}
 	
 	def fit( self , R0 , R1 ):##{{{
@@ -240,12 +247,12 @@ class KCC:##{{{
 		self._mar2_0 = MAR2().fit(R0.values)
 		self._mar2_1 = MAR2().fit(R1.values)
 		
+		## Find L
+		self._find_L( R0 , R1 )
+		
 		## Build the toeplitz matrix
 		cov_iv_f = self._build_toeplitz_iv( self._mar2_0.alpha_f , self._mar2_1.alpha_f , self._mar2_0.size , self._mar2_1.size )
 		cov_iv_s = self._build_toeplitz_iv( self._mar2_0.alpha_s , self._mar2_1.alpha_s , self._mar2_0.size , self._mar2_1.size )
-		
-		## Find L
-		self._find_L( R0 , R1 )
 		
 		## And build the cov_iv matrix
 		cf = self._build_cst_iv( self.L , self._mar2_0.alpha_f , self._mar2_1.alpha_f , self._mar2_0.scale_f , self._mar2_1.scale_f )

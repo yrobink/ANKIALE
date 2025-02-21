@@ -41,8 +41,7 @@ import netCDF4
 from ..__sys     import coords_samples
 from ..stats.__tools import nslawid_to_class
 
-from ..stats.__constraint import gaussian_conditionning_independent
-from ..stats.__constraint import gaussian_conditionning_kcc
+from ..stats.__constraint import gaussian_conditionning
 from ..stats.__constraint import mcmc
 
 from ..__linalg import mean_cov_hpars
@@ -60,11 +59,7 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def zgaussian_conditionning( *args , A = None , kcc = False , timeXo = None ):##{{{
-	
-	gaussian_conditionning = gaussian_conditionning_independent
-	if kcc:
-		gaussian_conditionning = gaussian_conditionning_kcc
+def zgaussian_conditionning( *args , A = None , timeXo = None , method = None ):##{{{
 	
 	ihpar = args[0]
 	ihcov = args[1]
@@ -81,7 +76,7 @@ def zgaussian_conditionning( *args , A = None , kcc = False , timeXo = None ):##
 		ic    = ihcov[idx2d]
 		iargs = [ih,ic] + [ Xo[idx1d] for Xo in lXo ]
 		
-		oh,oc = gaussian_conditionning( *iargs , A = A , timeXo = timeXo )
+		oh,oc = gaussian_conditionning( *iargs , A = A , timeXo = timeXo , method = method )
 		ohpar[idx1d] = oh
 		ohcov[idx2d] = oc
 	
@@ -179,6 +174,16 @@ def run_bsac_cmd_constrain_X():
 	
 	A = np.vstack(proj)
 	
+	## Find natural variability of obs
+	match True:
+		case bsacParams.use_KCC:
+			method = "KCC"
+		case bsacParams.use_MAR2:
+			method = "MAR2"
+		case _:
+			method = "INDEPENDENT"
+	logger.info( f"Method used: {method}" )
+	
 	## Build apply arguments
 	hpar_names       = clim.hpar_names
 	c_spatial        = clim.c_spatial
@@ -189,8 +194,7 @@ def run_bsac_cmd_constrain_X():
 	output_dtypes    = [float,float]
 	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] ] + [ [f"time{i}"] for i in range(len(zXo)) ],
 	                     "output_core_dims" : [ ["hpar"] , ["hpar0","hpar1"] ],
-	                     "kwargs" : { "A" : A } ,
-	                     "kwargs" : { "A" : A , "kcc" : bsacParams.use_KCC , "timeXo" : [ zXo[name][f"time{iname}"] for iname,name in enumerate(zXo) ] } ,
+                     "kwargs" : { "A" : A , "timeXo" : [zXo[name][f"time{iname}"] for iname,name in enumerate(zXo)] , "method" : method } ,
 	                     "dask" : "parallelized",
 	                     "output_dtypes"  : [clim.hpar.dtype,clim.hcov.dtype]
 	                    }
