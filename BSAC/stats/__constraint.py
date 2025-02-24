@@ -124,15 +124,31 @@ def gaussian_conditionning_KCC( *args , A = None , timeXo = None , dep = 1 ):##{
 		_gaussian_conditionning_kcc = _gaussian_conditionning_kcc_2covariates
 	
 	hcov_o_p = 1e9
+	hpar_p   = 1e9
+	hcov_p   = 1e9
+	err_p    = 1e9
 	err      = 1e9
+	rerr     = 1e9
 	for i in range(10):
 		args[0] = hpar
 		args[1] = hcov
 		hpar,hcov,hcov_o = _gaussian_conditionning_kcc( *args , A = A , timeXo = timeXo , dep = dep )
-		err = np.linalg.norm( hcov_o_p - hcov_o ) / np.linalg.norm(hcov_o_p)
-		hcov_o_p = hcov_o.copy()
-		if err < 1e-2 and i > 0:
+		
+		err  = np.linalg.norm( hcov_o_p - hcov_o )
+		rerr = err / np.linalg.norm(hcov_o_p)
+		logger.debug( f"KCC error: {err}, rerr: {rerr}" )
+		
+		if err > err_p and i > 0:
+			hpar = hpar_p
+			hcov = hcov_p
 			break
+		if rerr < 1 and i > 0:
+			break
+		
+		hcov_o_p = hcov_o.copy()
+		hpar_p   = hpar.copy()
+		hcov_p   = hcov.copy()
+		err_p    = err
 	
 	logger.info( f"Numbers of KCC iterations: {i}" )
 	
