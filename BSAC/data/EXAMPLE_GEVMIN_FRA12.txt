@@ -26,7 +26,7 @@ do
     MOD=$(basename $MODNC .nc)
     echo " * $MOD"
     echo "   => fit X"
-    bsac fit X --n-samples $N_SAMPLES --log info $HPATH/LOG/'FITX_'$MOD.log\
+    bsac fit X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITX_'$MOD.log\
                --bias-period $BIAS_PERIOD\
                --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
                --save-clim $DPATH/FIT/$MOD'_fitX.nc'\
@@ -37,7 +37,7 @@ do
                --threads-per-worker $THREADS_PER_WORKER
 	
     echo "   => show X"
-    bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/'SHOWX_'$MOD.log\
+    bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'SHOWX_'$MOD.log\
                 --bias-period $BIAS_PERIOD\
                 --load-clim $DPATH/FIT/$MOD'_fitX.nc'\
                 --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
@@ -47,7 +47,7 @@ do
                 --threads-per-worker $THREADS_PER_WORKER
     
     echo "   => fit Y"
-    bsac fit Y --n-samples $N_SAMPLES --log info $HPATH/LOG/'FITY_'$MOD.log\
+    bsac fit Y --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITY_'$MOD.log\
                --bias-period $BIAS_PERIOD\
                --input $DPATH/INPUT/Y/$MODNC\
 		       --config name=TN10n,nslaw=GEVMin,GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
@@ -62,7 +62,7 @@ done
 
 ## Run synthesis
 echo " * synthesis"
-bsac synthesize --log info $HPATH/LOG/SYNTHESIS.log\
+bsac synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
                 --bias-period $BIAS_PERIOD\
                 --input $DPATH/FIT/*_fitY.nc\
                 --common-period historical --different-periods $DPERS\
@@ -73,7 +73,7 @@ bsac synthesize --log info $HPATH/LOG/SYNTHESIS.log\
                 --threads-per-worker $THREADS_PER_WORKER
 
 echo " * show X of synthesis"
-bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_SYNTHESIS.log\
+bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_SYNTHESIS.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
             --output $DPATH/FIGURES/BSAC_SHOW_X_SYNTHESIS.pdf\
@@ -83,7 +83,7 @@ bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_SYNTHESIS.log\
 
 ## Run constraint
 echo " * constraint X of observations"
-bsac constrain X --log info $HPATH/LOG/CONSTRAINX.log\
+bsac constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
@@ -93,7 +93,7 @@ bsac constrain X --log info $HPATH/LOG/CONSTRAINX.log\
                  --threads-per-worker $THREADS_PER_WORKER
 
 echo " * show X of constraint"
-bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_CONSTRAINX.log\
+bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_CONSTRAINX.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
             --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
@@ -103,7 +103,7 @@ bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_CONSTRAINX.log\
             --threads-per-worker $THREADS_PER_WORKER
 
 echo " * show X of constraint VS synthesis"
-bsac show CX --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
+bsac show CX --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
              --bias-period $BIAS_PERIOD\
              --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
              --input $DPATH/SYNTHESIS/SYNTHESIS.nc\
@@ -113,7 +113,7 @@ bsac show CX --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWCX_CONSTRAINX-VS-S
              --threads-per-worker $THREADS_PER_WORKER
 
 echo " * constraint Y of observations"
-bsac constrain Y --log info $HPATH/LOG/CONSTRAINY.log\
+bsac constrain Y -v --log-file $HPATH/LOG/CONSTRAINY.log\
                  --n-samples $N_SAMPLES\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
@@ -127,7 +127,7 @@ bsac constrain Y --log info $HPATH/LOG/CONSTRAINY.log\
 
 ## Draw parameters
 echo " * Draw"
-bsac draw --log info $HPATH/LOG/ANALYSIS_DRAW.log\
+bsac draw -v --log-file $HPATH/LOG/ANALYSIS_DRAW.log\
           --n-samples $N_SAMPLES\
           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
           --output $DPATH/ANALYSIS/DRAW.nc\
@@ -137,7 +137,7 @@ bsac draw --log info $HPATH/LOG/ANALYSIS_DRAW.log\
 
 ## Attribution
 echo " * Attribution: freturnt"
-bsac attribute freturnt --log info $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
+bsac attribute freturnt -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
                         --n-samples $N_SAMPLES\
                         --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
 	                    --input 2,10,30,50,100,1000\
@@ -149,7 +149,7 @@ bsac attribute freturnt --log info $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
 
 
 echo " * Attribution: fintensity"
-bsac attribute fintensity --log info $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
+bsac attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --n-samples $N_SAMPLES\
                           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
 	                      --input 323.15\
@@ -160,7 +160,7 @@ bsac attribute fintensity --log info $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --threads-per-worker $THREADS_PER_WORKER
 
 echo " * Attribution: event"
-bsac attribute event --log info $HPATH/LOG/ANALYSIS_ATTR-EVENT2012.log\
+bsac attribute event -v --log-file $HPATH/LOG/ANALYSIS_ATTR-EVENT2012.log\
                      --n-samples $N_SAMPLES\
                      --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
                      --input tasmin,$DPATH/INPUT/Yo/SAFRAN_TN10n_nyear_1959-2023.nc\

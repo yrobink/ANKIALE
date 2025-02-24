@@ -26,7 +26,7 @@ do
     MOD=$(basename $MODNC .nc)
     echo " * $MOD"
     echo "   => fit X"
-    bsac fit X --n-samples $N_SAMPLES --log info $HPATH/LOG/'FITX_'$MOD.log\
+    bsac fit X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITX_'$MOD.log\
                --bias-period $BIAS_PERIOD\
                --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
                --save-clim $DPATH/FIT/$MOD'_fitX.nc'\
@@ -37,7 +37,7 @@ do
                --threads-per-worker $THREADS_PER_WORKER
 	
     echo "   => show X"
-    bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/'SHOWX_'$MOD.log\
+    bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'SHOWX_'$MOD.log\
                 --bias-period $BIAS_PERIOD\
                 --load-clim $DPATH/FIT/$MOD'_fitX.nc'\
                 --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
@@ -50,7 +50,7 @@ done
 
 ## Run synthesis
 echo " * synthesis"
-bsac synthesize --log info $HPATH/LOG/SYNTHESIS.log\
+bsac synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
                 --bias-period $BIAS_PERIOD\
                 --input $DPATH/FIT/*_fitY.nc\
                 --common-period historical --different-periods $DPERS\
@@ -61,7 +61,7 @@ bsac synthesize --log info $HPATH/LOG/SYNTHESIS.log\
                 --threads-per-worker $THREADS_PER_WORKER
 
 echo " * show X of synthesis"
-bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_SYNTHESIS.log\
+bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_SYNTHESIS.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
             --output $DPATH/FIGURES/BSAC_SHOW_X_SYNTHESIS.pdf\
@@ -71,7 +71,7 @@ bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_SYNTHESIS.log\
 
 ## Run constraint
 echo " * constraint X of observations"
-bsac constrain X --log info $HPATH/LOG/CONSTRAINX.log --use-KCC\
+bsac constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log --use-KCC\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
@@ -81,7 +81,7 @@ bsac constrain X --log info $HPATH/LOG/CONSTRAINX.log --use-KCC\
                  --threads-per-worker $THREADS_PER_WORKER
 
 echo " * show X of constraint"
-bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_CONSTRAINX.log\
+bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_CONSTRAINX.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
             --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
@@ -91,7 +91,7 @@ bsac show X --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWX_CONSTRAINX.log\
             --threads-per-worker $THREADS_PER_WORKER
 
 echo " * show X of constraint VS synthesis"
-bsac show CX --n-samples $N_SAMPLES --log info $HPATH/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
+bsac show CX --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
              --bias-period $BIAS_PERIOD\
              --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
              --input $DPATH/SYNTHESIS/SYNTHESIS.nc\

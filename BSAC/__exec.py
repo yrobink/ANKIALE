@@ -205,6 +205,10 @@ def start_bsac(*argv):##{{{
 		if bsacParams.help:
 			print_doc()
 		
+		## User asks help
+		if bsacParams.version:
+			print(version)
+		
 		## In case of abort, raise Exception
 		if bsacParams.abort:
 			raise bsacParams.error

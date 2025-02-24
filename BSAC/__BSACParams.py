@@ -22,8 +22,6 @@
 
 from __future__ import annotations
 
-import sys
-import os
 import datetime as dt
 import argparse
 import tempfile
@@ -34,8 +32,6 @@ import dataclasses
 import dask
 import distributed
 import zxarray as zr
-
-import numpy as np
 
 from .__exceptions  import AbortForHelpException
 from .__exceptions  import NoUserInputException
@@ -50,10 +46,14 @@ from .__climatology import Climatology
 @dataclasses.dataclass
 class BSACParams:
 	
-	abort : bool                = False
-	error : Exception | None    = None
-	help  : bool                = False
-	log   : tuple[str|int,str|None] = ("WARNING",None)
+	abort     : bool             = False
+	error     : Exception | None = None
+	help      : bool             = False
+	version   : bool             = False
+	log_level : str | int        = "WARNING"
+	log_file  : str | None       = None
+	verbose   : bool             = False
+	debug     : bool             = False
 	
 	cmd : str  | None = None
 	arg : list | None = None
@@ -93,14 +93,18 @@ class BSACParams:
 	def init_from_user_input( self , *argv ):##{{{
 		
 		if len(argv) == 0:
-			raise NoUserInputException("No arguments given, abort.\nRead the documentation with 'xsbck --help' ?")
+			raise NoUserInputException("No arguments given, abort.\nRead the documentation with 'bsac --help' ?")
 		
 		## Parser for user input
 		parser = argparse.ArgumentParser( add_help = False )
 		parser.add_argument( "CMD" , nargs = '*' )
 		
 		parser.add_argument( "-h" , "--help" , action = "store_const" , const = True , default = False )
-		parser.add_argument( "--log" , nargs = '*' , default = ("WARNING",None) )
+		parser.add_argument( "--version" , action = "store_const" , const = True , default = False )
+		parser.add_argument( "--log-level" , default = "WARNING" )
+		parser.add_argument( "--log-file"  , default = None )
+		parser.add_argument( "-v" , "--verbose" , action = "store_const" , const = True , default = False )
+		parser.add_argument( "-d" , "--debug"   , action = "store_const" , const = True , default = False )
 		
 		parser.add_argument( "--tmp"                    , default = None )
 		parser.add_argument( "--n-workers"              , default = 1 , type = int )
@@ -166,42 +170,26 @@ class BSACParams:
 	
 	def init_logging(self):##{{{
 		
-		if len(self.log) == 0:
-			self.log = ("INFO",None)
-		elif len(self.log) == 1:
-			
-			try:
-				level = int(self.log[0])
-				lfile = None
-			except:
-				try:
-					level = getattr( logging , self.log[0].upper() , None )
-					lfile = None
-				except:
-					level = "INFO"
-					lfile = self.log[0]
-			self.log = (level,lfile)
+		if self.verbose:
+			self.log_level = "INFO"
+		if self.debug:
+			self.log_level = "DEBUG"
 		
-		level,lfile = self.log
-		
-		## loglevel can be an integet
-		try:
-			level = int(level)
-		except:
-			level = getattr( logging , level.upper() , None )
+		if isinstance( self.log_level , str ):
+			self.log_level = getattr( logging , self.log_level.upper() , None )
 		
 		## If it is not an integer, raise an error
-		if not isinstance( level , int ): 
-			raise ValueError( f"Invalid log level: {level}; nothing, an integer, 'debug', 'info', 'warning', 'error' or 'critical' expected" )
+		if not isinstance( self.log_level , int ): 
+			raise ValueError( f"Invalid log level: {self.log_level}; nothing, an integer, 'debug', 'info', 'warning', 'error' or 'critical' expected" )
 		
 		##
 		log_kwargs = {
 			"format" : '%(message)s',
-			"level"  : level
+			"level"  : self.log_level
 			}
 		
-		if lfile is not None:
-			log_kwargs["filename"] = lfile
+		if self.log_file is not None:
+			log_kwargs["filename"] = self.log_file
 		
 		logging.basicConfig(**log_kwargs)
 		logging.captureWarnings(True)
@@ -253,7 +241,7 @@ class BSACParams:
 	def check( self ): ##{{{
 		
 		try:
-			if self.help:
+			if self.help or self.version:
 				raise AbortForHelpException
 			
 			## Check the CMD
