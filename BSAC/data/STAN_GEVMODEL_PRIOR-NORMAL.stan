@@ -44,7 +44,7 @@ transformed parameters
 
 model
 {
-	hpar ~ normal( 0 , 1 );
+	npar ~ normal( 0 , 1 );
 	Y ~  gev( mu , sig , xi ) ;
 }
 
