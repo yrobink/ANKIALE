@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -35,6 +35,7 @@ import numpy  as np
 import xarray as xr
 import scipy.linalg as scl
 import statsmodels.gam.api as smg
+import distributed
 
 
 ##################
@@ -160,7 +161,7 @@ def _mgam_multiple_fit_bootstrap( idx , X , XN , dof , degree , hpar_be = None )
 	return np.array(hpars)
 ##}}}
 
-def mgam_multiple_fit_bootstrap( X , XN , n_bootstrap , names , dof , degree , n_jobs ):##{{{
+def mgam_multiple_fit_bootstrap( X , XN , n_bootstrap , names , dof , degree , n_jobs , cluster ):##{{{
 	
 	## Fit the best estimate
 	hpar_be = {}
@@ -187,16 +188,17 @@ def mgam_multiple_fit_bootstrap( X , XN , n_bootstrap , names , dof , degree , n
 	idxs = xr.DataArray( range(n_bootstrap) , dims = ["bootstrap"] , coords = [range(n_bootstrap)] ).chunk( { "bootstrap" : n_bootstrap // n_jobs } )
 	
 	## Parallelization of the bootstrap
-	hpars = xr.apply_ufunc(
-	             _mgam_multiple_fit_bootstrap , idxs ,
-	             kwargs             = { "X" : X , "XN" : XN , "dof" : dof , "degree" : degree , "hpar_be" : hpar_be },
-	             input_core_dims    = [[]],
-	             output_core_dims   = [["parameter"]],
-			     output_dtypes      = dtype ,
-			     vectorize          = True ,
-			     dask               = "parallelized" ,
-			     dask_gufunc_kwargs = { "output_sizes" : { "parameter" : sum([hpar_be[name].size for name in names]) } }
-	             ).compute()
+	with distributed.Client(cluster) as client:
+		hpars = xr.apply_ufunc(
+		             _mgam_multiple_fit_bootstrap , idxs ,
+		             kwargs             = { "X" : X , "XN" : XN , "dof" : dof , "degree" : degree , "hpar_be" : hpar_be },
+		             input_core_dims    = [[]],
+		             output_core_dims   = [["parameter"]],
+		             output_dtypes      = dtype ,
+		             vectorize          = True ,
+		             dask               = "parallelized" ,
+		             dask_gufunc_kwargs = { "output_sizes" : { "parameter" : sum([hpar_be[name].size for name in names]) } }
+		             ).persist().compute( scheduler = client )
 	
 	## Now find final hyper-parameters and covariance matrix
 	hpar = np.hstack( [hpar_be[name] for name in names] )

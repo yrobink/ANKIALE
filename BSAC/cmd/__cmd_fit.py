@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
 ## This file is part of BSAC.
 ## 
@@ -22,13 +22,10 @@
 
 import os
 import logging
-import itertools as itt
-from ..__logs import LINE
 from ..__logs import log_start_end
 
 from ..__BSACParams import bsacParams
 
-from ..stats.__MultiGAM import MultiGAM
 from ..stats.__MultiGAM import mgam_multiple_fit_bootstrap
 from ..stats.__tools    import nslawid_to_class
 from ..stats.__NSLawMLEFit import nslaw_fit
@@ -118,7 +115,8 @@ def run_bsac_cmd_fit_X():
 	                                         names  = bsacParams.clim.names,
 	                                         dof    = bsacParams.clim.GAM_dof,
 	                                         degree = bsacParams.clim.GAM_degree,
-	                                         n_jobs = bsacParams.n_jobs
+	                                         n_jobs = bsacParams.n_jobs,
+	                                        cluster = bsacParams.get_cluster()
 	                                         )
 	
 	bsacParams.clim.hpar = hpar
