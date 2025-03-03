@@ -86,7 +86,7 @@ bsac constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-                 --input GMST,$DPATH/INPUT/Xo/GMST_GISTEMP_tas_year_1880-2023.nc EU,$DPATH/INPUT/Xo/EU_HadCRUT_tas_year_1850-2023.nc\
+                 --input GMST,$DPATH/INPUT/Xo/GMST_GISTEMP_tas_year_1880-2024.nc EU,$DPATH/INPUT/Xo/EU_HadCRUT_tas_year_1850-2024.nc\
                  --total-memory $TOTAL_MEMORY\
                  --n-workers $N_WORKERS\
                  --threads-per-worker $THREADS_PER_WORKER
@@ -95,7 +95,7 @@ echo " * show X of constraint"
 bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_CONSTRAINX.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-            --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
+            --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2024.nc\
             --output $DPATH/FIGURES/BSAC_SHOW_X_CONSTRAINX.pdf\
             --total-memory $TOTAL_MEMORY\
             --n-workers $N_WORKERS\
@@ -117,7 +117,7 @@ bsac constrain Y -v --log-file $HPATH/LOG/CONSTRAINY.log\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
-                 --input TX3x,$DPATH/INPUT/Yo/IDF_ERA5_TX3x_year_1940-2023.nc\
+                 --input TX3x,$DPATH/INPUT/Yo/IDF_ERA5_TX3x_year_1940-2024.nc\
                  --output $DPATH/CONSTRAIN/SAMPLES_CONSTRAINY.nc\
                  --config size-chain=10\
                  --total-memory $TOTAL_MEMORY\
@@ -150,7 +150,7 @@ echo " * Attribution: fintensity"
 bsac attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --n-samples $N_SAMPLES\
                           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
-	                      --input TX3x,$DPATH/INPUT/Yo/IDF_ERA5_TX3x_xyear_1940-2023.nc\
+	                      --input TX3x,$DPATH/INPUT/Yo/IDF_ERA5_TX3x_xyear_1940-2024.nc\
                           --output $DPATH/ANALYSIS/FINTENSITY-MAP.nc\
                           --config mode=quantile,side=right\
                           --total-memory $TOTAL_MEMORY\
@@ -172,7 +172,7 @@ echo " * Attribution: event"
 bsac attribute event -v --log-file $HPATH/LOG/ANALYSIS_ATTR-EVENT2019.log\
                      --n-samples $N_SAMPLES\
                      --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
-                     --input TX3x,$DPATH/INPUT/Yo/IDF_ERA5_TX3x_year_1940-2023.nc\
+                     --input TX3x,$DPATH/INPUT/Yo/IDF_ERA5_TX3x_year_1940-2024.nc\
                      --output $DPATH/ANALYSIS/EVENT2019.nc\
                      --config time=2019,mode=quantile,side=right\
                      --total-memory $TOTAL_MEMORY\

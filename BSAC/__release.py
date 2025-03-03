@@ -17,8 +17,8 @@
 ## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
 
 version_major = 0
-version_minor = 34
-version_patch = 4
+version_minor = 35
+version_patch = 0
 version_extra = ""
 version      = f"{version_major}.{version_minor}.{version_patch}{version_extra}"
 

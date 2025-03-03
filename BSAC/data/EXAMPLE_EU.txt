@@ -75,7 +75,7 @@ bsac constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log --use-KCC\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-                 --input GMST,$DPATH/INPUT/Xo/GMST_GISTEMP_tas_year_1880-2023.nc EU,$DPATH/INPUT/Xo/EU_HadCRUT_tas_year_1850-2023.nc\
+                 --input GMST,$DPATH/INPUT/Xo/GMST_GISTEMP_tas_year_1880-2024.nc EU,$DPATH/INPUT/Xo/EU_HadCRUT_tas_year_1850-2024.nc\
                  --total-memory $TOTAL_MEMORY\
                  --n-workers $N_WORKERS\
                  --threads-per-worker $THREADS_PER_WORKER
@@ -84,7 +84,7 @@ echo " * show X of constraint"
 bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_CONSTRAINX.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-            --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2023.nc\
+            --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2024.nc\
             --output $DPATH/FIGURES/BSAC_SHOW_X_CONSTRAINX.pdf\
             --total-memory $TOTAL_MEMORY\
             --n-workers $N_WORKERS\
