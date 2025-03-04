@@ -62,7 +62,7 @@ class BSACParams:
 	threads_per_worker   : int = 1
 	memory_per_worker    : str = "auto"
 	total_memory         : str = "auto"
-	cluster              : str = "PROCESS"
+	cluster              : str = "THREADING"
 	
 	tmp_base    : str | None         = None
 	tmp_gen     : tempfile.TemporaryDirectory | None = None
