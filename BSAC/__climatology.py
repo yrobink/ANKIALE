@@ -488,9 +488,10 @@ class Climatology:##{{{
 				for nameX in self.namesX:
 					if nameX == name:
 						designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
+						designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
 					else:
 						designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
-					designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
+						designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
 				designF = designF + [np.zeros( (time.size,self.sizeY) )]
 				designC = designC + [np.zeros( (time.size,self.sizeY) )]
 				projF.append( np.hstack(designF) )
