@@ -1,27 +1,26 @@
 
-## Copyright(c) 2023, 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
 #############
 
 import functools
-import logging
 import warnings
 
 import datetime as dt
@@ -34,8 +33,8 @@ LINE = "=" * 80
 
 def log_start_end(plog):##{{{
 	"""
-	BSAC.log_start_end
-	==================
+	ANKIALE.log_start_end
+	=====================
 	
 	Decorator to add to the log the start / end of a function, and a walltime
 	
@@ -49,12 +48,12 @@ def log_start_end(plog):##{{{
 		
 		@functools.wraps(f)
 		def f_decor(*args,**kwargs):
-			plog.info(f"BSAC:{f.__name__}:start")
+			plog.info(f"ANKIALE:{f.__name__}:start")
 			time0 = dt.datetime.now(dt.UTC)
 			out = f(*args,**kwargs)
 			time1 = dt.datetime.now(dt.UTC)
-			plog.info(f"BSAC:{f.__name__}:walltime:{time1-time0}")
-			plog.info(f"BSAC:{f.__name__}:end")
+			plog.info(f"ANKIALE:{f.__name__}:walltime:{time1-time0}")
+			plog.info(f"ANKIALE:{f.__name__}:end")
 			return out
 		
 		return f_decor
@@ -64,8 +63,8 @@ def log_start_end(plog):##{{{
 
 def disable_warnings( fun ):##{{{
 	"""
-	BSAC.disable_warnings
-	=====================
+	ANKIALE.disable_warnings
+	========================
 	
 	Decorator to supress warnings
 	"""

@@ -1,9 +1,9 @@
-# BSAC
+# ANKIALE
 Bayesian Statistical Analysis of the Climatology
 
 ## Description
 
-BSAC -- Bayesian Statistical Analysis of the Climatology -- is a program for
+ANKIALE -- ANalysis of Klimate with bayesian Inference: AppLication to extreme Events -- is a program for
 the inference, analysis and attribution of extreme events. The methodology is
 as follows:
 
@@ -26,42 +26,42 @@ with pip:
 pip3 install zxarray SDFC
 ~~~
 
-BSAC can then be installed with pip.
+ANKIALE can then be installed with pip.
 
 
 ## Where to start ?
 
-BSAC includes several examples described in the documentation. You can build,
+ANKIALE includes several examples described in the documentation. You can build,
 for example, the analysis of the Ile de France using the GEV law with the
 following command:
 
 ~~~bash
-bsac example GEV_IDF --output <directory>
+ank example GEV_IDF --output <directory>
 ~~~
 
 The documentation is available with:
 
 ~~~bash
-bsac --help
+ank --help
 ~~~
 
 
 ## License
 
-Copyright(c) 2023 / 2024 Yoann Robin
+Copyright(c) 2023 / 2025 Yoann Robin
 
-This file is part of BSAC.
+This file is part of ANKIALE.
 
-BSAC is free software: you can redistribute it and/or modify
+ANKIALE is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-BSAC is distributed in the hope that it will be useful,
+ANKIALE is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 

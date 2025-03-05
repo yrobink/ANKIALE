@@ -1,20 +1,20 @@
 
 ## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
@@ -44,7 +44,7 @@ from .__climatology import Climatology
 
 
 @dataclasses.dataclass
-class BSACParams:
+class ANKParams:
 	
 	abort     : bool             = False
 	error     : Exception | None = None
@@ -93,7 +93,7 @@ class BSACParams:
 	def init_from_user_input( self , *argv ):##{{{
 		
 		if len(argv) == 0:
-			raise NoUserInputException("No arguments given, abort.\nRead the documentation with 'bsac --help' ?")
+			raise NoUserInputException("No arguments given, abort.\nRead the documentation with 'ank --help' ?")
 		
 		## Parser for user input
 		parser = argparse.ArgumentParser( add_help = False )
@@ -140,7 +140,7 @@ class BSACParams:
 				try:
 					self.cmd = kwargs[key][0]
 					self.arg = kwargs[key][1:]
-				except:
+				except Exception:
 					pass
 				continue
 			
@@ -159,7 +159,7 @@ class BSACParams:
 			self.tmp_base     = self.tmp
 		
 		now               = str(dt.datetime.utcnow())[:19].replace("-","").replace(":","").replace(" ","-")
-		prefix            = f"BSAC_{now}_"
+		prefix            = f"ANK_{now}_"
 		self.tmp_gen      = tempfile.TemporaryDirectory( dir = self.tmp_base , prefix = prefix )
 		self.tmp          = self.tmp_gen.name
 		self.tmp_gen_dask = tempfile.TemporaryDirectory( dir = self.tmp_base , prefix = prefix + "DASK_" )
@@ -246,7 +246,7 @@ class BSACParams:
 			
 			## Check the CMD
 			list_cmd = ["show","fit","draw","synthesize","constrain","attribute","misc","example"]
-			if self.cmd is None or not self.cmd.lower() in list_cmd:
+			if self.cmd is None or self.cmd.lower() not in list_cmd:
 				raise Exception(f"Bad command arguments, must be one of {', '.join(list_cmd)}")
 			
 			## Check and set the memory
@@ -259,14 +259,14 @@ class BSACParams:
 			else:
 				self.memory_per_worker = zr.DMUnit(self.memory_per_worker)
 				self.total_memory      = self.memory_per_worker * self.n_workers
-			if not self.cluster.upper() in ["THREADING","PROCESS"]:
+			if self.cluster.upper() not in ["THREADING","PROCESS"]:
 				raise ValueError("Cluster {self.cluster.upper()} is not supported" )
 			
 			## Change periods format
 			try:
 				self.common_period     = self.common_period.split(",")
 				self.different_periods = self.different_periods.split(",")
-			except:
+			except Exception:
 				pass
 			
 			self.bias_period = tuple([int(s) for s in self.bias_period.split("/")])
@@ -310,6 +310,6 @@ class BSACParams:
 	
 	##}}}
 
-bsacParams = BSACParams()
+ankParams = ANKParams()
 
 

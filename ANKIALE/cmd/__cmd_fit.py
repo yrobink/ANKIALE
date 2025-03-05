@@ -1,20 +1,20 @@
 
 ## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
@@ -24,7 +24,7 @@ import os
 import logging
 from ..__logs import log_start_end
 
-from ..__BSACParams import bsacParams
+from ..__ANKParams import ankParams
 
 from ..stats.__MultiGAM import mgam_multiple_fit_bootstrap
 from ..stats.__tools    import nslawid_to_class
@@ -50,34 +50,34 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-## run_bsac_cmd_fit_X ##{{{
+## run_ank_cmd_fit_X ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_fit_X():
+def run_ank_cmd_fit_X():
 	
 	## Check the inputs
 	logger.info("Check inputs")
-	n_X   = len(bsacParams.input)
+	n_X   = len(ankParams.input)
 	names = []
 	if n_X == 0:
 		raise ValueError("Fit asked, but no input given, abort.")
-	inputs = { inp.split(",")[0] : inp.split(",")[1] for inp in bsacParams.input }
+	inputs = { inp.split(",")[0] : inp.split(",")[1] for inp in ankParams.input }
 	for name in inputs:
 		if not os.path.isfile(inputs[name]):
 			raise FileNotFoundError(f"File '{inputs[name]}' is not found, abort.")
 		else:
 			logger.info( f" * covariate {name} detected" )
 			names.append(name)
-	bsacParams.clim.names = names
+	ankParams.clim.names = names
 	
 	## Now open the data
 	logger.info("Open the data")
 	X = {}
-	for name in bsacParams.clim.names:
+	for name in ankParams.clim.names:
 		idata   = xr.open_dataset( inputs[name] )[name].mean( dim = "run" )
-		periods = list(set(idata.period.values.tolist()) & set(bsacParams.dpers))
+		periods = list(set(idata.period.values.tolist()) & set(ankParams.dpers))
 		periods.sort()
-		X[name] = { p : idata.sel( period = bsacParams.cper + [p] ).mean( dim = "period" ).dropna( dim = "time" ) for p in periods }
-	bsacParams.clim.dpers = periods
+		X[name] = { p : idata.sel( period = ankParams.cper + [p] ).mean( dim = "period" ).dropna( dim = "time" ) for p in periods }
+	ankParams.clim.dpers = periods
 	
 	## Restrict time axis
 	time = X[name][periods[0]].time.values.tolist()
@@ -89,52 +89,52 @@ def run_bsac_cmd_fit_X():
 		for p in X[name]:
 			X[name][p] = X[name][p].sel( time = time )
 	time = np.array(time)
-	bsacParams.clim._time = time
+	ankParams.clim._time = time
 	
 	## Find the bias
 	logger.info( "Build bias:" )
 	bias = { name : 0 for name in X }
 	for name in X:
 		for p in X[name]:
-			bias[name] = float(X[name][p].sel( time = slice(*bsacParams.clim.bper) ).mean( dim = "time" ).values)
+			bias[name] = float(X[name][p].sel( time = slice(*ankParams.clim.bper) ).mean( dim = "time" ).values)
 			X[name][p]   -= bias[name]
 		logger.info( f" * {name}: {bias[name]}" )
-	bsacParams.clim._bias = bias
+	ankParams.clim._bias = bias
 	
 	## Find natural forcings version
-	bsacParams.clim._vXN = bsacParams.XN_version
+	ankParams.clim._vXN = ankParams.XN_version
 	
 	## Build the natural forcings
 	logger.info( "Build XN" )
-	XN   = { name : { p : bsacParams.clim.XN.loc[X[name][p].time] for p in X[name] } for name in X }
+	XN   = { name : { p : ankParams.clim.XN.loc[X[name][p].time] for p in X[name] } for name in X }
 	
 	## Fit MultiGAM model with bootstrap
-	logger.info( f"Fit the MultiGAM model (number of bootstrap: {bsacParams.n_samples})" )
+	logger.info( f"Fit the MultiGAM model (number of bootstrap: {ankParams.n_samples})" )
 	hpar,hcov = mgam_multiple_fit_bootstrap( X , XN ,
-	                                         n_bootstrap = bsacParams.n_samples,
-	                                         names  = bsacParams.clim.names,
-	                                         dof    = bsacParams.clim.GAM_dof,
-	                                         degree = bsacParams.clim.GAM_degree,
-	                                         n_jobs = bsacParams.n_jobs,
-	                                        cluster = bsacParams.get_cluster()
+	                                         n_bootstrap = ankParams.n_samples,
+	                                         names  = ankParams.clim.names,
+	                                         dof    = ankParams.clim.GAM_dof,
+	                                         degree = ankParams.clim.GAM_degree,
+	                                         n_jobs = ankParams.n_jobs,
+	                                        cluster = ankParams.get_cluster()
 	                                         )
 	
-	bsacParams.clim.hpar = hpar
-	bsacParams.clim.hcov = hcov
+	ankParams.clim.hpar = hpar
+	ankParams.clim.hcov = hcov
 	
 ##}}}
 
-## run_bsac_cmd_fit_Y ##{{{
+## run_ank_cmd_fit_Y ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_fit_Y():
+def run_ank_cmd_fit_Y():
 	
 	## The current climatology
-	clim = bsacParams.clim
+	clim = ankParams.clim
 	## Name of the variable to fit
-	name = bsacParams.config["name"]
+	name = ankParams.config["name"]
 	
 	## Spatial dimensions
-	d_spatial = bsacParams.config.get("spatial")
+	d_spatial = ankParams.config.get("spatial")
 	if d_spatial is not None:
 		d_spatial = d_spatial.split(":")
 	else:
@@ -142,24 +142,24 @@ def run_bsac_cmd_fit_Y():
 	d_spatial = tuple(d_spatial)
 	
 	## Set the covariate
-	cname = bsacParams.config.get("cname",clim.names[-1])
+	cname = ankParams.config.get("cname",clim.names[-1])
 	
 	## Open the data
-	ifile = bsacParams.input[0]
+	ifile = ankParams.input[0]
 	idata = xr.open_dataset(ifile).load()
 	
 	## Check if variables in idata
 	for v in (name,) + d_spatial:
-		if not v in idata:
+		if v not in idata:
 			raise ValueError( f"Variable '{v}' not in input data" )
 	
 	## Spatial coordinates
 	c_spatial = { d : idata[d] for d in d_spatial }
 	
 	## Find the nslaw
-	nslawid = bsacParams.config.get("nslaw")
+	nslawid = ankParams.config.get("nslaw")
 	if nslawid is None:
-		raise ValueError( f"nslaw must be set" )
+		raise ValueError( "nslaw must be set" )
 	
 	## Find the bias, and remove it
 	Y     = idata[name]
@@ -167,7 +167,7 @@ def run_bsac_cmd_fit_Y():
 	Y     = Y - biasY
 	try:
 		biasY = float(biasY)
-	except:
+	except Exception:
 		pass
 	
 	## Force to add a spatial dimension
@@ -200,7 +200,7 @@ def run_bsac_cmd_fit_Y():
 	zY   = Y.sel( time = time )
 	
 	## Samples
-	n_samples = bsacParams.n_samples
+	n_samples = ankParams.n_samples
 	samples   = coords_samples(n_samples)
 	samples   = zr.ZXArray.from_xarray( xr.DataArray( range(n_samples) , dims = ["sample"] , coords = [samples] ).astype(float) )
 	
@@ -223,17 +223,17 @@ def run_bsac_cmd_fit_Y():
 	## Fit samples of parameters
 	hpar  = clim.hpar
 	hcov  = clim.hcov
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		hpars = zr.apply_ufunc( nslaw_fit , hpar , hcov , zY, samples,
 		                        block_dims         = ("sample",) + d_spatial,
 		                        block_memory       = block_memory,
-		                        total_memory       = bsacParams.total_memory,
+		                        total_memory       = ankParams.total_memory,
 		                        output_dims        = output_dims,
 		                        output_coords      = output_coords,
 		                        output_dtypes      = output_dtypes,
 		                        dask_kwargs        = dask_kwargs,
-		                        n_workers          = bsacParams.n_workers,
-		                        threads_per_worker = bsacParams.threads_per_worker,
+		                        n_workers          = ankParams.n_workers,
+		                        threads_per_worker = ankParams.threads_per_worker,
 		                        cluster            = cluster,
 		                        )
 	
@@ -253,17 +253,17 @@ def run_bsac_cmd_fit_Y():
 	block_memory = lambda x : 2 * ( nhpar * len(clim.dpers) * n_samples + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	## Apply
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		hpar,hcov = zr.apply_ufunc( mean_cov_hpars , hpars,
 		                            block_dims         = d_spatial,
-		                            total_memory       = bsacParams.total_memory,
+		                            total_memory       = ankParams.total_memory,
 		                            block_memory       = block_memory,
 		                            output_dims        = output_dims,
 		                            output_coords      = output_coords,
 		                            output_dtypes      = output_dtypes,
 		                            dask_kwargs        = dask_kwargs,
-		                            n_workers          = bsacParams.n_workers,
-		                            threads_per_worker = bsacParams.threads_per_worker,
+		                            n_workers          = ankParams.n_workers,
+		                            threads_per_worker = ankParams.threads_per_worker,
 		                            cluster            = cluster,
 		                            )
 	
@@ -279,23 +279,23 @@ def run_bsac_cmd_fit_Y():
 	
 ##}}}
 
-## run_bsac_cmd_fit ##{{{
+## run_ank_cmd_fit ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_fit():
+def run_ank_cmd_fit():
 	
 	## Check the command
-	if not len(bsacParams.arg) == 1:
-		raise ValueError(f"Bad numbers of arguments of the fit command: {', '.join(bsacParams.arg)}")
+	if not len(ankParams.arg) == 1:
+		raise ValueError(f"Bad numbers of arguments of the fit command: {', '.join(ankParams.arg)}")
 	
 	available_commands = ["X","Y"]
-	if not bsacParams.arg[0] in available_commands:
-		raise ValueError(f"Bad argument of the fit command ({bsacParams.arg[0]}), must be: {', '.join(available_commands)}")
+	if ankParams.arg[0] not in available_commands:
+		raise ValueError(f"Bad argument of the fit command ({ankParams.arg[0]}), must be: {', '.join(available_commands)}")
 	
 	## OK, run the good command
-	if bsacParams.arg[0] == "X":
-		run_bsac_cmd_fit_X()
-	if bsacParams.arg[0] == "Y":
-		run_bsac_cmd_fit_Y()
+	if ankParams.arg[0] == "X":
+		run_ank_cmd_fit_X()
+	if ankParams.arg[0] == "Y":
+		run_ank_cmd_fit_Y()
 ##}}}
 
 

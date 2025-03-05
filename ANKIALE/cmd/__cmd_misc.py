@@ -1,36 +1,32 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
 #############
 
-import os
-import gc
 import logging
 import datetime as dt
 import itertools as itt
-from ..__logs import LINE
 from ..__logs import log_start_end
 from ..__logs import disable_warnings
 
-from ..__BSACParams import bsacParams
-from ..__climatology import Climatology
+from ..__ANKParams import ankParams
 
 import numpy  as np
 import xarray as xr
@@ -85,7 +81,6 @@ def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mo
 		
 		## Draw parameters
 		idx1d = idx0 + (0,0) + tuple([slice(None) for _ in range(1)])
-		idx2d = idx0 + (0,0) + tuple([slice(None) for _ in range(2)])
 		h     = hpar[idx1d]
 		c     = hcov[idx1d]
 		b     = bias[idx0 + (0,0)]
@@ -149,34 +144,32 @@ def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mo
 	return IFC,dI
 ##}}}
 
-## run_bsac_cmd_misc_wpe ##{{{
+## run_ank_cmd_misc_wpe ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_misc_wpe():
+def run_ank_cmd_misc_wpe():
 	
 	## Parameters
-	clim      = bsacParams.clim
-	n_samples = bsacParams.n_samples
-	tmp       = bsacParams.tmp
-	side      = bsacParams.config.get("side","right")
-	mode      = bsacParams.config.get("mode","quantile")
-	ci        = float(bsacParams.config.get("ci",0.05))
-	nslaw     = clim._nslaw_class()
-	time_wpe  = bsacParams.config.get("period")
+	clim      = ankParams.clim
+	n_samples = ankParams.n_samples
+	side      = ankParams.config.get("side","right")
+	mode      = ankParams.config.get("mode","quantile")
+	ci        = float(ankParams.config.get("ci",0.05))
+	time_wpe  = ankParams.config.get("period")
 	
 	##
 	if time_wpe is None:
-		time_wpe = [dt.datetime.now(dt.UTC).year,int(time[-1])]
+		time_wpe = [dt.datetime.now(dt.UTC).year,int(clim.time[-1])]
 	else:
 		time_wpe = [int(y) for y in time_wpe.split("/")]
 	
 	## Find the probabilities
-	pwpe = bsacParams.input[0]
+	pwpe = ankParams.input[0]
 	if pwpe == "IPCC":
 		pwpe = [0.01,0.1,0.33,0.5,0.66,0.9,0.99]
 	else:
 		try:
 			pwpe = [float(s) for s in pwpe.split(":")]
-		except:
+		except Exception:
 			raise ValueError("Bad format for input probabilities of wpe")
 	pwpe  = xr.DataArray( pwpe , dims = ["pwpe"] , coords = [pwpe] )
 	zpwpe = zr.ZXArray.from_xarray(pwpe)
@@ -228,17 +221,17 @@ def run_bsac_cmd_misc_wpe():
 	
 	## Run
 	logger.info( " * and run" )
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		zIFC,zdI = zr.apply_ufunc( zwpe , *zargs,
 		                           block_dims         = d_spatial + ("pwpe",),
-		                           total_memory       = bsacParams.total_memory,
+		                           total_memory       = ankParams.total_memory,
 		                           block_memory       = block_memory,
 		                           output_dims        = output_dims,
 		                           output_coords      = output_coords,
 		                           output_dtypes      = output_dtypes,
 		                           dask_kwargs        = dask_kwargs,
-		                           n_workers          = bsacParams.n_workers,
-		                           threads_per_worker = bsacParams.threads_per_worker,
+		                           n_workers          = ankParams.n_workers,
+		                           threads_per_worker = ankParams.threads_per_worker,
 			                       cluster            = cluster,
 		                        )
 	
@@ -247,7 +240,7 @@ def run_bsac_cmd_misc_wpe():
 	
 	## And save in netcdf
 	logger.info( " * Save in netcdf" )
-	with netCDF4.Dataset( bsacParams.output , "w" ) as ncf:
+	with netCDF4.Dataset( ankParams.output , "w" ) as ncf:
 		
 		## Define dimensions
 		ncdims = {
@@ -303,26 +296,26 @@ def run_bsac_cmd_misc_wpe():
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
-		ncf.setncattr( "BSAC_version"  , version )
-		ncf.setncattr( "description" , f"Worst Possible Event" )
+		ncf.setncattr( "ANKIALE_version"  , version )
+		ncf.setncattr( "description" , "Worst Possible Event" )
 ##}}}
 
 
-## run_bsac_cmd_misc ##{{{
+## run_ank_cmd_misc ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_misc():
+def run_ank_cmd_misc():
 	
 	## Check the command
-	if not len(bsacParams.arg) == 1:
-		raise ValueError(f"Bad numbers of arguments of the fit command: {', '.join(bsacParams.arg)}")
+	if not len(ankParams.arg) == 1:
+		raise ValueError(f"Bad numbers of arguments of the fit command: {', '.join(ankParams.arg)}")
 	
 	available_commands = ["wpe"]
-	if not bsacParams.arg[0] in available_commands:
-		raise ValueError(f"Bad argument of the fit command ({bsacParams.arg[0]}), must be: {', '.join(available_commands)}")
+	if ankParams.arg[0] not in available_commands:
+		raise ValueError(f"Bad argument of the fit command ({ankParams.arg[0]}), must be: {', '.join(available_commands)}")
 	
 	## OK, run the good command
-	if bsacParams.arg[0] == "wpe":
-		run_bsac_cmd_misc_wpe()
+	if ankParams.arg[0] == "wpe":
+		run_ank_cmd_misc_wpe()
 ##}}}
 
 

@@ -1,20 +1,20 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
@@ -22,7 +22,6 @@
 
 import itertools as itt
 import logging
-from ..__logs import LINE
 from ..__logs import log_start_end
 import datetime as dt
 
@@ -33,7 +32,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.backends.backend_pdf as mpdf
 
-from ..__BSACParams import bsacParams
+from ..__ANKParams import ankParams
 from .__colors import colorsCMIP
 from .__colors import colorC
 from .__utils  import mpl_rcParams
@@ -60,18 +59,18 @@ def plot_covariates( RVS , ofile = None ):
 		mpl.rcParams[key] = mpl_rcParams[key]
 	
 	## Parameters
-	ci      = bsacParams.config.get("ci")
-	nrowcol = bsacParams.config.get("grid")
+	ci      = ankParams.config.get("ci")
+	nrowcol = ankParams.config.get("grid")
 	
 	try:
 		ci = float(ci)
-	except:
+	except Exception:
 		ci = 0.05
 	
 	periods = RVS.period.values.tolist()
 	try:
 		nrow,ncol = [ int(x) for x in nrowcol.split("x") ]
-	except:
+	except Exception:
 		total = len(periods)
 		if total <= 4:
 			nrow,ncol = 2,2
@@ -90,7 +89,6 @@ def plot_covariates( RVS , ofile = None ):
 	time = RVS.time
 	now  = dt.datetime.utcnow().year
 	mm   = 1. / 25.4
-	pt   = 1. / 72
 	
 	## Build confidence interval
 	qXF = XF.quantile( [ci/2 , 0.5 , 1-ci/2] , dim = "sample" , method = "median_unbiased" ).assign_coords( quantile = ["ql","BE","qu"] )
@@ -116,10 +114,11 @@ def plot_covariates( RVS , ofile = None ):
 			ylim = [1e9,-1e9]
 			
 			## Check if original data are available
-			inputs = bsacParams.input
-			if inputs is None: inputs = []
+			inputs = ankParams.input
+			if inputs is None:
+				inputs = []
 			idata  = None
-			bias   = bsacParams.clim.bias[name]
+			bias   = ankParams.clim.bias[name]
 			for inp in inputs:
 				try:
 					iname,ifile = inp.split(",")
@@ -127,7 +126,7 @@ def plot_covariates( RVS , ofile = None ):
 						continue
 					idata = xr.open_dataset(ifile)[name]
 					break
-				except:
+				except Exception:
 					continue
 			
 			##
@@ -137,7 +136,7 @@ def plot_covariates( RVS , ofile = None ):
 				
 				if F == "FC":
 					if idata is not None:
-						for p,run in itt.product(bsacParams.clim.cper + [per],idata.run):
+						for p,run in itt.product(ankParams.clim.cper + [per],idata.run):
 							axes[-1].plot( idata.time , idata.loc[:,p,run] - bias , color = "grey" , linestyle = "" , marker = "." , markersize = 2 , alpha = 0.5 )
 					axes[-1].plot( time , qXF.loc["BE",name,per,:] , color = colorsF[iper] )
 					axes[-1].fill_between( time , qXF.loc["ql",name,per,:] , qXF.loc["qu",name,per,:] , color = colorsF[iper] , alpha = 0.5 , label = r"$X_t^{\mathrm{F}}$" )
@@ -184,18 +183,18 @@ def plot_constrain_CX( RVS , SRVS , Xo , ofile = None ):
 		mpl.rcParams[key] = mpl_rcParams[key]
 	
 	## Parameters
-	ci      = bsacParams.config.get("ci")
-	nrowcol = bsacParams.config.get("grid")
+	ci      = ankParams.config.get("ci")
+	nrowcol = ankParams.config.get("grid")
 	
 	try:
 		ci = float(ci)
-	except:
+	except Exception:
 		ci = 0.05
 	
 	periods = RVS.period.values.tolist()
 	try:
 		nrow,ncol = [ int(x) for x in nrowcol.split("x") ]
-	except:
+	except Exception:
 		total = len(periods)
 		if total <= 4:
 			nrow,ncol = 2,2
@@ -217,7 +216,7 @@ def plot_constrain_CX( RVS , SRVS , Xo , ofile = None ):
 	time = RVS.time
 	now  = dt.datetime.utcnow().year
 	mm   = 1. / 25.4
-	pt   = 1. / 72
+#	pt   = 1. / 72
 	
 	## Build confidence interval
 	qXF = XF.quantile( [ci/2 , 0.5 , 1-ci/2] , dim = "sample" , method = "median_unbiased" ).assign_coords( quantile = ["ql","BE","qu"] )

@@ -1,20 +1,20 @@
 
-## Copyright(c) 2023, 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 ## Packages
 ###########
@@ -24,17 +24,15 @@ import warnings
 import tempfile
 
 import numpy as np
-import scipy.stats as sc
-import SDFC  as sd
 
 import cmdstanpy as stan
 import logging
-cmdstanpy_logger = logging.getLogger("cmdstanpy")
-cmdstanpy_logger.disabled = True
 
 from ...__sys import copy_files
 from ...__linalg import sqrtm
 
+cmdstanpy_logger = logging.getLogger("cmdstanpy")
+cmdstanpy_logger.disabled = True
 
 ## Classes
 ##########
@@ -141,7 +139,7 @@ class AbstractModel:##{{{
 				
 				success = True
 				break
-			except:
+			except Exception:
 				success = False
 		
 		if not success:

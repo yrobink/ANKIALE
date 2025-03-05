@@ -1,4 +1,21 @@
 
+## Copyright(c) 2024 / 2025 Yoann Robin
+## 
+## This file is part of ANKIALE.
+## 
+## ANKIALE is free software: you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation, either version 3 of the License, or
+## (at your option) any later version.
+## 
+## ANKIALE is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+## 
+## You should have received a copy of the GNU General Public License
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
+
 ## Fixed Parameters
 BIAS_PERIOD='1900/1950'
 GAM_DOF=7
@@ -23,7 +40,7 @@ do
     MOD=$(basename $MODNC .nc)
     echo " * $MOD"
     echo "   => fit X"
-    bsac fit X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITX_'$MOD.log\
+    ank fit X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITX_'$MOD.log\
                --bias-period $BIAS_PERIOD\
                --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
                --save-clim $DPATH/FIT/$MOD'_fitX.nc'\
@@ -34,17 +51,17 @@ do
                --threads-per-worker $THREADS_PER_WORKER
 	
     echo "   => show X"
-    bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'SHOWX_'$MOD.log\
+    ank show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'SHOWX_'$MOD.log\
                 --bias-period $BIAS_PERIOD\
                 --load-clim $DPATH/FIT/$MOD'_fitX.nc'\
                 --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
-                --output $DPATH/FIGURES/BSAC_SHOW_X_$MOD.pdf\
+                --output $DPATH/FIGURES/ANK_SHOW_X_$MOD.pdf\
                 --total-memory $TOTAL_MEMORY\
                 --n-workers $N_WORKERS\
                 --threads-per-worker $THREADS_PER_WORKER
     
     echo "   => fit Y"
-    bsac fit Y --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITY_'$MOD.log\
+    ank fit Y --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITY_'$MOD.log\
                --bias-period $BIAS_PERIOD\
                --input $DPATH/INPUT/Y/$MODNC\
 		       --config name=IDF,spatial=lat:lon,nslaw=GEV,GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
@@ -61,7 +78,7 @@ done
 echo " * synthesis"
 GRID=$DPATH/INPUT/infos/mask_IDF.nc
 GRIDNAME='area_fraction'
-bsac synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
+ank synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
                 --bias-period $BIAS_PERIOD\
                 --input $DPATH/FIT/*_fitY.nc\
                 --common-period historical --different-periods ssp126,ssp245,ssp370,ssp585\
@@ -72,17 +89,17 @@ bsac synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
                 --threads-per-worker $THREADS_PER_WORKER
 
 echo " * show X of synthesis"
-bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_SYNTHESIS.log\
+ank show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_SYNTHESIS.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
-            --output $DPATH/FIGURES/BSAC_SHOW_X_SYNTHESIS.pdf\
+            --output $DPATH/FIGURES/ANK_SHOW_X_SYNTHESIS.pdf\
             --total-memory $TOTAL_MEMORY\
             --n-workers $N_WORKERS\
             --threads-per-worker $THREADS_PER_WORKER
 
 ## Run constraint
 echo " * constraint X of observations"
-bsac constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log\
+ank constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
@@ -92,27 +109,27 @@ bsac constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log\
                  --threads-per-worker $THREADS_PER_WORKER
 
 echo " * show X of constraint"
-bsac show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_CONSTRAINX.log\
+ank show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_CONSTRAINX.log\
             --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
             --input $DPATH/INPUT/GMST/Xo/GISTEMP_tas_year_1880-2024.nc\
-            --output $DPATH/FIGURES/BSAC_SHOW_X_CONSTRAINX.pdf\
+            --output $DPATH/FIGURES/ANK_SHOW_X_CONSTRAINX.pdf\
             --total-memory $TOTAL_MEMORY\
             --n-workers $N_WORKERS\
             --threads-per-worker $THREADS_PER_WORKER
 
 echo " * show X of constraint VS synthesis"
-bsac show CX --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
+ank show CX --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
              --bias-period $BIAS_PERIOD\
              --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
              --input $DPATH/SYNTHESIS/SYNTHESIS.nc\
-             --output $DPATH/FIGURES/BSAC_SHOW_CX_CONSTRAINX-VS-SYNTHESIS.pdf\
+             --output $DPATH/FIGURES/ANK_SHOW_CX_CONSTRAINX-VS-SYNTHESIS.pdf\
              --total-memory $TOTAL_MEMORY\
              --n-workers $N_WORKERS\
              --threads-per-worker $THREADS_PER_WORKER
 
 echo " * constraint Y of observations"
-bsac constrain Y -v --log-file $HPATH/LOG/CONSTRAINY.log\
+ank constrain Y -v --log-file $HPATH/LOG/CONSTRAINY.log\
                  --n-samples $N_SAMPLES\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
@@ -126,7 +143,7 @@ bsac constrain Y -v --log-file $HPATH/LOG/CONSTRAINY.log\
 
 ## Draw parameters
 echo " * Draw"
-bsac draw -v --log-file $HPATH/LOG/ANALYSIS_DRAW.log\
+ank draw -v --log-file $HPATH/LOG/ANALYSIS_DRAW.log\
           --n-samples $N_SAMPLES\
           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
           --output $DPATH/ANALYSIS/DRAW.nc\
@@ -136,7 +153,7 @@ bsac draw -v --log-file $HPATH/LOG/ANALYSIS_DRAW.log\
 
 ## Attribution
 echo " * Attribution: freturnt"
-bsac attribute freturnt -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
+ank attribute freturnt -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
                         --n-samples $N_SAMPLES\
                         --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
 	                    --input 2,10,30,50,100,1000\
@@ -147,7 +164,7 @@ bsac attribute freturnt -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
                         --threads-per-worker $THREADS_PER_WORKER
 
 echo " * Attribution: fintensity"
-bsac attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
+ank attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --n-samples $N_SAMPLES\
                           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
 	                      --input TX3x,$DPATH/INPUT/Yo/IDF_ERA5_TX3x_xyear_1940-2024.nc\
@@ -158,7 +175,7 @@ bsac attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --threads-per-worker $THREADS_PER_WORKER
 
 echo " * Attribution: fintensity"
-bsac attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
+ank attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --n-samples $N_SAMPLES\
                           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
 	                      --input 323.15\
@@ -169,7 +186,7 @@ bsac attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --threads-per-worker $THREADS_PER_WORKER
 
 echo " * Attribution: event"
-bsac attribute event -v --log-file $HPATH/LOG/ANALYSIS_ATTR-EVENT2019.log\
+ank attribute event -v --log-file $HPATH/LOG/ANALYSIS_ATTR-EVENT2019.log\
                      --n-samples $N_SAMPLES\
                      --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
                      --input TX3x,$DPATH/INPUT/Yo/IDF_ERA5_TX3x_year_1940-2024.nc\
@@ -180,7 +197,7 @@ bsac attribute event -v --log-file $HPATH/LOG/ANALYSIS_ATTR-EVENT2019.log\
                      --threads-per-worker $THREADS_PER_WORKER
 
 echo " * WPE"
-bsac misc wpe -v --log-file $HPATH/LOG/WPE.log\
+ank misc wpe -v --log-file $HPATH/LOG/WPE.log\
               --n-samples $N_SAMPLES\
               --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
               --input IPCC\

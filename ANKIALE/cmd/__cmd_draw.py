@@ -1,20 +1,20 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
@@ -23,11 +23,10 @@
 import itertools as itt
 import logging
 
-from ..__logs import LINE
 from ..__logs import log_start_end
 from ..__logs import disable_warnings
 
-from ..__BSACParams import bsacParams
+from ..__ANKParams import ankParams
 
 from ..__sys import coords_samples
 
@@ -120,13 +119,13 @@ def zdraw( hpar , hcov , projF , projC , nslaw_class , n_samples ):
 	return tuple(out)
 ##}}}
 
-## run_bsac_cmd_draw ##{{{
+## run_ank_cmd_draw ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_draw():
+def run_ank_cmd_draw():
 	
 	## Parameters
-	clim        = bsacParams.clim
-	n_samples   = bsacParams.n_samples
+	clim        = ankParams.clim
+	n_samples   = ankParams.n_samples
 	nslaw_class = clim._nslaw_class
 	time        = clim.time
 	
@@ -169,17 +168,17 @@ def run_bsac_cmd_draw():
 	
 	## Run with zxarray
 	logger.info(" * Draw parameters")
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		out = zr.apply_ufunc( zdraw , *zargs,
 		                      block_dims         = ("period",) + clim.d_spatial,
-		                      total_memory       = bsacParams.total_memory,
+		                      total_memory       = ankParams.total_memory,
 		                      block_memory       = block_memory,
 		                      output_dims        = output_dims,
 		                      output_coords      = output_coords,
 		                      output_dtypes      = output_dtypes,
 		                      dask_kwargs        = dask_kwargs,
-		                      n_workers          = bsacParams.n_workers,
-		                      threads_per_worker = bsacParams.threads_per_worker,
+		                      n_workers          = ankParams.n_workers,
+		                      threads_per_worker = ankParams.threads_per_worker,
 		                      cluster            = cluster,
 		                    )
 	
@@ -189,7 +188,7 @@ def run_bsac_cmd_draw():
 	
 	## Save in netcdf
 	logger.info(" * Save in netCDF")
-	with netCDF4.Dataset( bsacParams.output , "w" ) as ncf:
+	with netCDF4.Dataset( ankParams.output , "w" ) as ncf:
 		
 		## Define dimensions
 		ncdims = {

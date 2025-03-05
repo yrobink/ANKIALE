@@ -1,20 +1,20 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
@@ -33,19 +33,19 @@ from .__release import authors_doc
 
 doc = """\
 
-BSAC ({})
+ANKIALE ({})
 {}
 
 {}
 
 ================================================================================
 
-If you are using BSAC for the first time, start by running the following
+If you are using ANKIALE for the first time, start by running the following
 command in a directory <output_dir>:
 
-bsac example NORMAL_FRA03 --output <output_dir>
+ank example NORMAL_FRA03 --output <output_dir>
 
-And take a look at the <output_dir>/home/RUN_BSAC_EXAMPLE_NORMAL_FRA03.sh
+And take a look at the <output_dir>/home/RUN_ANK_EXAMPLE_NORMAL_FRA03.sh
 script, which runs the attribution of the August 2003 heatwave that took
 place in France.
 
@@ -282,7 +282,7 @@ The 'misc' command
 The example command
 -------------------
 
-bsac example EXAMPLE_NAME --output OUTPUT_DIR
+ank example EXAMPLE_NAME --output OUTPUT_DIR
 
 This command copies the EXAMPLE_NAME example into the OUTPUT_DIR directory. Two
 sub-directories are created: OUTPUT_DIR/data, which contains the data, and

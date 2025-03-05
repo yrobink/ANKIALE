@@ -1,27 +1,24 @@
 
 ## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 ## Packages
 ###########
 
-import os
-import itertools as itt
-import dataclasses
 import logging
 import datetime as dt
 
@@ -29,7 +26,6 @@ import numpy as np
 import xarray as xr
 import netCDF4
 import cftime
-import scipy.stats as sc
 import statsmodels.gam.api as smg
 
 import zxarray as zr
@@ -83,23 +79,23 @@ class Climatology:##{{{
 	
 	def __str__(self):##{{{
 		
-		out = "<class BSAC.Climatology>"
+		out = "<class ANKIALE.Climatology>"
 		
 		try:
 			## Build strings
 			try:
 				cname = self.cname
-			except:
+			except Exception:
 				cname = ""
 			try:
 				vname = self.vname
-			except:
+			except Exception:
 				vname = ""
 			hpar = ', '.join(self.hpar_names[:3]+['...']+self.hpar_names[-3:])
 			bper = '/'.join([str(i) for i in self.bper])
 			try:
 				bias = ", ".join( [f"{name}: {self.bias[name]:.2f}" for name in self.namesX] )
-			except:
+			except Exception:
 				bias = ""
 			time = ', '.join( [ str(y) for y in self.time.tolist()[:3]+['...']+self.time.tolist()[-3:] ] )
 			mshape = "" if self._hpar is None else str(self.hpar.shape)
@@ -142,7 +138,7 @@ class Climatology:##{{{
 			## Output
 			for sn,s in zip(sns,ss):
 				out = out + "\n" + " * " + "{:{fill}{align}{n}}".format( sn , fill = " " , align = "<" , n = 15 ) + ": " + s
-		except:
+		except Exception:
 			pass
 		
 		return out
@@ -220,7 +216,7 @@ class Climatology:##{{{
 			try:
 				clim._nslawid     = incf.variables["Y"].getncattr("nslawid")
 				clim._nslaw_class = nslawid_to_class(clim._nslawid)
-			except:
+			except Exception:
 				pass
 			
 			spatial_is_fake = False
@@ -236,13 +232,13 @@ class Climatology:##{{{
 					clim._spatial = { s : xr.DataArray( incf.variables[s][:] , dims = [s] , coords = [incf.variables[s][:]] ) for s in spatial }
 				else:
 					clim._spatial = { "fake" : xr.DataArray( [0] , dims = ["fake"] , coords = [[0]] ) }
-			except:
+			except Exception:
 				pass
 			
 			try:
 				cname = str(incf.variables["Y"].getncattr("cname"))
 				clim.cname = cname
-			except:
+			except Exception:
 				pass
 			
 			if clim._spatial is not None:
@@ -299,7 +295,7 @@ class Climatology:##{{{
 				B = self.bias[name]
 				try:
 					B = float(B)
-				except:
+				except Exception:
 					pass
 				if isinstance(B,float):
 					ncvars[f"bias_{name}"]    = ncf.createVariable( f"bias_{name}" , "float32" )
@@ -365,16 +361,16 @@ class Climatology:##{{{
 			## Global attributes
 			logger.info(" * Add global attributes")
 			ncf.setncattr( "creation_date" , str(dt.datetime.now(dt.UTC))[:19].replace(" ","T") + "Z" )
-			ncf.setncattr( "BSAC_version"  , version )
+			ncf.setncattr( "ANK_version"  , version )
 	##}}}
 	
 	##}}}
 	
 	def isel( self , per , name ):##{{{
 		
-		if not per in self.dpers + ["lin","ns"]:
+		if per not in self.dpers + ["lin","ns"]:
 			raise ValueError("Bad index")
-		if not name in self.names:
+		if name not in self.names:
 			raise ValueError("Bad index")
 		
 		size_X     = self.sizeX
@@ -510,7 +506,6 @@ class Climatology:##{{{
 		
 		##
 		dof  = self.GAM_dof + 1
-		time = self.time
 		
 		## Build the design matrix
 		hpar_coords = [f"s{i}" for i in range(dof-2)] + ["cst","slope"]
@@ -602,7 +597,7 @@ class Climatology:##{{{
 			test_sdim = len(self.c_spatial[d]) == 1
 			test_name = (d == "fake")
 			test = test_ndim and test_sdim and test_name
-		except:
+		except Exception:
 			test = False
 		return test
 	
@@ -661,15 +656,15 @@ class Climatology:##{{{
 			return ""
 		cname = self._Yconfig.get("cname")
 		if cname is None:
-			raise ValueError( f"Covariable name is not set" )
+			raise ValueError( "Covariable name is not set" )
 		return cname
 	
 	@cname.setter
 	def cname( self , value ):
 		if self.onlyX:
 			return
-		if not value in self.namesX:
-			raise ValueError( f"Covariable name {cname} must be in possible names" )
+		if value not in self.namesX:
+			raise ValueError( f"Covariable name {value} must be in possible names" )
 		self._Yconfig["cname"] = value
 	
 	@property

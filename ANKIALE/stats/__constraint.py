@@ -1,20 +1,20 @@
 
 ## Copyright(c) 2024, 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 ##############
 ## Packages ##
@@ -26,8 +26,6 @@
 #############
 
 import logging
-from ..__logs import LINE
-from ..__logs import log_start_end
 
 import numpy as np
 import scipy.stats as sc
@@ -65,7 +63,6 @@ def _gaussian_conditionning_kcc_2covariates( *args , A = None , timeXo = None , 
 	## Variance of obs
 	R      = gXo - A @ hpar
 	size0  = lXo[0].size
-	size1  = lXo[1].size
 	RXo0   = xr.DataArray( R[:size0] , dims = ["time"] , coords = [timeXo[0].values] )
 	RXo1   = xr.DataArray( R[size0:] , dims = ["time"] , coords = [timeXo[1].values] )
 	
@@ -97,7 +94,6 @@ def _gaussian_conditionning_kcc_1covariate( *args , A = None , timeXo = None , d
 	
 	## Variance of obs
 	R      = gXo - A @ hpar
-	size0  = gXo.size
 	RXo0   = xr.DataArray( R , dims = ["time"] , coords = [timeXo[0].values] )
 	
 	mar2   = MAR2().fit( RXo0.values )

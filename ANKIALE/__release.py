@@ -1,36 +1,36 @@
 
 ## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
-version_major = 0
-version_minor = 35
-version_patch = 3
-version_extra = ""
+version_major = 1
+version_minor = 0
+version_patch = 0
+version_extra = "a0"
 version      = f"{version_major}.{version_minor}.{version_patch}{version_extra}"
 
-name         = "BSAC"
-description  = "Bayesian Statistical Analysis of the Climatology"
+name         = "ANKIALE"
+description  = "ANalysis of Klimate with bayesian Inference: AppLication to extreme Events"
 author       = "Yoann Robin"
 author_email = "yoann.robin.k@gmail.com"
 license      = "GNU-GPL3"
-src_url      = "https://github.com/yrobink/BSAC"
+src_url      = "https://github.com/yrobink/ANKIALE"
 
 long_description = """\
-BSAC -- Bayesian Statistical Analysis of the Climatology -- is a program for
+ANKIALE -- ANalysis of Klimate with bayesian Inference: AppLication to extreme Events -- is a program for
 the inference, analysis and attribution of extreme events. The methodology is
 as follows:
 
@@ -47,19 +47,19 @@ authors_doc = author
 license_txt = """\
 Copyright(c) 2023 / 2025 Yoann Robin
 
-This file is part of BSAC.
+This file is part of ANKIALE.
 
-BSAC is free software: you can redistribute it and/or modify
+ANKIALE is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-BSAC is distributed in the hope that it will be useful,
+ANKIALE is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 """
 

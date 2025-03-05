@@ -1,29 +1,26 @@
 
-## Copyright(c) 2023, 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 ##############
 ## Packages ##
 ##############
 
-import sys
-import os
 import logging
-import traceback
 import datetime as dt
 
 import numpy   as np
@@ -41,7 +38,7 @@ import SDFC
 ## Imports ##
 #############
 
-from .__BSACParams  import bsacParams
+from .__ANKParams  import ankParams
 from .__exceptions  import AbortForHelpException
 from .__exceptions  import NoUserInputException
 
@@ -51,14 +48,14 @@ from .__logs import log_start_end
 from .__release    import version
 from .__curses_doc import print_doc
 
-from .cmd.__cmd_attribute  import run_bsac_cmd_attribute
-from .cmd.__cmd_constrain  import run_bsac_cmd_constrain 
-from .cmd.__cmd_fit        import run_bsac_cmd_fit       
-from .cmd.__cmd_draw       import run_bsac_cmd_draw       
-from .cmd.__cmd_show       import run_bsac_cmd_show      
-from .cmd.__cmd_synthesize import run_bsac_cmd_synthesize
-from .cmd.__cmd_misc       import run_bsac_cmd_misc
-from .cmd.__cmd_example    import run_bsac_cmd_example
+from .cmd.__cmd_attribute  import run_ank_cmd_attribute
+from .cmd.__cmd_constrain  import run_ank_cmd_constrain 
+from .cmd.__cmd_fit        import run_ank_cmd_fit       
+from .cmd.__cmd_draw       import run_ank_cmd_draw       
+from .cmd.__cmd_show       import run_ank_cmd_show      
+from .cmd.__cmd_synthesize import run_ank_cmd_synthesize
+from .cmd.__cmd_misc       import run_ank_cmd_misc
+from .cmd.__cmd_example    import run_ank_cmd_example
 
 
 ##################
@@ -73,94 +70,93 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-## run_bsac ##{{{
+## run_ank ##{{{
 
 @log_start_end(logger)
-def run_bsac():
+def run_ank():
 	"""
-	BSAC.run_bsac
-	=============
+	ANKIALE.run_ank
+	===============
 	
 	Main execution, after the control of user input.
 	
 	"""
 	
-	bsacParams.init_dask()
+	ankParams.init_dask()
 	try:
 		
 		## Init clim
-		bsacParams.init_clim()
+		ankParams.init_clim()
 		logger.info(LINE)
 		logger.info("Summary of the climatology")
-		logger.info(bsacParams.clim)
+		logger.info(ankParams.clim)
 		logger.info(LINE)
 		
 		## Run command
-		cmd = bsacParams.cmd
+		cmd = ankParams.cmd
 		if cmd.lower() == "show":
-			run_bsac_cmd_show()
+			run_ank_cmd_show()
 		elif cmd.lower() == "fit":
-			run_bsac_cmd_fit()
+			run_ank_cmd_fit()
 		elif cmd.lower() == "draw":
-			run_bsac_cmd_draw()
+			run_ank_cmd_draw()
 		elif cmd.lower() == "synthesize":
-			run_bsac_cmd_synthesize()
+			run_ank_cmd_synthesize()
 		elif cmd.lower() == "constrain":
-			run_bsac_cmd_constrain()
+			run_ank_cmd_constrain()
 		elif cmd.lower() == "attribute":
-			run_bsac_cmd_attribute()
+			run_ank_cmd_attribute()
 		elif cmd.lower() == "misc":
-			run_bsac_cmd_misc()
+			run_ank_cmd_misc()
 		elif cmd.lower() == "example":
-			run_bsac_cmd_example()
+			run_ank_cmd_example()
 		
 		## And save clim ?
 		logger.info(LINE)
 		logger.info("Summary of the climatology")
-		logger.info(bsacParams.clim)
+		logger.info(ankParams.clim)
 		logger.info(LINE)
-		if bsacParams.save_clim is not None:
-			bsacParams.clim.save( bsacParams.save_clim )
+		if ankParams.save_clim is not None:
+			ankParams.clim.save( ankParams.save_clim )
 			logger.info(LINE)
 		
 	finally:
-		bsacParams.stop_dask()
+		ankParams.stop_dask()
 	
 ##}}}
 
-def start_bsac(*argv):##{{{
+def start_ank(*argv):##{{{
 	"""
-	BSAC.start_bsac
-	===============
+	ANKIALE.start_ank
+	=================
 	
-	Starting point of 'bsac'.
+	Starting point of 'ank'.
 	
 	"""
 	## Time counter
 	walltime0 = dt.datetime.now(dt.UTC)
 	## Read input
 	try:
-		bsacParams.init_from_user_input(*argv)
+		ankParams.init_from_user_input(*argv)
 	except NoUserInputException as e:
 		print(e)
 		return
 	
 	## Init logs
-	bsacParams.init_logging()
+	ankParams.init_logging()
 	
 	## Logging
 	logger.info(LINE)
 	logger.info( "Start: {}".format( str(walltime0)[:19] + " (UTC)") )
 	logger.info(LINE)
-	logger.info( r" ____   _____         _____ " )
-	logger.info( r"|  _ \ / ____|  /\   / ____|" )
-	logger.info( r"| |_) | (___   /  \ | |     " )
-	logger.info( r"|  _ < \___ \ / /\ \| |     " )
-	logger.info( r"| |_) |____) / ____ \ |____ " )
-	logger.info( r"|____/|_____/_/    \_\_____|" )
-	logger.info( r"                            " )
+	logger.info( r"           _   _ _  _______          _      ______ " )
+	logger.info( r"     /\   | \ | | |/ /_   _|   /\   | |    |  ____|" )
+	logger.info( r"    /  \  |  \| | ' /  | |    /  \  | |    | |__   " )
+	logger.info( r"   / /\ \ | . ` |  <   | |   / /\ \ | |    |  __|  " )
+	logger.info( r"  / ____ \| |\  | . \ _| |_ / ____ \| |____| |____ " )
+	logger.info( r" /_/    \_\_| \_|_|\_\_____/_/    \_\______|______|" )
+	logger.info( r"                                                   " )
 	logger.info(LINE)
-	
 	
 	## Package version
 	pkgs = [
@@ -176,45 +172,45 @@ def start_bsac(*argv):##{{{
 	       ]
 	
 	logger.info( "Packages version:" )
-	logger.info( " * {:{fill}{align}{n}}".format( "BSAC" , fill = " " , align = "<" , n = 12 ) + f"version {version}" )
+	logger.info( " * {:{fill}{align}{n}}".format( "ANKIALE" , fill = " " , align = "<" , n = 12 ) + f"version {version}" )
 	for name_pkg,pkg in pkgs:
 		logger.info( " * {:{fill}{align}{n}}".format( name_pkg , fill = " " , align = "<" , n = 12 ) +  f"version {pkg.__version__}" )
 	logger.info(LINE)
 	
 	## Set (or not) the seed
-	if bsacParams.set_seed is not None:
-		np.random.seed(int(bsacParams.set_seed))
+	if ankParams.set_seed is not None:
+		np.random.seed(int(ankParams.set_seed))
 	
 	## Serious functions start here
 	try:
 		
 		## Check inputs
-		bsacParams.check()
+		ankParams.check()
 		
 		## Init temporary
-		bsacParams.init_tmp()
-		zr.zxParams.tmp_folder = bsacParams.tmp
+		ankParams.init_tmp()
+		zr.zxParams.tmp_folder = ankParams.tmp
 		
 		## List of all input
 		logger.info("Input parameters:")
-		for key in bsacParams.keys():
-			logger.info( " * {:{fill}{align}{n}}".format( key , fill = " ",align = "<" , n = 10 ) + ": {}".format(bsacParams[key]) )
+		for key in ankParams.keys():
+			logger.info( " * {:{fill}{align}{n}}".format( key , fill = " ",align = "<" , n = 10 ) + ": {}".format(ankParams[key]) )
 		logger.info(LINE)
 		
 		## User asks help
-		if bsacParams.help:
+		if ankParams.help:
 			print_doc()
 		
 		## User asks help
-		if bsacParams.version:
+		if ankParams.version:
 			print(version)
 		
 		## In case of abort, raise Exception
-		if bsacParams.abort:
-			raise bsacParams.error
+		if ankParams.abort:
+			raise ankParams.error
 		
 		## Go!
-		run_bsac()
+		run_ank()
 		
 	except AbortForHelpException:
 		pass

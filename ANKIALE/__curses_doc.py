@@ -1,20 +1,20 @@
 
-## Copyright(c) 2023 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
@@ -22,7 +22,7 @@
 
 try:
 	import curses
-except:
+except ModuleNotFoundError:
 	pass
 
 from .__doc import doc as txt_doc
@@ -33,8 +33,8 @@ from .__doc import doc as txt_doc
 
 def txt2curses_doc(doc):##{{{
 	"""
-	BSAC.txt2curses_doc
-	===================
+	ANKIALE.txt2curses_doc
+	======================
 	
 	Function which split a text in a list of lines, and add bold / underline
 	style for headers of sections / sub-sections.
@@ -58,8 +58,8 @@ def txt2curses_doc(doc):##{{{
 
 def print_curses_doc( screen , doc ):##{{{
 	"""
-	BSAC.print_curses_doc
-	=====================
+	ANKIALE.print_curses_doc
+	========================
 	
 	Curses function to print documentation.
 	
@@ -96,8 +96,8 @@ def print_curses_doc( screen , doc ):##{{{
 
 def print_doc():##{{{
 	"""
-	BSAC.print_doc
-	==============
+	ANKIALE.print_doc
+	=================
 	
 	Function which print the documentation. Try first with curses for interactive
 	documentation, but if curses not available (e.g. for microsoft system), just
@@ -107,7 +107,7 @@ def print_doc():##{{{
 	
 	try:
 		curses.wrapper( print_curses_doc , txt_doc )
-	except:
+	except Exception:
 		print(txt_doc)
 ##}}}
 

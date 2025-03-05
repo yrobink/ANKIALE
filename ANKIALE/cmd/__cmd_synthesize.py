@@ -1,20 +1,20 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
@@ -30,10 +30,9 @@ import xesmf
 
 import zxarray as zr
 
-from ..__logs import LINE
 from ..__logs import log_start_end
 
-from ..__BSACParams import bsacParams
+from ..__ANKParams import ankParams
 from ..__climatology import Climatology
 from ..stats.__tools import nslawid_to_class
 from ..stats.__synthesis import synthesis
@@ -54,7 +53,7 @@ logger.addHandler(logging.NullHandler())
 def zsynthesis( hpars , hcovs ):##{{{
 	
 	ssp   = hpars.shape[:-2]
-	nmod  = hpars.shape[-2]
+#	nmod  = hpars.shape[-2]
 	nhpar = hpars.shape[-1]
 	
 	hpar = np.zeros( ssp + (nhpar,)      ) + np.nan
@@ -73,37 +72,37 @@ def zsynthesis( hpars , hcovs ):##{{{
 	return hpar,hcov
 ##}}}
 
-## run_bsac_cmd_synthesize ##{{{
+## run_ank_cmd_synthesize ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_synthesize():
+def run_ank_cmd_synthesize():
 	
 	##
-	clim = bsacParams.clim
+	clim = ankParams.clim
 	
 	## Read the grid
 	logger.info( " * Read the target grid" )
 	try:
 		regrid   = True
-		gridfile = bsacParams.config.get("grid")
-		gridname = bsacParams.config.get("grid_name") #, bsacParams.config["names"].split(":")[-1] )
+		gridfile = ankParams.config.get("grid")
+		gridname = ankParams.config.get("grid_name") #, ankParams.config["names"].split(":")[-1] )
 		
 		grid = xr.open_dataset(gridfile)
 		mask = grid[gridname] > 0
-		clim._spatial = { d : grid[d] for d in bsacParams.config["spatial"].split(":") }
+		clim._spatial = { d : grid[d] for d in ankParams.config["spatial"].split(":") }
 		logger.info( "   => Need regrid" )
-	except:
+	except Exception:
 		regrid        = False
-		clim._spatial = Climatology.init_from_file( bsacParams.input[0] )._spatial
+		clim._spatial = Climatology.init_from_file( ankParams.input[0] )._spatial
 		logger.info( "   => No regrid needed" )
 	
 	## Parameters
 	logger.info( " * Extract parameters" )
-	ifiles      = bsacParams.input
-	clim._names = bsacParams.config["names"].split(":")
+	ifiles      = ankParams.input
+	clim._names = ankParams.config["names"].split(":")
 	try:
-		clim._nslawid     = bsacParams.config["nslaw"]
+		clim._nslawid     = ankParams.config["nslaw"]
 		clim._nslaw_class = nslawid_to_class(clim._nslawid)
-	except:
+	except Exception:
 		pass
 	hpar_names = clim.hpar_names
 	d_spatial = clim.d_spatial
@@ -136,37 +135,37 @@ def run_bsac_cmd_synthesize():
 		hcov  = iclim.hcov.dataarray
 		
 		if regrid:
-			logger.info( f"    | Regrid" )
+			logger.info( "    | Regrid" )
 			
 			## Grid
 			igrid  = xr.Dataset( iclim._spatial )
 			try:
 				rgrd2d = xesmf.Regridder( igrid , grid , "bilinear" )
-			except:
+			except Exception:
 				rgrd2d = None
 			rgrdnn = xesmf.Regridder( igrid , grid , "nearest_s2d" )
 			
 			## bias is float
 			if isinstance( bias , float ):
-				logger.info( f"    | Convert bias float => xarray" )
+				logger.info( "    | Convert bias float => xarray" )
 				bias = xr.DataArray( [[bias]] , coords = igrid.coords )
 			
 			## Regrid
 			try:
-				logger.info( f"    | * Bias with bilinear..." )
+				logger.info( "    | * Bias with bilinear..." )
 				raise Exception
 				bias = rgrd2d(bias).where( mask , np.nan )
-			except:
-				logger.info( f"    | * Bias with nearest-neighborhood..." )
+			except Exception:
+				logger.info( "    | * Bias with nearest-neighborhood..." )
 				bias = rgrdnn(bias).where( mask , np.nan )
 			try:
-				logger.info( f"    | * hpar with bilinear..." )
+				logger.info( "    | * hpar with bilinear..." )
 				raise Exception
 				hpar = rgrd2d(hpar).where( mask , np.nan )
-			except:
+			except Exception:
 				hpar = rgrdnn(hpar).where( mask , np.nan )
-				logger.info( f"    | * hpar with nearest-neighborhood..." )
-			logger.info( f"    | * hcov with nearest-neighborhood" )
+				logger.info( "    | * hpar with nearest-neighborhood..." )
+			logger.info( "    | * hcov with nearest-neighborhood" )
 			hcov = rgrdnn(hcov).where( mask , np.nan )
 		
 		## Store
@@ -187,7 +186,7 @@ def run_bsac_cmd_synthesize():
 	logger.info( " * Run synthesis" )
 	if clim.has_spatial:
 		hpar_names    = clim.hpar_names
-		nhpar_names   = len(hpar_names)
+#		nhpar_names   = len(hpar_names)
 		output_dims   = [("hpar",) + d_spatial,("hpar0","hpar1") + d_spatial]
 		output_coords = [[hpar_names] + [ c_spatial[d] for d in d_spatial ],[hpar_names,hpar_names] + [ c_spatial[d] for d in d_spatial ]]
 		output_dtypes = [hpars.dtype,hpars.dtype]
@@ -203,17 +202,17 @@ def run_bsac_cmd_synthesize():
 		block_memory = lambda x : 5 * ( len(ifiles) * (nhpar + nhpar**2) + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 		
 		## Run
-		with bsacParams.get_cluster() as cluster:
+		with ankParams.get_cluster() as cluster:
 			hpar,hcov = zr.apply_ufunc( zsynthesis , hpars , hcovs, 
 			                            block_dims         = d_spatial,
-			                            total_memory       = bsacParams.total_memory,
+			                            total_memory       = ankParams.total_memory,
 			                            block_memory       = block_memory,
 			                            output_coords      = output_coords,
 			                            output_dims        = output_dims,
 			                            output_dtypes      = output_dtypes,
 			                            dask_kwargs        = dask_kwargs,
-			                            n_workers          = bsacParams.n_workers,
-			                            threads_per_worker = bsacParams.threads_per_worker,
+			                            n_workers          = ankParams.n_workers,
+			                            threads_per_worker = ankParams.threads_per_worker,
 			                            cluster            = cluster,
 			                            )
 	else:
@@ -225,7 +224,7 @@ def run_bsac_cmd_synthesize():
 	clim.cname = cname
 	clim._time = time
 	clim._bper = bper
-	bsacParams.clim = clim
+	ankParams.clim = clim
 ##}}}
 
 

@@ -1,39 +1,34 @@
 
-## Copyright(c) 2023 / 2024 Yoann Robin
+## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
 #############
 
-import os
 import sys
 import itertools as itt
 import datetime as dt
 import logging
-import warnings
-from ..__logs import LINE
 from ..__logs import log_start_end
 from ..__logs import disable_warnings
 from ..__release import version
 
-from ..__BSACParams import bsacParams
-
-from ..__climatology import Climatology
+from ..__ANKParams import ankParams
 
 from ..__sys import coords_samples
 
@@ -63,7 +58,7 @@ logger.addHandler(logging.NullHandler())
 def zattribute_fcreturnt( hpar , hcov , bias , projF , projC , RT , nslaw_class , side , world , mode , n_samples , ci ):
 	
 	## Coordinates
-	nhpar = hpar.shape[-1]
+#	nhpar = hpar.shape[-1]
 	ssp   = hpar.shape[:-3]
 	nper  = projF.shape[0]
 	ntime = projF.shape[-2]
@@ -157,19 +152,17 @@ def zattribute_fcreturnt( hpar , hcov , bias , projF , projC , RT , nslaw_class 
 	return tuple([pF,pC,RF,RC,IF,IC,dI,PR])
 ##}}}
 
-## run_bsac_cmd_attribute_fcreturnt ##{{{
+## run_ank_cmd_attribute_fcreturnt ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_attribute_fcreturnt(arg):
+def run_ank_cmd_attribute_fcreturnt(arg):
 	
 	## Parameters
-	clim      = bsacParams.clim
+	clim      = ankParams.clim
 	time      = clim.time
-	n_samples = bsacParams.n_samples
-	tmp       = bsacParams.tmp
-	side      = bsacParams.config.get("side","right")
-	mode      = bsacParams.config.get("mode","sample")
-	ci        = float(bsacParams.config.get("ci",0.05))
-	nslaw     = clim._nslaw_class()
+	n_samples = ankParams.n_samples
+	side      = ankParams.config.get("side","right")
+	mode      = ankParams.config.get("mode","sample")
+	ci        = float(ankParams.config.get("ci",0.05))
 	
 	## Logs
 	logger.info(  " * Configuration" )
@@ -187,7 +180,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	n_modes = modes.size
 	
 	## Read return time
-	inp = bsacParams.input[0]
+	inp = ankParams.input[0]
 	if ":" in inp:
 		rp = [float(x) for x in inp.split(":")]
 		RT = np.arange( rp[0] , rp[1] + rp[2] / 2 , rp[2] , dtype = float ) 
@@ -204,8 +197,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	zprojC = zr.ZXArray.from_xarray(projC.loc[clim.cname,:,:,:])
 	
 	## Samples
-	n_samples = bsacParams.n_samples
-	samples   = coords_samples(n_samples)
+	n_samples = ankParams.n_samples
 	
 	##
 	time        = np.array(clim.time)
@@ -233,17 +225,17 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	
 	## Run with zxarray
 	zargs = [clim.hpar,clim.hcov,zbias,zprojF,zprojC,zRT]
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		out = zr.apply_ufunc( zattribute_fcreturnt , *zargs,
 		                      block_dims         = ("period","return_time") + clim.d_spatial,
-		                      total_memory       = bsacParams.total_memory,
+		                      total_memory       = ankParams.total_memory,
 		                      block_memory       = block_memory,
 		                      output_dims        = output_dims,
 		                      output_coords      = output_coords,
 		                      output_dtypes      = output_dtypes,
 		                      dask_kwargs        = dask_kwargs,
-		                      n_workers          = bsacParams.n_workers,
-		                      threads_per_worker = bsacParams.threads_per_worker,
+		                      n_workers          = ankParams.n_workers,
+		                      threads_per_worker = ankParams.threads_per_worker,
 		                      cluster            = cluster,
 		                    )
 	
@@ -253,7 +245,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 	
 	## And save
 	logger.info( " * Save in netcdf" )
-	ofile = bsacParams.output
+	ofile = ankParams.output
 	with netCDF4.Dataset( ofile , "w" ) as ncf:
 		
 		## Define dimensions
@@ -263,7 +255,6 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		       "period" : ncf.createDimension( "period"      , len(clim.dpers) ),
 		       "time"   : ncf.createDimension(   "time" ),
 		}
-		spatial = ()
 		if clim.has_spatial is not None and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
@@ -327,7 +318,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
-		ncf.setncattr( "BSAC_version"  , version )
+		ncf.setncattr( "ANKIALE_version"  , version )
 		ncf.setncattr( "description" , f"Attribute {arg}" )
 	
 ##}}}
@@ -339,7 +330,7 @@ def run_bsac_cmd_attribute_fcreturnt(arg):
 def zattribute_fintensity( hpar , hcov , bias , xIF , projF , projC , nslaw_class , side , mode , n_samples , ci ):
 	
 	## Coordinates
-	nhpar = hpar.shape[-1]
+#	nhpar = hpar.shape[-1]
 	ssp   = hpar.shape[:-2]
 	nper  = projF.shape[0]
 	ntime = projF.shape[-2]
@@ -426,19 +417,17 @@ def zattribute_fintensity( hpar , hcov , bias , xIF , projF , projC , nslaw_clas
 	return tuple(out)
 ##}}}
 
-## run_bsac_cmd_attribute_fintensity ##{{{
+## run_ank_cmd_attribute_fintensity ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_attribute_fintensity(arg):
+def run_ank_cmd_attribute_fintensity(arg):
 	
 	## Parameters
-	clim      = bsacParams.clim
+	clim      = ankParams.clim
 	time      = clim.time
-	n_samples = bsacParams.n_samples
-	tmp       = bsacParams.tmp
-	side      = bsacParams.config.get("side","right")
-	mode      = bsacParams.config.get("mode","sample")
-	ci        = float(bsacParams.config.get("ci",0.05))
-	nslaw     = clim._nslaw_class()
+	n_samples = ankParams.n_samples
+	side      = ankParams.config.get("side","right")
+	mode      = ankParams.config.get("mode","sample")
+	ci        = float(ankParams.config.get("ci",0.05))
 	
 	## Logs
 	logger.info(  " * Configuration" )
@@ -457,9 +446,9 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	
 	## Read the intensity
 	try:
-		xIF = float(bsacParams.input[0]) + clim.bias[clim.vname] * 0
-	except:
-		name,ifile = bsacParams.input[0].split(",")
+		xIF = float(ankParams.input[0]) + clim.bias[clim.vname] * 0
+	except Exception:
+		name,ifile = ankParams.input[0].split(",")
 		xIF = xr.open_dataset(ifile)[name]
 	
 	## Remove bias
@@ -481,8 +470,7 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	zprojC = zr.ZXArray.from_xarray(projC.loc[clim.cname,:,:,:])
 	
 	## Samples
-	n_samples = bsacParams.n_samples
-	samples   = coords_samples(n_samples)
+	n_samples = ankParams.n_samples
 	
 	##
 	time        = np.array(clim.time)
@@ -510,17 +498,17 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	
 	## Run with zxarray
 	zargs = [clim.hpar,clim.hcov,zbias,zIF,zprojF,zprojC]
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		out = zr.apply_ufunc( zattribute_fintensity , *zargs,
 		                      block_dims         = ("period",) + clim.d_spatial,
-		                      total_memory       = bsacParams.total_memory,
+		                      total_memory       = ankParams.total_memory,
 		                      block_memory       = block_memory,
 		                      output_dims        = output_dims,
 		                      output_coords      = output_coords,
 		                      output_dtypes      = output_dtypes,
 		                      dask_kwargs        = dask_kwargs,
-		                      n_workers          = bsacParams.n_workers,
-		                      threads_per_worker = bsacParams.threads_per_worker,
+		                      n_workers          = ankParams.n_workers,
+		                      threads_per_worker = ankParams.threads_per_worker,
 		                      cluster            = cluster,
 		                    )
 	
@@ -530,7 +518,7 @@ def run_bsac_cmd_attribute_fintensity(arg):
 	
 	## And save
 	logger.info( " * Save in netcdf" )
-	ofile = bsacParams.output
+	ofile = ankParams.output
 	with netCDF4.Dataset( ofile , "w" ) as ncf:
 		
 		## Define dimensions
@@ -539,7 +527,6 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		       "period" : ncf.createDimension( "period"      , len(clim.dpers) ),
 		       "time"   : ncf.createDimension(   "time" ),
 		}
-		spatial = ()
 		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
@@ -601,7 +588,7 @@ def run_bsac_cmd_attribute_fintensity(arg):
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
-		ncf.setncattr( "BSAC_version"  , version )
+		ncf.setncattr( "ANKIALE_version"  , version )
 		ncf.setncattr( "description" , f"Attribute {arg}" )
 	
 ##}}}
@@ -613,7 +600,7 @@ def run_bsac_cmd_attribute_fintensity(arg):
 def zattribute_event( hpar , hcov , bias , event , projF , projC , idx_event , nslaw_class , side , mode , n_samples , ci ):
 	
 	## Coordinates
-	nhpar = hpar.shape[-1]
+#	nhpar = hpar.shape[-1]
 	ssp   = hpar.shape[:-2]
 	nper  = projF.shape[0]
 	ntime = projF.shape[-2]
@@ -706,21 +693,19 @@ def zattribute_event( hpar , hcov , bias , event , projF , projC , idx_event , n
 	return tuple(out)
 ##}}}
 
-## run_bsac_cmd_attribute_event ##{{{
+## run_ank_cmd_attribute_event ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_attribute_event():
+def run_ank_cmd_attribute_event():
 	
 	## Parameters
-	clim      = bsacParams.clim
+	clim      = ankParams.clim
 	time      = clim.time
-	n_samples = bsacParams.n_samples
-	tmp       = bsacParams.tmp
-	side      = bsacParams.config.get("side","right")
-	mode      = bsacParams.config.get("mode","sample")
-	ci        = float(bsacParams.config.get("ci",0.05))
-	t_event   = int(bsacParams.config["time"])
+	n_samples = ankParams.n_samples
+	side      = ankParams.config.get("side","right")
+	mode      = ankParams.config.get("mode","sample")
+	ci        = float(ankParams.config.get("ci",0.05))
+	t_event   = int(ankParams.config["time"])
 	idx_event = int(np.argwhere( time == t_event ).ravel())
-	nslaw     = clim._nslaw_class()
 	
 	## Logs
 	logger.info(  " * Configuration" )
@@ -738,7 +723,7 @@ def run_bsac_cmd_attribute_event():
 	n_modes = modes.size
 	
 	## Load observations
-	name,ifile = bsacParams.input[0].split(",")
+	name,ifile = ankParams.input[0].split(",")
 	Yo  = xr.open_dataset(ifile)[name]
 	
 	## Select year
@@ -769,8 +754,7 @@ def run_bsac_cmd_attribute_event():
 	zprojC = zr.ZXArray.from_xarray(projC.loc[clim.cname,:,:,:])
 	
 	## Samples
-	n_samples = bsacParams.n_samples
-	samples   = coords_samples(n_samples)
+	n_samples = ankParams.n_samples
 	
 	##
 	time        = np.array(clim.time)
@@ -798,17 +782,17 @@ def run_bsac_cmd_attribute_event():
 	
 	## Run with zxarray
 	zargs = [clim.hpar,clim.hcov,zbias,zYo,zprojF,zprojC]
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		out = zr.apply_ufunc( zattribute_event , *zargs,
 		                      block_dims         = ("period",) + clim.d_spatial,
-		                      total_memory       = bsacParams.total_memory,
+		                      total_memory       = ankParams.total_memory,
 		                      block_memory       = block_memory,
 		                      output_dims        = output_dims,
 		                      output_coords      = output_coords,
 		                      output_dtypes      = output_dtypes,
 		                      dask_kwargs        = dask_kwargs,
-		                      n_workers          = bsacParams.n_workers,
-		                      threads_per_worker = bsacParams.threads_per_worker,
+		                      n_workers          = ankParams.n_workers,
+		                      threads_per_worker = ankParams.threads_per_worker,
 		                      cluster            = cluster,
 		                    )
 	
@@ -818,7 +802,7 @@ def run_bsac_cmd_attribute_event():
 	
 	## And save
 	logger.info( " * Save in netcdf" )
-	ofile = bsacParams.output
+	ofile = ankParams.output
 	with netCDF4.Dataset( ofile , "w" ) as ncf:
 		
 		## Define dimensions
@@ -827,7 +811,6 @@ def run_bsac_cmd_attribute_event():
 		       "period" : ncf.createDimension( "period"      , len(clim.dpers) ),
 		       "time"   : ncf.createDimension(   "time" ),
 		}
-		spatial = ()
 		if clim.has_spatial and not clim.spatial_is_fake:
 			for d in d_spatial:
 				ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
@@ -889,32 +872,31 @@ def run_bsac_cmd_attribute_event():
 		
 		## Global attributes
 		ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
-		ncf.setncattr( "BSAC_version"  , version )
+		ncf.setncattr( "ANKIALE_version"  , version )
 		ncf.setncattr( "description" , f"Attribute event {t_event}" )
 	
 ##}}}
 
 
-
-## run_bsac_cmd_attribute ##{{{
+## run_ank_cmd_attribute ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_attribute():
+def run_ank_cmd_attribute():
 	
 	avail_arg = ["event","freturnt","creturnt","fintensity"]
 	try:
-		arg = bsacParams.arg[0]
-	except:
+		arg = ankParams.arg[0]
+	except Exception:
 		raise ValueError( f"A argument must be given for the attribute command ({', '.join(avail_arg)})" )
 	
-	if not arg in avail_arg:
+	if arg not in avail_arg:
 		raise ValueError( f"Bad argument for the attribute command ({', '.join(avail_arg)})" )
 	
 	if arg == "event":
-		run_bsac_cmd_attribute_event()
+		run_ank_cmd_attribute_event()
 	if arg in ["freturnt","creturnt"]:
-		run_bsac_cmd_attribute_fcreturnt(arg)
+		run_ank_cmd_attribute_fcreturnt(arg)
 	if arg in ["fintensity"]:
-		run_bsac_cmd_attribute_fintensity(arg)
+		run_ank_cmd_attribute_fintensity(arg)
 	
 ##}}}
 

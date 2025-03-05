@@ -1,45 +1,40 @@
 
 ## Copyright(c) 2023 / 2025 Yoann Robin
 ## 
-## This file is part of BSAC.
+## This file is part of ANKIALE.
 ## 
-## BSAC is free software: you can redistribute it and/or modify
+## ANKIALE is free software: you can redistribute it and/or modify
 ## it under the terms of the GNU General Public License as published by
 ## the Free Software Foundation, either version 3 of the License, or
 ## (at your option) any later version.
 ## 
-## BSAC is distributed in the hope that it will be useful,
+## ANKIALE is distributed in the hope that it will be useful,
 ## but WITHOUT ANY WARRANTY; without even the implied warranty of
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ## 
 ## You should have received a copy of the GNU General Public License
-## along with BSAC.  If not, see <https://www.gnu.org/licenses/>.
+## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 #############
 ## Imports ##
 #############
 
-import os
 import logging
-import tempfile
 import itertools as itt
 import gc
 
-from ..__logs import LINE
 from ..__logs import log_start_end
 
-from ..__BSACParams import bsacParams
+from ..__ANKParams import ankParams
 
 import numpy  as np
 import xarray as xr
 import zxarray as zr
-import scipy.stats as sc
 
 import netCDF4
 
 from ..__sys     import coords_samples
-from ..stats.__tools import nslawid_to_class
 
 from ..stats.__constraint import gaussian_conditionning
 from ..stats.__constraint import mcmc
@@ -83,22 +78,22 @@ def zgaussian_conditionning( *args , A = None , timeXo = None , method = None ):
 	return ohpar,ohcov
 ##}}}
 
-## run_bsac_cmd_constrain_X ##{{{
+## run_ank_cmd_constrain_X ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_constrain_X():
+def run_ank_cmd_constrain_X():
 	
 	## Parameters
-	clim = bsacParams.clim
+	clim = ankParams.clim
 	d_spatial = clim.d_spatial
 	c_spatial = clim.c_spatial
 	
 	## Load observations
 	zXo = {}
-	for i,inp in enumerate(bsacParams.input):
+	for i,inp in enumerate(ankParams.input):
 		
 		## Name and file
 		name,ifile = inp.split(",")
-		if not name in clim.namesX:
+		if name not in clim.namesX:
 			raise ValueError( f"Unknown variable {name}" )
 		
 		## Open data
@@ -111,7 +106,6 @@ def run_bsac_cmd_constrain_X():
 		## Init zarr file
 		dims   = (f"time{i}",) + d_spatial
 		coords = [time] + [c_spatial[d] for d in d_spatial]
-		shape  = [c.size for c in coords]
 		Xo     = zr.ZXArray( data = np.nan , dims = dims , coords = coords )
 		
 		## Now copy data
@@ -140,7 +134,7 @@ def run_bsac_cmd_constrain_X():
 		zXo[name] = Xo
 	
 	## Check if KCC can be used
-	if bsacParams.use_KCC and len(zXo) > 2:
+	if ankParams.use_KCC and len(zXo) > 2:
 		raise ValueError("KCC can not be used for a constraint with more than 2 covariates ({len(zXo)} required)")
 	
 	##
@@ -176,9 +170,9 @@ def run_bsac_cmd_constrain_X():
 	
 	## Find natural variability of obs
 	match True:
-		case bsacParams.use_KCC:
+		case ankParams.use_KCC:
 			method = "KCC"
-		case bsacParams.use_MAR2:
+		case ankParams.use_MAR2:
 			method = "MAR2"
 		case _:
 			method = "INDEPENDENT"
@@ -204,24 +198,24 @@ def run_bsac_cmd_constrain_X():
 	block_memory = lambda x : 2 * ( nhpar + nhpar**2 +  len(zXo) * time.size + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	##
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		hpar,hcov = zr.apply_ufunc( zgaussian_conditionning , *args ,
 		                            block_dims         = d_spatial,
-		                            total_memory       = bsacParams.total_memory,
+		                            total_memory       = ankParams.total_memory,
 		                            block_memory       = block_memory,
 		                            output_coords      = output_coords,
 		                            output_dims        = output_dims,
 		                            output_dtypes      = output_dtypes,
 		                            dask_kwargs        = dask_kwargs,
-		                            n_workers          = bsacParams.n_workers,
-		                            threads_per_worker = bsacParams.threads_per_worker,
+		                            n_workers          = ankParams.n_workers,
+		                            threads_per_worker = ankParams.threads_per_worker,
 			                        cluster            = cluster,
 		                         )
 	
 	## Save
 	clim.hpar = hpar
 	clim.hcov = hcov
-	bsacParams.clim = clim
+	ankParams.clim = clim
 ##}}}
 
 
@@ -245,7 +239,7 @@ def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STA
 				continue
 			
 			## MCMC
-			oh = mcmc( ih , ic , iYo , A , size_chain , nslaw_class , use_STAN , bsacParams.tmp_stan )
+			oh = mcmc( ih , ic , iYo , A , size_chain , nslaw_class , use_STAN , ankParams.tmp_stan )
 			
 			## Store
 			idx2d = idx + (s,) + tuple([slice(None) for _ in range(2)])
@@ -254,17 +248,16 @@ def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STA
 	return hpars
 ##}}}
 
-## run_bsac_cmd_constrain_Y ##{{{
+## run_ank_cmd_constrain_Y ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_constrain_Y():
+def run_ank_cmd_constrain_Y():
 	
 	##
-	clim = bsacParams.clim
-	size = bsacParams.n_samples
-	size_chain = int(bsacParams.config.get("size-chain", 10))
+	clim = ankParams.clim
+	size_chain = int(ankParams.config.get("size-chain", 10))
 	
 	## Load observations
-	name,ifile = bsacParams.input[0].split(",")
+	name,ifile = ankParams.input[0].split(",")
 	Yo = xr.open_dataset(ifile)[name]
 	if clim.spatial_is_fake:
 		Yo = xr.DataArray( Yo.values.reshape(-1,1) , dims = ("time",) + clim.d_spatial , coords = { **{ "time" : Yo.time.dt.year.values } , **clim.c_spatial } )
@@ -276,7 +269,7 @@ def run_bsac_cmd_constrain_Y():
 	Yo   = Yo - bias
 	try:
 		bias = float(bias)
-	except:
+	except Exception:
 		pass
 	if clim.spatial_is_fake:
 		bias = xr.DataArray( [bias] , dims = clim.d_spatial , coords = clim.c_spatial )
@@ -286,7 +279,7 @@ def run_bsac_cmd_constrain_Y():
 	zYo = zr.ZXArray.from_xarray(Yo)
 	
 	## Extract parameters
-	use_STAN   = not bsacParams.no_STAN
+	use_STAN   = not ankParams.no_STAN
 	d_spatial  = clim.d_spatial
 	c_spatial  = clim.c_spatial
 	hpar_names = clim.hpar_names
@@ -294,12 +287,11 @@ def run_bsac_cmd_constrain_Y():
 	ihcov      = clim.hcov
 	
 	## Samples
-	n_samples = bsacParams.n_samples
+	n_samples = ankParams.n_samples
 	samples   = coords_samples(n_samples)
 	zsamples  = zr.ZXArray.from_xarray( xr.DataArray( range(n_samples) , dims = ["sample"] , coords = [samples] ).astype(float) )
 	
 	##
-	dpers  = clim.dpers
 	chains = range(size_chain)
 	
 	## Build projection operator for the covariable
@@ -325,7 +317,7 @@ def run_bsac_cmd_constrain_Y():
 	## Init stan
 	if use_STAN:
 		logger.info(" * STAN compilation...")
-		nslaw_class().init_stan( tmp = bsacParams.tmp_stan , force_compile = True )
+		nslaw_class().init_stan( tmp = ankParams.tmp_stan , force_compile = True )
 		logger.info(" * STAN compilation... Done.")
 	
 	## Apply parameters
@@ -346,17 +338,17 @@ def run_bsac_cmd_constrain_Y():
 	
 	## Draw samples
 	logger.info(" * Draw samples")
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		ohpars = zr.apply_ufunc( zmcmc , ihpar , ihcov , zYo , zsamples ,
 		                         block_dims         = d_spatial + ("sample",),
-		                         total_memory       = bsacParams.total_memory,
+		                         total_memory       = ankParams.total_memory,
 		                         block_memory       = block_memory,
 		                         output_coords      = output_coords,
 		                         output_dims        = output_dims,
 		                         output_dtypes      = output_dtypes,
 		                         dask_kwargs        = dask_kwargs,
-		                         n_workers          = bsacParams.n_workers,
-		                         threads_per_worker = bsacParams.threads_per_worker,
+		                         n_workers          = ankParams.n_workers,
+		                         threads_per_worker = ankParams.threads_per_worker,
 		                         cluster            = cluster,
 		                        )
 	
@@ -380,17 +372,17 @@ def run_bsac_cmd_constrain_Y():
 	block_memory = lambda x : 10 * ( (nhpar + nhpar**2) * n_samples * size_chain + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	## Apply
-	with bsacParams.get_cluster() as cluster:
+	with ankParams.get_cluster() as cluster:
 		hpar,hcov = zr.apply_ufunc( mean_cov_hpars , ohpars,
 		                            block_dims         = d_spatial,
-		                            total_memory       = bsacParams.total_memory,
+		                            total_memory       = ankParams.total_memory,
 		                            block_memory       = block_memory,
 		                            output_dims        = output_dims,
 		                            output_coords      = output_coords,
 		                            output_dtypes      = output_dtypes,
 		                            dask_kwargs        = dask_kwargs,
-		                            n_workers          = bsacParams.n_workers,
-		                            threads_per_worker = bsacParams.threads_per_worker,
+		                            n_workers          = ankParams.n_workers,
+		                            threads_per_worker = ankParams.threads_per_worker,
 		                            cluster            = cluster,
 		                            chunks             = { d : 1 for d in d_spatial },
 		                            )
@@ -399,11 +391,11 @@ def run_bsac_cmd_constrain_Y():
 	gc.collect()
 	
 	## Store (or not) the samples
-	if bsacParams.output is not None:
+	if ankParams.output is not None:
 		logger.info(" * Store samples on the disk")
 		
 		names = lambda n : "hyper_parameter" if n == "hpar" else n
-		with netCDF4.Dataset( bsacParams.output , "w" ) as oncf:
+		with netCDF4.Dataset( ankParams.output , "w" ) as oncf:
 			
 			odims  = []
 			oshape = []
@@ -431,25 +423,25 @@ def run_bsac_cmd_constrain_Y():
 	## And save
 	clim.hpar = hpar
 	clim.hcov = hcov
-	bsacParams.clim = clim
+	ankParams.clim = clim
 ##}}}
 
 
-## run_bsac_cmd_constrain ##{{{
+## run_ank_cmd_constrain ##{{{
 @log_start_end(logger)
-def run_bsac_cmd_constrain():
+def run_ank_cmd_constrain():
 	## Check the command
-	if not len(bsacParams.arg) == 1:
-		raise ValueError(f"Bad numbers of arguments of the fit command: {', '.join(bsacParams.arg)}")
+	if not len(ankParams.arg) == 1:
+		raise ValueError(f"Bad numbers of arguments of the fit command: {', '.join(ankParams.arg)}")
 	
 	available_commands = ["X","Y"]
-	if not bsacParams.arg[0] in available_commands:
-		raise ValueError(f"Bad argument of the fit command ({bsacParams.arg[0]}), must be: {', '.join(available_commands)}")
+	if ankParams.arg[0] not in available_commands:
+		raise ValueError(f"Bad argument of the fit command ({ankParams.arg[0]}), must be: {', '.join(available_commands)}")
 	
 	## OK, run the good command
-	if bsacParams.arg[0] == "X":
-		run_bsac_cmd_constrain_X()
-	if bsacParams.arg[0] == "Y":
-		run_bsac_cmd_constrain_Y()
+	if ankParams.arg[0] == "X":
+		run_ank_cmd_constrain_X()
+	if ankParams.arg[0] == "Y":
+		run_ank_cmd_constrain_Y()
 ##}}}
 
