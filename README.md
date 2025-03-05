@@ -1,5 +1,5 @@
 # ANKIALE
-Bayesian Statistical Analysis of the Climatology
+ANalysis of Klimate with bayesian Inference: AppLication to extreme Events
 
 ## Description
 
