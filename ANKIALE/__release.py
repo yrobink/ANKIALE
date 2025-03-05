@@ -30,9 +30,9 @@ license      = "GNU-GPL3"
 src_url      = "https://github.com/yrobink/ANKIALE"
 
 long_description = """\
-ANKIALE -- ANalysis of Klimate with bayesian Inference: AppLication to extreme Events -- is a program for
-the inference, analysis and attribution of extreme events. The methodology is
-as follows:
+ANKIALE -- ANalysis of Klimate with bayesian Inference: AppLication to extreme
+Events -- is a program for the inference, analysis and attribution of extreme
+events. The methodology is as follows:
 
 - Inference of the law (which can be specified) for several climate models,
 - Estimation of a multi-model synthesis,

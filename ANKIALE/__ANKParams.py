@@ -100,7 +100,7 @@ class ANKParams:
 		parser.add_argument( "CMD" , nargs = '*' )
 		
 		parser.add_argument( "-h" , "--help" , action = "store_const" , const = True , default = False )
-		parser.add_argument( "--version" , action = "store_const" , const = True , default = False )
+		parser.add_argument( "-V" , "--version" , action = "store_const" , const = True , default = False )
 		parser.add_argument( "--log-level" , default = "WARNING" )
 		parser.add_argument( "--log-file"  , default = None )
 		parser.add_argument( "-v" , "--verbose" , action = "store_const" , const = True , default = False )
@@ -166,6 +166,12 @@ class ANKParams:
 		self.tmp_dask     = self.tmp_gen_dask.name
 		self.tmp_gen_stan = tempfile.TemporaryDirectory( dir = self.tmp_base , prefix = prefix + "STAN_" )
 		self.tmp_stan     = self.tmp_gen_stan.name
+	##}}}
+	
+	def clean_tmp(self):##{{{
+		self.tmp_gen.cleanup()
+		self.tmp_gen_dask.cleanup()
+		self.tmp_gen_stan.cleanup()
 	##}}}
 	
 	def init_logging(self):##{{{

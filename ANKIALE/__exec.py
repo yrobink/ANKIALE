@@ -20,6 +20,8 @@
 ## Packages ##
 ##############
 
+import sys
+import traceback
 import logging
 import datetime as dt
 
@@ -147,7 +149,7 @@ def start_ank(*argv):##{{{
 	
 	## Logging
 	logger.info(LINE)
-	logger.info( "Start: {}".format( str(walltime0)[:19] + " (UTC)") )
+	logger.info( "Start: {}".format( str(walltime0)[:19].replace(' ','T') + 'Z' ) )
 	logger.info(LINE)
 	logger.info( r"           _   _ _  _______          _      ______ " )
 	logger.info( r"     /\   | \ | | |/ /_   _|   /\   | |    |  ____|" )
@@ -214,16 +216,18 @@ def start_ank(*argv):##{{{
 		
 	except AbortForHelpException:
 		pass
-#	except Exception as e:
-#		logger.error(LINE)
-#		logger.error( traceback.print_tb( sys.exc_info()[2] ) )
-#		logger.error( f"Error: {e}" )
-#		logger.error(LINE)
+	except Exception as e:
+		logger.error(LINE)
+		logger.error( traceback.print_tb( sys.exc_info()[2] ) )
+		logger.error( f"Error: {e}" )
+		logger.error(LINE)
+	finally:
+		ankParams.clean_tmp()
 	
 	## End
 	walltime1 = dt.datetime.now(dt.UTC)
 	logger.info(LINE)
-	logger.info( "End: {}".format(str(walltime1)[:19] + " (UTC)") )
+	logger.info( "End: {}".format( str(walltime1)[:19].replace(' ','T') + 'Z' ) )
 	logger.info( "Wall time: {}".format(walltime1 - walltime0) )
 	logger.info(LINE)
 ##}}}

@@ -22,7 +22,7 @@
 from .__release import version
 __version__ = version
 
-from .__exec import start_bsac
+from .__exec import start_ank
 
 ## Imports
 ##########
