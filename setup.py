@@ -78,7 +78,7 @@ requires    = [
                "SDFC (>=0.9.0)",
                "statsmodels (>= 0.14)",
                "xesmf",
-               "zxarray (>=0.3.0)",
+               "zxarray (>=0.10.0)",
                "cmdstanpy",
               ]
 scripts     = ["scripts/ank"]
@@ -91,6 +91,19 @@ packages    = [
     "ANKIALE.stats",
     "ANKIALE.stats.models",
     ]
+
+classifiers      = [
+	"Development Status :: 5 - Production/Stable",
+	"License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+	"Natural Language :: English",
+	"Operating System :: MacOS :: MacOS X",
+	"Operating System :: POSIX :: Linux",
+	"Programming Language :: Python :: 3",
+	"Topic :: Scientific/Engineering :: Mathematics",
+	"Topic :: Scientific/Engineering :: Atmospheric Science",
+	"Intended Audience :: Science/Research",
+	]
+
 
 ## Now the setup
 
@@ -108,6 +121,7 @@ setup(  name             = release.name,
         license          = release.license,
         keywords         = keywords,
         platforms        = platforms,
+		classifiers      = classifiers,
 		include_package_data = True
     )
 
