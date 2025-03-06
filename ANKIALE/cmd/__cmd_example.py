@@ -95,19 +95,28 @@ def run_ank_cmd_example():
 	## Copy script
 	logger.info( " * Copy script" )
 	
+	## Begin
+	beg = "#!/bin/bash\n"
+	
 	## Parameters
-	sh = "\n".join( ["#!/bin/bash","",
-	"## Parameters",
+	sh = "\n".join( ["## Parameters",
 	f"N_WORKERS={ankParams.n_workers}",
 	f"THREADS_PER_WORKER={ankParams.threads_per_worker}",
 	f"TOTAL_MEMORY={ankParams.total_memory}",
 	f"HPATH={hiopath}",
 	f"DPATH={diopath}",
-	f"N_SAMPLES={ankParams.n_samples}",""] )
+	f"N_SAMPLES={ankParams.n_samples}","\n"] )
 	
-	## Add common part of the script
+	## Open common part of the script
 	with open( os.path.join( cpath , ".." , "data" , f"EXAMPLE_{cmd}.txt" ) , "r" ) as ish:
-		sh = sh + "".join( ish.readlines() )
+		csh =  ish.readlines()
+	
+	## Split in licence and core part
+	lic = "".join(csh[:18])
+	csh = "".join(csh[18:])
+	
+	## Merge
+	sh = beg + lic + sh + csh
 	
 	## And save the script
 	with open( os.path.join( hiopath , f"RUN_ANKIALE_EXAMPLE_{cmd}.sh" ) , "w" ) as ofile:

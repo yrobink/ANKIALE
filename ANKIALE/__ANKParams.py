@@ -170,7 +170,7 @@ class ANKParams:
 	
 	def clean_tmp(self):##{{{
 		self.tmp_gen.cleanup()
-		self.tmp_gen_dask.cleanup()
+#		self.tmp_gen_dask.cleanup()
 		self.tmp_gen_stan.cleanup()
 	##}}}
 	

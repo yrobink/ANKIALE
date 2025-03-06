@@ -19,7 +19,7 @@
 version_major = 1
 version_minor = 0
 version_patch = 0
-version_extra = "a0"
+version_extra = "a1"
 version      = f"{version_major}.{version_minor}.{version_patch}{version_extra}"
 
 name         = "ANKIALE"

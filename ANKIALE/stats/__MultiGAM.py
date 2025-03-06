@@ -183,7 +183,7 @@ def mgam_multiple_fit_bootstrap( X , XN , n_bootstrap , names , dof , degree , n
 		break
 	
 	## Prepare dimension for parallelization
-	idxs = xr.DataArray( range(n_bootstrap) , dims = ["bootstrap"] , coords = [range(n_bootstrap)] ).chunk( { "bootstrap" : n_bootstrap // n_jobs } )
+	idxs = xr.DataArray( range(n_bootstrap) , dims = ["bootstrap"] , coords = [range(n_bootstrap)] ).chunk( { "bootstrap" : max( 1 , n_bootstrap // n_jobs ) } )
 	
 	## Parallelization of the bootstrap
 	with distributed.Client(cluster) as client:

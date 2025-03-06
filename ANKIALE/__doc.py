@@ -45,7 +45,7 @@ command in a directory <output_dir>:
 
 ank example NORMAL_FRA03 --output <output_dir>
 
-And take a look at the <output_dir>/home/RUN_ANK_EXAMPLE_NORMAL_FRA03.sh
+And take a look at the <output_dir>/home/RUN_ANKIALE_EXAMPLE_NORMAL_FRA03.sh
 script, which runs the attribution of the August 2003 heatwave that took
 place in France.
 

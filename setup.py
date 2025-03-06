@@ -19,11 +19,51 @@
 
 ## Start by import release details
 import os
+from distutils.core import setup
 
-cpath = os.path.dirname(os.path.abspath(__file__)) ## current-path
-with open( os.path.join( cpath , "ANKIALE" , "__release.py" ) , "r" ) as f:
-    lines = f.readlines()
-exec("".join(lines))
+## Release elements
+class Release:##{{{
+	def __init__( self , pkg ):
+		self._release = {}
+		cpath = os.path.dirname(os.path.abspath(__file__)) ## current-path
+		with open( os.path.join( cpath , pkg , "__release.py" ) , "r" ) as f:
+		    lines = f.readlines()
+		exec( "".join(lines) , {} , self._release )
+	
+	@property
+	def name(self):
+		return self._release['name']
+	
+	@property
+	def version(self):
+		return self._release['version']
+	
+	@property
+	def description(self):
+		return self._release['description']
+	
+	@property
+	def long_description(self):
+		return self._release['long_description']
+	
+	@property
+	def author(self):
+		return self._release['author']
+	
+	@property
+	def author_email(self):
+		return self._release['author_email']
+	
+	@property
+	def src_url(self):
+		return self._release['src_url']
+	
+	@property
+	def license(self):
+		return self._release['license']
+##}}}
+
+release = Release("ANKIALE")
 
 ## Required elements
 package_dir = { "ANKIALE" : "ANKIALE" }
@@ -53,20 +93,19 @@ packages    = [
     ]
 
 ## Now the setup
-from distutils.core import setup
 
-setup(  name             = name,
-        version          = version,
-        description      = description,
-        long_description = long_description,
-        author           = author,
-        author_email     = author_email,
-        url              = src_url,
+setup(  name             = release.name,
+        version          = release.version,
+        description      = release.description,
+        long_description = release.long_description,
+        author           = release.author,
+        author_email     = release.author_email,
+        url              = release.src_url,
         packages         = packages,
         package_dir      = package_dir,
         requires         = requires,
         scripts          = scripts,
-        license          = license,
+        license          = release.license,
         keywords         = keywords,
         platforms        = platforms,
 		include_package_data = True
