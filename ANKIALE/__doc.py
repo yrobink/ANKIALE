@@ -55,10 +55,16 @@ Common arguments
 ----------------
 --help
     Ask to see the documentation
---log [loglevel,logfile]
-    Set the log level, default is 'warning'. If '--log' is passed without
-    arguments, 'debug' is used. The default output is the console, and the
-    second argument is a file to redirect the logs.
+-V
+    Show the version
+--log-level [loglevel,logfile]
+    Set the log level, default is 'warning'.
+--log-file 
+    Set the output log file, the default output is the console.
+-v --verbose
+    Set the log-level to INFO
+-d --debug
+    Set the log-level to DEBUG
 --n-workers
     Numbers of CPU used.
 --threads-per-worker
