@@ -100,7 +100,7 @@ class AbstractModel:##{{{
 			law = self.sdlaw( method = "bayesian" )
 			with warnings.catch_warnings():
 				warnings.simplefilter("ignore")
-				law.fit( *sdargs , prior = prior , n_mcmc_drawn = 20 * n_mcmc_drawn , burn = 5000 , **sdkwargs )
+				law.fit( *sdargs , prior = prior , n_mcmc_drawn = 20 * n_mcmc_drawn , burn = 1000 , **sdkwargs )
 			rate = law.info_.rate_accept
 			draw = law.info_.draw[law.info_.accept,:][::5,:][-n_mcmc_drawn:,:]
 			
