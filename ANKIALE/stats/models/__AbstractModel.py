@@ -37,6 +37,10 @@ cmdstanpy_logger.disabled = True
 ## Classes
 ##########
 
+class StanError(Exception):
+	def __init__( self , *args , **kwargs ):
+		super().__init__( *args , **kwargs )
+
 class AbstractModel:##{{{
 	
 	def __init__( self , p_name , h_name , sdlaw , sclaw , stan_file ):##{{{
@@ -118,8 +122,12 @@ class AbstractModel:##{{{
 	
 	def _fit_bayesian_STAN( self , Y , X , prior , n_mcmc_drawn , tmp , n_try = 10 ):##{{{
 		YY,XX = self._map_stanpar(Y,X)
-		for _ in range(n_try):
+		show_console = False
+		for n in range(n_try):
 			try:
+#				if n > 0:
+#					print( f"ntry:: {n}" )
+#					show_console = True
 				## Load stan model
 				stan_model = self.init_stan( tmp )
 				
@@ -134,14 +142,16 @@ class AbstractModel:##{{{
 					"Y"          : YY,
 				}
 				with tempfile.TemporaryDirectory( dir = tmp ) as tmp_draw:
-					fit  = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp_draw , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False )
-					draw = fit.draws_xr("hpar")["hpar"][0,:,:].values
+					try:
+						fit  = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp_draw , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False , show_console = show_console )
+						draw = fit.draws_xr("hpar")["hpar"][0,:,:].values
+					except Exception:
+						raise StanError
 				
 				success = True
 				break
-			except Exception:
+			except StanError:
 				success = False
-		
 		if not success:
 			draw = self._fit_bayesian_ORIGIN( Y , X , prior , n_mcmc_drawn , n_try )
 		
@@ -149,7 +159,6 @@ class AbstractModel:##{{{
 	##}}}
 	
 	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , use_STAN , tmp , n_try = 10 ):##{{{
-		
 		if use_STAN:
 			draw = self._fit_bayesian_STAN( Y , X , prior , n_mcmc_drawn , tmp , n_try )
 		else:

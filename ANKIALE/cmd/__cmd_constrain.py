@@ -219,7 +219,7 @@ def run_ank_cmd_constrain_X():
 ##}}}
 
 
-def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STAN ):##{{{
+def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STAN , tmp ):##{{{
 	
 	ssp    = ihpar.shape[:-2]
 	nhpar  = ihpar.shape[-1]
@@ -239,7 +239,7 @@ def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STA
 				continue
 			
 			## MCMC
-			oh = mcmc( ih , ic , iYo , A , size_chain , nslaw_class , use_STAN , ankParams.tmp_stan )
+			oh = mcmc( ih , ic , iYo , A , size_chain , nslaw_class , use_STAN , tmp )
 			
 			## Store
 			idx2d = idx + (s,) + tuple([slice(None) for _ in range(2)])
@@ -326,7 +326,7 @@ def run_ank_cmd_constrain_Y():
 	output_dtypes    = [float]
 	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["time"] , [] ],
 	                     "output_core_dims" : [ ["hpar","chain"] ],
-	                     "kwargs" : { "A" : A , "size_chain" : size_chain , "nslaw_class" : nslaw_class , "use_STAN" : use_STAN } ,
+	                     "kwargs" : { "A" : A , "size_chain" : size_chain , "nslaw_class" : nslaw_class , "use_STAN" : use_STAN , "tmp" : ankParams.tmp_stan } ,
 	                     "dask" : "parallelized",
 	                     "dask_gufunc_kwargs" : { "output_sizes" : { "chain" : size_chain } },
 	                     "output_dtypes"  : [clim.hpar.dtype]
