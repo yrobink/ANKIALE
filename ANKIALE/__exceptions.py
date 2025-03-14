@@ -24,3 +24,15 @@ class NoUserInputException(Exception):
 	def __init__( self , *args , **kwargs ):
 		super().__init__( *args , **kwargs )
 
+class StanError(Exception):
+	def __init__( self , *args , **kwargs ):
+		super().__init__( *args , **kwargs )
+
+class StanInitError(Exception):
+	def __init__( self , *args , **kwargs ):
+		super().__init__( *args , **kwargs )
+
+class MCMCError(Exception):
+	def __init__( self , *args , **kwargs ):
+		super().__init__( *args , **kwargs )
+
