@@ -23,6 +23,7 @@
 import logging
 import itertools as itt
 import gc
+import distributed
 
 from ..__logs import log_start_end
 
@@ -235,11 +236,19 @@ def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STA
 			ic    = ihcov[idx2d]
 			iYo   = Yo[idx1d]
 			
-			if np.any(~np.isfinite(ih)):
+			if np.any(~np.isfinite(ih)) or np.any(~np.isfinite(ic)):
+				if np.all(~np.isfinite(ih)) or np.all(~np.isfinite(ic)):
+					continue
+				else:
+					raise ValueError("hpar or hcov partially not finite in mcmc")
+			
+			if np.all(~np.isfinite(iYo)):
 				continue
 			
 			## MCMC
 			oh = mcmc( ih , ic , iYo , A , size_chain , nslaw_class , use_STAN , tmp )
+			if not np.isfinite(oh).all():
+				distributed.print("Fail MCMC")
 			
 			## Store
 			idx2d = idx + (s,) + tuple([slice(None) for _ in range(2)])

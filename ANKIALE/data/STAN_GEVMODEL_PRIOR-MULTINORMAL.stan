@@ -19,16 +19,18 @@
 
 functions
 {
-	real gev_lpdf( vector Y , vector mu , vector sigma , real xi )
+	real gev_lpdf( vector Y , vector loc , vector scale , vector shape )
 	{
 		real ll ;
-		real ixi ;
     	int  nXY;
     	nXY = num_elements(Y);
 		vector[nXY] tmp ;
-		tmp = log( 1 + xi * (Y - mu) ./ sigma ) ;
-		ixi = 1 / xi ;
-		ll  = - sum(log(sigma)) - (1 + ixi) * sum(tmp) - sum( exp( ( -ixi ) * tmp ) ) ;
+		real shp ;
+		real ishp ;
+		shp  = shape[1] ;
+		ishp = 1 / shp ;
+		tmp = log( 1 + shp * (Y - loc) ./ scale ) ;
+		ll  = - sum(log(scale)) - (1 + ishp) * sum(tmp) - sum( exp( ( -ishp ) * tmp ) ) ;
 		return ll ;
 	}
 }
@@ -51,17 +53,17 @@ parameters
 
 transformed parameters
 {
-	vector[nXY] mu  ;
-	vector[nXY] sig ;
-	real xi ;
-	mu  = hpar[1] + hpar[2] * X ;
-	sig = exp( hpar[3] + hpar[4] * X ) ;
-	xi  = hpar[5] ;
+	vector[nXY] loc  ;
+	vector[nXY] scale ;
+	vector[nXY] shape ;
+	loc  = hpar[1] + hpar[2] * X ;
+	scale = exp( hpar[3] + hpar[4] * X ) ;
+	shape  = hpar[5] + 0 * X ;
 }
 
 model
 {
 	hpar ~ multi_normal( prior_hpar , prior_hcov );
-	Y ~  gev( mu , sig , xi ) ;
+	Y ~  gev( loc , scale , shape ) ;
 }
 

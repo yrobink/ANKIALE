@@ -34,6 +34,10 @@ import xarray as xr
 from .__KCC import KCC
 from .__KCC import MAR2
 
+from ..__exceptions import StanError
+from ..__exceptions import StanInitError
+from ..__exceptions import MCMCError
+
 
 ##################
 ## Init logging ##
@@ -199,7 +203,7 @@ def gaussian_conditionning( *args , A = None , timeXo = None , method = None ):#
 	return hpar,hcov
 ##}}}
 
-def mcmc( hpar , hcov , Y , A , size_chain , nslaw_class , use_STAN , tmp_stan = None ):##{{{
+def mcmc( hpar , hcov , Y , A , size_chain , nslaw_class , use_STAN , tmp_stan = None , n_try = 5 ):##{{{
 	
 	## Law
 	nslaw   = nslaw_class()
@@ -215,21 +219,32 @@ def mcmc( hpar , hcov , Y , A , size_chain , nslaw_class , use_STAN , tmp_stan =
 	
 	##
 	chain_is_valid = False
-	while not chain_is_valid:
+	for _ in range(n_try):
 		## Draw covariate parameters
 		hpars[:] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = 1 ).reshape(-1,1)
 		
 		## Build the covariable
 		X = A @ hpars[:,0]
 		
-		## Apply constraint
-		draw = nslaw.fit_bayesian( Y , X , prior , size_chain , use_STAN = use_STAN , tmp = tmp_stan )
+		## Keep finite
+		idx = np.isfinite(X) & np.isfinite(Y)
+		iX  = X[idx]
+		iY  = Y[idx]
 		
-		## Store
-		hpars[-nnshpar:,:] = draw.T
+		## Apply constraint
+		try:
+			draw = nslaw.fit_bayesian( iY , iX , prior , size_chain , use_STAN = use_STAN , tmp = tmp_stan , n_try = n_try )
+		except StanError:
+			continue
+		except StanInitError:
+			continue
 		
 		##
 		chain_is_valid = np.isfinite(draw).all()
+		if chain_is_valid:
+			hpars[-nnshpar:,:] = draw.T
+			break
+	
 	
 	return hpars
 ##}}}

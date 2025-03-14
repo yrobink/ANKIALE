@@ -24,22 +24,22 @@ import warnings
 import tempfile
 
 import numpy as np
+import scipy.stats as sc
+import xarray as xr
 
 import cmdstanpy as stan
 import logging
 
 from ...__sys import copy_files
 from ...__linalg import sqrtm
+from ...__exceptions import StanError
+from ...__exceptions import StanInitError
 
 cmdstanpy_logger = logging.getLogger("cmdstanpy")
 cmdstanpy_logger.disabled = True
 
 ## Classes
 ##########
-
-class StanError(Exception):
-	def __init__( self , *args , **kwargs ):
-		super().__init__( *args , **kwargs )
 
 class AbstractModel:##{{{
 	
@@ -49,6 +49,7 @@ class AbstractModel:##{{{
 		self.p_name    = p_name
 		self.h_name    = h_name
 		self.stan_file = stan_file
+		self.mcmc_debug = {}
 	##}}}
 	
 	## Properties ##{{{
@@ -96,7 +97,7 @@ class AbstractModel:##{{{
 		return stan_model
 	##}}}
 	
-	def _fit_bayesian_ORIGIN( self , Y , X , prior , n_mcmc_drawn , n_try = 10 ):##{{{
+	def _fit_bayesian_ORIGIN( self , Y , X , prior , n_mcmc_drawn , n_try = 5 ):##{{{
 		
 		sdargs,sdkwargs = self._map_sdfit( Y , X )
 		for _ in range(n_try):
@@ -120,47 +121,57 @@ class AbstractModel:##{{{
 		return draw
 	##}}}
 	
-	def _fit_bayesian_STAN( self , Y , X , prior , n_mcmc_drawn , tmp , n_try = 10 ):##{{{
+	def _fit_bayesian_STAN( self , Y , X , prior , n_mcmc_drawn , tmp ):##{{{
 		YY,XX = self._map_stanpar(Y,X)
 		show_console = False
-		for n in range(n_try):
+		
+		## Load stan model
+		stan_model = self.init_stan( tmp )
+		
+		## Fit the model
+		idata  = {
+			"nhpar" : prior.mean.size,
+			"prior_hpar" : prior.mean,
+			"prior_hcov" : prior.cov,
+			"prior_hstd" : sqrtm(prior.cov),
+			"nXY"        : YY.size,
+			"X"          : XX,
+			"Y"          : YY,
+		}
+		with tempfile.TemporaryDirectory( dir = tmp ) as tmp_draw:
+			
+			## Find inits points
+			init_failed = True
+			ninit = 10
+			while init_failed:
+				ninit  = 10 * ninit
+				npar   = np.random.normal( loc = 0 , scale = 1 , size = (ninit,len(self.h_name)) )
+				hpar   = xr.DataArray( (idata["prior_hstd"] @ npar.T).T + idata["prior_hpar"].reshape(1,-1) , dims = ["sample","hpar"] , coords = [range(ninit),list(self.h_name)] )
+				XX     = xr.DataArray( XX , dims = ["time"] , coords = [range(XX.size)] )
+				kwargs = self.draw_params( XX , hpar )
+				sckwd  = self._map_scpar(**kwargs)
+				lpdf   = xr.DataArray( self.sclaw.logpdf( YY.reshape(1,-1) * np.ones((ninit,YY.size)) , **sckwd ).sum( axis = 1 ) , dims = ["sample"] , coords = [hpar.sample] )
+				idx    = np.isfinite(lpdf)
+				init_failed = ~np.any(idx)
+				if ninit > 10000:
+					break
+			if init_failed:
+				raise StanInitError
+			inits = [ { **{ "npar" : npar[i,:] , "hpar" : hpar[i,:].values } , **{ key : kwargs[key][i,:].values for key in kwargs } } for i in range(idx.size) if idx[i] ]
+			
+			## Fit
 			try:
-#				if n > 0:
-#					print( f"ntry:: {n}" )
-#					show_console = True
-				## Load stan model
-				stan_model = self.init_stan( tmp )
-				
-				## Fit the model
-				idata  = {
-					"nhpar" : prior.mean.size,
-					"prior_hpar" : prior.mean,
-					"prior_hcov" : prior.cov,
-					"prior_hstd" : sqrtm(prior.cov),
-					"nXY"        : YY.size,
-					"X"          : XX,
-					"Y"          : YY,
-				}
-				with tempfile.TemporaryDirectory( dir = tmp ) as tmp_draw:
-					try:
-						fit  = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp_draw , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False , show_console = show_console )
-						draw = fit.draws_xr("hpar")["hpar"][0,:,:].values
-					except Exception:
-						raise StanError
-				
-				success = True
-				break
-			except StanError:
-				success = False
-		if not success:
-			draw = self._fit_bayesian_ORIGIN( Y , X , prior , n_mcmc_drawn , n_try )
+				fit  = stan_model.sample( data = idata , chains = 1 , iter_sampling = n_mcmc_drawn , output_dir = tmp_draw , parallel_chains = 1 , threads_per_chain = 1 , show_progress = False , show_console = show_console , inits = inits )
+				draw = fit.draws_xr("hpar")["hpar"][0,:,:].values
+			except Exception:
+				raise StanError
 		
 		return draw
 	##}}}
 	
-	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , use_STAN , tmp , n_try = 10 ):##{{{
+	def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , use_STAN , tmp , n_try = 5 ):##{{{
 		if use_STAN:
-			draw = self._fit_bayesian_STAN( Y , X , prior , n_mcmc_drawn , tmp , n_try )
+			draw = self._fit_bayesian_STAN( Y , X , prior , n_mcmc_drawn , tmp )
 		else:
 			draw = self._fit_bayesian_ORIGIN( Y , X , prior , n_mcmc_drawn , n_try )
 		
@@ -197,6 +208,10 @@ class AbstractModel:##{{{
 		with warnings.catch_warnings():
 			warnings.simplefilter("ignore")
 			return self._icdf_sf( p , side , **kwargs )
+	##}}}
+	
+	def draw_params( self , X , hpar ):##{{{
+		raise NotImplementedError
 	##}}}
 	
 ##}}}
