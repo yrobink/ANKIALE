@@ -56,18 +56,18 @@ logger.addHandler(logging.NullHandler())
 def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mode , ci ):
 	
 	##
-	## hpar = ssp + (1,1,) + (nhpar,)
-	## hcov = ssp + (1,1,) + (nhpar,nhpar)
-	## bias = ssp + (1,1,)
-	## proj = (nper,1,ntime,nhpar)
+	## hpar = ssp + (1,) + (nhpar,)
+	## hcov = ssp + (1,) + (nhpar,nhpar)
+	## bias = ssp + (1,)
+	## proj = (ntime,nhpar,nper)
 	## pwpe = (npwpe,)
 	##
 	
 	## Find parameters
-	ssp     = hpar.shape[:-3]
+	ssp     = hpar.shape[:-2]
 	nhpar   = hpar.shape[-1]
-	ntime   = proj.shape[-2]
-	nper    = proj.shape[0]
+	ntime   = proj.shape[-3]
+	nper    = proj.shape[-1]
 	npwpe   = pwpe.size
 	n_modes = n_samples if mode == "sample" else 3
 	nslaw   = nslaw_class()
@@ -80,20 +80,19 @@ def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mo
 	for idx0 in itt.product( *[range(s) for s in ssp] ):
 		
 		## Draw parameters
-		idx1d = idx0 + (0,0) + tuple([slice(None) for _ in range(1)])
+		idx1d = idx0 + (0,) + tuple([slice(None) for _ in range(1)])
 		h     = hpar[idx1d]
 		c     = hcov[idx1d]
-		b     = bias[idx0 + (0,0)]
+		b     = bias[idx0 + (0,)]
 		
 		if not np.isfinite(h).all() or not np.isfinite(c).all():
 			continue
 		
 		hpars = np.random.multivariate_normal( mean = h , cov = c , size = npwpe * n_samples )
-		
 		## Transform in XFC
 		dims   = ["period","time","pwpe","sample"]
 		coords = [range(nper),range(ntime),range(npwpe),range(n_samples)]
-		XFC    = xr.DataArray( np.array( [ proj[i,0,:,:] @ hpars.T for i in range(nper) ] ).reshape(nper,ntime,npwpe,n_samples) , dims = dims , coords = coords )
+		XFC    = xr.DataArray( np.array( [ proj[:,:,i] @ hpars.T for i in range(nper) ] ).reshape(nper,ntime,npwpe,n_samples) , dims = dims , coords = coords )
 		
 		## Find law parameters
 		dims   = ["sample","pwpe","hpar"]
@@ -140,6 +139,12 @@ def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mo
 		idx3d = idx0 + tuple([slice(None) for _ in range(3)])
 		IFC[idx3d] =  event + b
 		dI[idx3d]  = devent
+	
+	nssp = len(ssp)
+	trsp = [i for i in range(nssp)] + [nssp+1,nssp+2,nssp]
+	
+	IFC = IFC.transpose(trsp)
+	dI  =  dI.transpose(trsp)
 	
 	return IFC,dI
 ##}}}
@@ -207,8 +212,8 @@ def run_ank_cmd_misc_wpe():
 	output_dims      = [ (mode,"pwpe","period") + d_spatial for _ in range(2) ]
 	output_coords    = [ [modes,pwpe,proj.period] + [ c_spatial[d] for d in d_spatial ] for _ in range(2) ]
 	output_dtypes    = [clim.hpar.dtype for _ in range(2)]
-	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , [] , ["time","hpar"] , [] ],
-	                     "output_core_dims" : [[mode],[mode]],
+	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , [] , ["time","hpar","period"] , [] ],
+	                     "output_core_dims" : [[mode,"period"],[mode,"period"]],
 	                     "kwargs"           : { "nslaw_class" : nslaw_class , "side" : side , "n_samples" : n_samples , "mode" : mode , "ci" : ci } ,
 	                     "dask"             : "parallelized",
 	                     "output_dtypes"    : [ihpar.dtype,ihpar.dtype],
@@ -217,7 +222,7 @@ def run_ank_cmd_misc_wpe():
 	
 	## Block memory function
 	nhpar = len(hpar_names)
-	block_memory = lambda x : 2 * ( nhpar + nhpar**2 + clim.time.size * nhpar + 2 * n_samples ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+	block_memory = lambda x : 2 * ( nhpar + nhpar**2 + clim.time.size * nhpar * proj.period.size + 2 * n_samples ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
 	
 	## Run
 	logger.info( " * and run" )
@@ -232,7 +237,7 @@ def run_ank_cmd_misc_wpe():
 		                           dask_kwargs        = dask_kwargs,
 		                           n_workers          = ankParams.n_workers,
 		                           threads_per_worker = ankParams.threads_per_worker,
-			                       cluster            = cluster,
+		                           cluster            = cluster,
 		                        )
 	
 	##
