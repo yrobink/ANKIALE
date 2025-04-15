@@ -104,9 +104,9 @@ def robust_covariance( X , method = "empirical" , index = slice(None) ):##{{{
 		for i in range(XX.shape[1]):
 			p     = sc.norm.cdf( XX[:,i] , loc = loc[i] , scale = scale[i] )
 			valid = valid & (p > e) & (1 - p > e)
-		C = np.cov( X[valid,:].T )
+		C = np.cov( X[valid,:] , rowvar = False )
 	else:
-		C = np.ma.cov( np.ma.masked_invalid(X) , rowvar = True ).data
+		C = np.ma.cov( np.ma.masked_invalid(X) , rowvar = False ).data
 	
 	return C
 ##}}}
