@@ -93,7 +93,7 @@ def sqrtm( C ):##{{{
 	return S.reshape(shape_nd)
 ##}}}
 
-def robust_covariance( X , method = "norm-quantile" , index = slice(None) ):##{{{
+def robust_covariance( X , method = "empirical" , index = slice(None) ):##{{{
 	
 	if method == "norm-quantile":
 		XX = X[:,index]
@@ -106,7 +106,8 @@ def robust_covariance( X , method = "norm-quantile" , index = slice(None) ):##{{
 			valid = valid & (p > e) & (1 - p > e)
 		C = np.cov( X[valid,:].T )
 	else:
-		C = np.cov( X.T )
+		C = np.ma.cov( np.ma.masked_invalid(X) , rowvar = True ).data
+	
 	return C
 ##}}}
 
@@ -117,10 +118,7 @@ def mean_cov_hpars( hpars ):
 	
 	nhpar = hpars.shape[-3]
 	hpar  = np.nanmean( hpars , axis = (-2,-1) )
-	if ~np.isfinite(hpar).all():
-		hcov = np.zeros( hpar.shape + (nhpar,) ) + np.nan
-	else:
-		hcov  = np.apply_along_axis( lambda x: robust_covariance( x.reshape(nhpar,-1).T ) , 1 , hpars.reshape(-1,np.prod(hpars.shape[-3:])) ).reshape( hpars.shape[:-3] + (nhpar,nhpar) )
+	hcov  = np.apply_along_axis( lambda x: robust_covariance( x.reshape(nhpar,-1).T ) , 1 , hpars.reshape(-1,np.prod(hpars.shape[-3:])) ).reshape( hpars.shape[:-3] + (nhpar,nhpar) )
 	
 	return hpar,hcov
 ##}}}
