@@ -41,8 +41,9 @@ import SDFC
 #############
 
 from .__ANKParams  import ankParams
-from .__exceptions  import AbortForHelpException
-from .__exceptions  import NoUserInputException
+from .__exceptions import AbortForHelpException
+from .__exceptions import NoUserInputException
+from .__exceptions import DevException
 
 from .__logs import LINE
 from .__logs import log_start_end
@@ -121,7 +122,8 @@ def run_ank():
 		if ankParams.save_clim is not None:
 			ankParams.clim.save( ankParams.save_clim )
 			logger.info(LINE)
-		
+	except DevException:
+		pass
 	finally:
 		ankParams.stop_dask()
 	

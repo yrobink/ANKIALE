@@ -16,6 +16,11 @@
 ## You should have received a copy of the GNU General Public License
 ## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
+
+class DevException(Exception):
+	def __init__( self , *args , **kwargs ):
+		super().__init__( *args , **kwargs )
+
 class AbortForHelpException(Exception):
 	def __init__( self , *args , **kwargs ):
 		super().__init__( *args , **kwargs )
