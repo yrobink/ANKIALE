@@ -88,7 +88,7 @@ ank show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_SYNTHESIS.log\
 
 ## Run constraint
 echo " * constraint X of observations"
-ank constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log --use-KCC\
+ank constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log\
                  --bias-period $BIAS_PERIOD\
                  --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
