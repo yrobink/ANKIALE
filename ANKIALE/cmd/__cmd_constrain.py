@@ -168,13 +168,9 @@ def run_ank_cmd_constrain_X():
 	A = np.vstack(proj)
 	
 	## Find natural variability of obs
-	match True:
-		case ankParams.use_KCC:
-			method = "KCC"
-		case ankParams.use_MAR2:
-			method = "MAR2"
-		case _:
-			method = "INDEPENDENT"
+	method = ankParams.config.get("method","INDEPENDENT")
+	if method not in ["KCC","MAR2","INDEPENDENT"]:
+		raise ValueError( f"Unknow method '{method}'")
 	logger.info( f"Method used: {method}" )
 	
 	## Build apply arguments

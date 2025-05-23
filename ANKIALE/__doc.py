@@ -189,6 +189,13 @@ The 'constrain' command
         Observations used for the constraint, in the form 'name,file' The file
         can be a single time series, applied to all grid point, or a spatial
         observations for differentes covariates.
+    --config param0=value0,param1=value1,...
+        method: 3 methods available:
+            * 'INDEPENDENT', observed error assume independence for
+               autocorrelation, default;
+            * 'MAR2': Mixture of two AR1 process, but multiple covariates are
+              independent;
+            * 'KCC': As MAR2, with dependence between 2 covariates.
 * constrain Y
     --input name,ifile
         Observations used for the constraint, in the form 'name,ifile'.

@@ -18,6 +18,10 @@
   controlling the dof and degree.
 - New `DevException` class, used only for development.
 - Add a `pyproject.toml` file
+- For the constraint of the covariate, the KCC and MAR2 methods now works.
+  Default behavior is the independent case, but the KCC or MAR2 can be enabled
+  by setting `--config method=KCC` or `--config method=MAR2` when the command
+  `constraint X` is called.
 
 ### Changed
 - Documentation has been changed accordingly to the new spline basis
@@ -29,6 +33,7 @@
 - In the `ANKIALE.Climatology` class, the method `build_design_XFC` has been
   removed because design matrix is more complex with the new spline basis. See
   the `projection` method, or the new `build_design_basis` method.
+- The old options `--use-KCC` and `--use-MAR2` have been removed.
 
 ### Fixed
 - Remove the use of KCC for GMST example.

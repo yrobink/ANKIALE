@@ -37,7 +37,8 @@ from .__KCC import MAR2
 from ..__exceptions import StanError
 from ..__exceptions import StanInitError
 from ..__exceptions import MCMCError
-
+from ..__exceptions import DevException
+from ..__logs import disable_warnings
 
 ##################
 ## Init logging ##
@@ -56,7 +57,8 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def _gaussian_conditionning_kcc_2covariates( *args , A = None , timeXo = None , dep = 1 ):##{{{
+@disable_warnings
+def _gaussian_conditionning_kcc_2covariates( *args , hparXo , A = None , timeXo = None , dep = 1 ):##{{{
 	
 	## Extract arguments
 	hpar = args[0]
@@ -65,7 +67,7 @@ def _gaussian_conditionning_kcc_2covariates( *args , A = None , timeXo = None , 
 	gXo  = np.concatenate( args[2:] , axis = 0 )
 	
 	## Variance of obs
-	R      = gXo - A @ hpar
+	R      = gXo - A @ hparXo
 	size0  = lXo[0].size
 	RXo0   = xr.DataArray( R[:size0] , dims = ["time"] , coords = [timeXo[0].values] )
 	RXo1   = xr.DataArray( R[size0:] , dims = ["time"] , coords = [timeXo[1].values] )
@@ -89,7 +91,8 @@ def _gaussian_conditionning_kcc_2covariates( *args , A = None , timeXo = None , 
 	return hpar,hcov,hcov_o
 ##}}}
 
-def _gaussian_conditionning_kcc_1covariate( *args , A = None , timeXo = None , dep = 1 ):##{{{
+@disable_warnings
+def _gaussian_conditionning_kcc_1covariate( *args , hparXo , A = None , timeXo = None , dep = 1 ):##{{{
 	
 	## Extract arguments
 	hpar = args[0]
@@ -97,7 +100,7 @@ def _gaussian_conditionning_kcc_1covariate( *args , A = None , timeXo = None , d
 	gXo  = args[2]
 	
 	## Variance of obs
-	R      = gXo - A @ hpar
+	R      = gXo - A @ hparXo
 	RXo0   = xr.DataArray( R , dims = ["time"] , coords = [timeXo[0].values] )
 	
 	mar2   = MAR2().fit( RXo0.values )
@@ -112,45 +115,32 @@ def _gaussian_conditionning_kcc_1covariate( *args , A = None , timeXo = None , d
 	return hpar,hcov,hcov_o
 ##}}}
 
+@disable_warnings
 def gaussian_conditionning_KCC( *args , A = None , timeXo = None , dep = 1 ):##{{{
 	
 	args   = list(args)
-	hpar   = args[0]
-	hcov   = args[1]
 	
 	if len(args[2:]) == 1:
 		_gaussian_conditionning_kcc = _gaussian_conditionning_kcc_1covariate
 	else:
 		_gaussian_conditionning_kcc = _gaussian_conditionning_kcc_2covariates
 	
-	hcov_o_p = 1e9
-	hpar_p   = 1e9
-	hcov_p   = 1e9
-	err_p    = 1e9
-	err      = 1e9
-	rerr     = 1e9
+	lhpars = [args[0]]
+	lhcovs = [args[1]]
 	for i in range(10):
-		args[0] = hpar
-		args[1] = hcov
-		hpar,hcov,hcov_o = _gaussian_conditionning_kcc( *args , A = A , timeXo = timeXo , dep = dep )
+		hpar,hcov,hcov_o = _gaussian_conditionning_kcc( *args , hparXo = lhpars[-1] , A = A , timeXo = timeXo , dep = dep )
+		lhpars.append(hpar)
+		lhcovs.append(hcov)
 		
-		err  = np.linalg.norm( hcov_o_p - hcov_o )
-		rerr = err / np.linalg.norm(hcov_o_p)
-		logger.debug( f"KCC error: {err}, rerr: {rerr}" )
-		
-		if err > err_p and i > 0:
-			hpar = hpar_p
-			hcov = hcov_p
-			break
-		if rerr < 1 and i > 0:
-			break
-		
+		if i > 0:
+			err  = np.linalg.norm( hcov_o_p - hcov_o )
+			rerr = err / np.linalg.norm(hcov_o_p)
+			logger.debug( f"KCC error: {err}, rerr: {rerr}" )
+			if rerr < 0.01:
+				break
 		hcov_o_p = hcov_o.copy()
-		hpar_p   = hpar.copy()
-		hcov_p   = hcov.copy()
-		err_p    = err
 	
-	logger.info( f"Numbers of KCC iterations: {i}" )
+	logger.debug( f"Numbers of KCC iterations: {i}" )
 	
 	return hpar,hcov
 ##}}}
@@ -190,6 +180,7 @@ def gaussian_conditionning( *args , A = None , timeXo = None , method = None ):#
 				hpar,hcov = gaussian_conditionning_KCC( *args , A = A , timeXo = timeXo , dep = 1 )
 			except Exception as e:
 				logger.warning(f"Fail to use KCC, use MAR2 method (reason {e})")
+				raise DevException
 				hpar,hcov = gaussian_conditionning( *args , A = A , timeXo = timeXo , method = "MAR2" )
 		case "MAR2":
 			try:

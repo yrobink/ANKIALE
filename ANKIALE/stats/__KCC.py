@@ -124,11 +124,9 @@ class MAR2:##{{{
 		c = np.zeros(6)
 		for nit in range(maxit):
 			arf = AR1.fit(R)
-			arf = AR1( c = arf.c , alpha = 1 / arf.scale , scale = arf.scale )
 			R = (X[1:] - arf.alpha * X[:-1] - arf.c)/ arf.scale
 			
 			ars = AR1.fit(R)
-			ars = AR1( c = ars.c , alpha = 1 / ars.scale , scale = ars.scale )
 			R = (X[1:] - ars.alpha * X[:-1] - ars.c)/ ars.scale
 
 			c = np.array([arf.alpha , arf.scale , arf.c , ars.alpha , ars.scale , ars.c ])
@@ -265,8 +263,8 @@ class KCC:##{{{
 		self._size1 = R1.size
 
 		## Fit the mixture of two AR1 processes
-		self._mar2_0 = MAR2.fit(R0.values)
-		self._mar2_1 = MAR2.fit(R1.values)
+		self._mar2_0 = MAR2.fit( R0.values , method = "backfitting" )
+		self._mar2_1 = MAR2.fit( R1.values , method = "backfitting" )
 		
 		## Find L
 		self._find_L( R0 , R1 )

@@ -74,8 +74,6 @@ class ANKParams:
 	
 	Xconfig : list | None = None
 	config : str | None = None
-	use_KCC: bool = False
-	use_MAR2: bool = False
 	no_STAN: bool = False
 	
 	input  : list | None = None
@@ -117,8 +115,6 @@ class ANKParams:
 		parser.add_argument( "--config" , default = None )
 		parser.add_argument( "--Xconfig" , nargs = "+" , action = "extend" )
 		parser.add_argument( "--no-STAN" , action = "store_const" , const = True , default = False )
-		parser.add_argument( "--use-KCC" , action = "store_const" , const = True , default = False )
-		parser.add_argument( "--use-MAR2" , action = "store_const" , const = True , default = False )
 		
 		parser.add_argument( "--input" , nargs = "+" , action = "extend" )
 		parser.add_argument( "--output" , default = None )
