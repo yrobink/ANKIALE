@@ -140,7 +140,7 @@ def run_ank_cmd_constrain_X():
 	
 	##
 	time = clim.time
-	spl,lin,_,_ = clim.build_design_XFC()
+	lin,spl = clim.build_design_basis()
 	nper = len(clim.dpers)
 	
 	## Create projection matrix A
@@ -154,9 +154,9 @@ def run_ank_cmd_constrain_X():
 		design_ = []
 		for nameX in clim.namesX:
 			if nameX == name:
-				design_ = design_ + [spl for _ in range(nper)] + [nper * lin]
+				design_ = design_ + [spl[nameX][clim.dpers[iper]] for iper in range(nper)] + [nper * lin]
 			else:
-				design_ = design_ + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+				design_ = design_ + [np.zeros_like(spl[nameX][clim.dpers[iper]]) for iper in range(nper)] + [np.zeros_like(lin)]
 		design_ = design_ + [np.zeros( (time.size,clim.sizeY) )]
 		design_ = np.hstack(design_)
 		
@@ -165,8 +165,6 @@ def run_ank_cmd_constrain_X():
 		A = T @ design_ / nper
 		
 		proj.append(A)
-	
-	
 	A = np.vstack(proj)
 	
 	## Find natural variability of obs
@@ -304,18 +302,35 @@ def run_ank_cmd_constrain_Y():
 	chains = range(size_chain)
 	
 	## Build projection operator for the covariable
+#	time = clim.time
+#	spl,lin,_,_ = clim.build_design_XFC()
+#	nper = len(clim.dpers)
+#	
+#	design_ = []
+#	for nameX in clim.namesX:
+#		if nameX == clim.cname:
+#			design_ = design_ + [spl for _ in range(nper)] + [nper * lin]
+#		else:
+#			design_ = design_ + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+#	design_ = design_ + [np.zeros( (time.size,clim.sizeY) )]
+#	design_ = np.hstack(design_)
+#	
+#	T = xr.DataArray( np.identity(design_.shape[0]) , dims = ["timeA","timeB"] , coords = [time,time] ).loc[Yo.time,time].values
+#	A = T @ design_ / nper
 	time = clim.time
-	spl,lin,_,_ = clim.build_design_XFC()
+	lin,spl = clim.build_design_basis()
 	nper = len(clim.dpers)
 	
+	## Build the design_matrix for projection
 	design_ = []
 	for nameX in clim.namesX:
 		if nameX == clim.cname:
-			design_ = design_ + [spl for _ in range(nper)] + [nper * lin]
+			design_ = design_ + [spl[nameX][clim.dpers[iper]] for iper in range(nper)] + [nper * lin]
 		else:
-			design_ = design_ + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+			design_ = design_ + [np.zeros_like(spl[nameX][clim.dpers[iper]]) for iper in range(nper)] + [np.zeros_like(lin)]
 	design_ = design_ + [np.zeros( (time.size,clim.sizeY) )]
 	design_ = np.hstack(design_)
+	
 	
 	T = xr.DataArray( np.identity(design_.shape[0]) , dims = ["timeA","timeB"] , coords = [time,time] ).loc[Yo.time,time].values
 	A = T @ design_ / nper

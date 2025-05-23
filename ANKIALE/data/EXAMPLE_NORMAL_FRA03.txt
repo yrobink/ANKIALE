@@ -18,8 +18,8 @@
 
 ## Fixed Parameters
 BIAS_PERIOD='1961/1990'
-GAM_DOF=7
-GAM_DEGREE=3
+XCONFIGG='GMST:ssp126:6:6:3 GMST:ssp245:6:6:3 GMST:ssp370:6:6:3 GMST:ssp585:6:6:3'
+XCONFIGR='  EU:ssp126:6:6:3   EU:ssp245:6:6:3   EU:ssp370:6:6:3   EU:ssp585:6:6:3'
 
 ## Path
 for p in $HPATH/LOG $DPATH/FIT $DPATH/SYNTHESIS $DPATH/ANALYSIS $DPATH/CONSTRAIN $DPATH/FIGURES
@@ -48,7 +48,8 @@ do
                --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
                --save-clim $DPATH/FIT/$MOD'_fitX.nc'\
                --common-period historical --different-periods $DPERS\
-               --config GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
+               --Xconfig $XCONFIGG\
+               --Xconfig $XCONFIGR\
                --total-memory $TOTAL_MEMORY\
                --n-workers $N_WORKERS\
                --threads-per-worker $THREADS_PER_WORKER
@@ -67,7 +68,9 @@ do
     ank fit Y --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITY_'$MOD.log\
                --bias-period $BIAS_PERIOD\
                --input $DPATH/INPUT/Y/$MODNC\
-		       --config name=tas,nslaw=Normal,GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
+		       --config name=tas,nslaw=Normal\
+               --Xconfig $XCONFIGG\
+               --Xconfig $XCONFIGR\
                --load-clim $DPATH/FIT/$MOD'_fitX.nc'\
                --save-clim $DPATH/FIT/$MOD'_fitY.nc'\
                --common-period historical --different-periods $DPERS\
@@ -84,7 +87,9 @@ ank synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
                 --bias-period $BIAS_PERIOD\
                 --input $DPATH/FIT/*_fitY.nc\
                 --common-period historical --different-periods $DPERS\
-                --config nslaw=Normal,GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE,names=GMST:EU:tas\
+                --config nslaw=Normal,names=GMST:EU:tas\
+                --Xconfig $XCONFIGG\
+                --Xconfig $XCONFIGR\
                 --save-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                 --total-memory $TOTAL_MEMORY\
                 --n-workers $N_WORKERS\

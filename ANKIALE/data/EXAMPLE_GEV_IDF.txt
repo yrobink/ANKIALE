@@ -18,8 +18,8 @@
 
 ## Fixed Parameters
 BIAS_PERIOD='1900/1950'
-GAM_DOF=7
-GAM_DEGREE=3
+XCONFIGG='GMST:ssp126:6:6:3 GMST:ssp245:6:6:3 GMST:ssp370:6:6:3 GMST:ssp585:6:6:3'
+XCONFIGR='  EU:ssp126:6:6:3   EU:ssp245:6:6:3   EU:ssp370:6:6:3   EU:ssp585:6:6:3'
 
 ## Clean and build path
 for p in $HPATH/LOG $DPATH/FIT $DPATH/SYNTHESIS $DPATH/ANALYSIS $DPATH/CONSTRAIN $DPATH/FIGURES
@@ -45,7 +45,8 @@ do
                --input GMST,$DPATH/INPUT/X-GMST/$MODNC EU,$DPATH/INPUT/X-EU/$MODNC\
                --save-clim $DPATH/FIT/$MOD'_fitX.nc'\
                --common-period historical --different-periods ssp126,ssp245,ssp370,ssp585\
-               --config GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
+               --Xconfig $XCONFIGG\
+               --Xconfig $XCONFIGR\
                --total-memory $TOTAL_MEMORY\
                --n-workers $N_WORKERS\
                --threads-per-worker $THREADS_PER_WORKER
@@ -64,7 +65,9 @@ do
     ank fit Y --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITY_'$MOD.log\
                --bias-period $BIAS_PERIOD\
                --input $DPATH/INPUT/Y/$MODNC\
-		       --config name=IDF,spatial=lat:lon,nslaw=GEV,GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
+		       --config name=IDF,spatial=lat:lon,nslaw=GEV\
+               --Xconfig $XCONFIGG\
+               --Xconfig $XCONFIGR\
                --load-clim $DPATH/FIT/$MOD'_fitX.nc'\
                --save-clim $DPATH/FIT/$MOD'_fitY.nc'\
                --common-period historical --different-periods ssp126,ssp245,ssp370,ssp585\
@@ -82,7 +85,9 @@ ank synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
                 --bias-period $BIAS_PERIOD\
                 --input $DPATH/FIT/*_fitY.nc\
                 --common-period historical --different-periods ssp126,ssp245,ssp370,ssp585\
-                --config grid=$GRID,grid_name=$GRIDNAME,spatial=lat:lon,nslaw=GEV,GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE,names=GMST:EU:IDF\
+                --config grid=$GRID,grid_name=$GRIDNAME,spatial=lat:lon,nslaw=GEV,names=GMST:EU:IDF\
+                --Xconfig $XCONFIGG\
+                --Xconfig $XCONFIGR\
                 --save-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                 --total-memory $TOTAL_MEMORY\
                 --n-workers $N_WORKERS\

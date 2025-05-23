@@ -35,6 +35,8 @@ import scipy.linalg as scl
 import statsmodels.gam.api as smg
 import distributed
 
+from ..__exceptions import DevException
+
 
 ##################
 ## Init logging ##
@@ -48,54 +50,139 @@ logger.addHandler(logging.NullHandler())
 ## Classes ##
 #############
 
-class MultiGAM:##{{{
+class SplineSmoother:##{{{
 	
-	def __init__( self , dof = 7 , degree = 3 , find_cov = False , tol = 1e-3 , maxit = 500 ):##{{{
-		self.dof      = dof
-		self.degree   = degree
-		self.find_cov = find_cov
-		self.tol      = tol
-		self.maxit    = maxit
+	def __init__( self , x , sbasis , dof , degree , include_intercept = True ):##{{{
+		self._spl = smg.BSplines( x , df = sbasis + int(not include_intercept) , degree = degree , include_intercept = include_intercept )
+		self._gam = None
+		self.dof  = dof
 	##}}}
 	
-	def fit( self , X , XN , X0 = None ):##{{{
+	def fit( self , X ):##{{{
+		
+		alpha = 1e-6
+		edof  = self.sbasis + 1
+		while edof > self.dof:
+			alpha *= 10
+			gam    = smg.GLMGam( endog = X , smoother = self._spl , alpha = alpha )
+			res    = gam.fit()
+			edof   = res.edf.sum()
+		
+		alphaL = alpha
+		alphaR = alphaL / 10
+		while np.abs(edof - self.dof) > 1e-2:
+			alpha = ( alphaL + alphaR ) / 2
+			gam    = smg.GLMGam( endog = X , smoother = self._spl , alpha = alpha )
+			res    = gam.fit()
+			edof   = res.edf.sum()
+			if edof < self.dof:
+				alphaL = alpha
+			else:
+				alphaR = alpha
+
+		self._gam = gam
+		self._res = res
+
+		return self
+	##}}}
+	
+	def predict( self , *args , **kwargs ):##{{{
+		if self._res is not None:
+			return self._res.predict( *args , **kwargs )
+	##}}}
+	
+	## Properties ##{{{
+	
+	@property
+	def degree(self):
+		return int(self._spl.degree[0])
+	
+	@property
+	def sbasis(self):
+		return self._spl.dim_basis
+	
+	@property
+	def include_intercept(self):
+		return self._spl.include_intercept
+	
+	@property
+	def basis(self):
+		return self._spl.basis
+	
+	@property
+	def edof(self):
+		if self._res is not None:
+			return self._res.edf.sum()
+	
+	@property
+	def hpar(self):
+		if self._res is not None:
+			return self._res.params
+	
+	@property
+	def hcov(self):
+		if self._res is not None:
+			return self._res.cov_params()
+	
+
+	##}}}
+
+##}}}
+
+class MultiGAM:##{{{
+	
+	def __init__( self , dof , sbasis , degree , infer_hcov = True , tol = 1e-3 , maxit = 500 ):##{{{
+		self.dof      = dof
+		self.sbasis   = sbasis
+		self.degree   = degree
+		self.design   = None
+		self.infer_hcov = infer_hcov
+		self.tol      = tol
+		self.maxit    = maxit
+		
+		self.hpar     = None
+		self.hcov     = None
+	##}}}
+	
+	def fit( self , X , XN , hpar0 = None ):##{{{
 		
 		##
-		names = list(X)
+		dpers = list(X)
 		
 		## Init
-		Xr  = { s : X[s].copy() for s in names }
-		spl = { s : smg.BSplines( X[s].time.values , df = self.dof , degree = self.degree , include_intercept = False ) for s in names }
-		s   = names[0]
-		lin = np.stack( [np.ones(X[s].size),XN[s].values] ).T.copy()
-		hpars = [np.zeros((self.dof-1) * len(names) + 2)+1e9]
+		Xr    = { per : X[per].copy() for per in dpers }
+		time  = X[dpers[0]].time.values
+		lin   = np.stack( [np.ones(X[dpers[0]].size),XN[dpers[0]].values] ).T.copy()
+		hpar  = np.zeros( np.sum( [self.sbasis[per] for per in dpers] ) + 2 ) + 1e9
+		hpars = [hpar]
+		ssm   = {}
 		
 		## If a starting point
-		if X0 is not None:
-			L   = lin @ X0[-2:]
-			Xr = { s : X[s] - L for s in names }
-			hpars = [X0]
-		
+		if hpar0 is not None:
+			L   = lin @ hpar0[-2:]
+			Xr = { per : X[per] - L for per in dpers }
+			hpars = [hpar0]
+
+
 		## Now the fit: backfitting algorithm
 		diff   = 1e9
 		nit    = 0
 		while diff > self.tol:
 			
-			##
+			## Init new hpar
 			hpar = []
 			
-			## Spline part
-			for s in names:
-				gam   = smg.GLMGam( endog = Xr[s].values , smoother = spl[s] )
-				res   = gam.fit()
-				hpar = hpar + res.params.tolist()
-				Xr[s] = X[s] - res.predict()
+			## Fit the spline part on residues Xr
+			for per in dpers:
+				ssm[per] = SplineSmoother( time , sbasis = self.sbasis[per] , dof = self.dof[per] , degree = self.degree[per] , include_intercept = False ).fit( Xr[per].values )
+				hpar.extend( ssm[per].hpar )
+				Xr[per] = X[per] - ssm[per].predict()
 			
-			## Linear part
-			x_lin,_,_,_ = scl.lstsq( lin , np.mean( [Xr[s] for s in names] , axis = 0 ) )
-			hpar = hpar + x_lin.tolist()
-			for s in names:
-				Xr[s] = X[s] - lin @ x_lin
+			## Fit the linear part on residues Xr
+			x_lin,_,_,_ = scl.lstsq( lin , np.mean( [Xr[per] for per in dpers] , axis = 0 ) )
+			hpar.extend( x_lin )
+			for per in dpers:
+				Xr[per] = X[per] - lin @ x_lin
 			
 			## Add the new
 			hpars.append( np.array(hpar) )
@@ -108,108 +195,117 @@ class MultiGAM:##{{{
 			if not nit < self.maxit:
 				logger.warning( f"Max iterations reached during the fit of the Multi GAM model (max: {self.maxit}, diff: {diff})" )
 				break
+		
 		self.hpar = hpars[-1]
 		
-		if self.find_cov:
-			## Find the covariance matrix
-			Xr = { s : X[s] - res.predict() - lin @ x_lin for s in names }
-			H  = np.hstack( (spl[names[0]].basis,lin) )
+		if not self.infer_hcov:
+			return self
+
+#		## Create design matrix
+#		self.design = np.hstack( [ SplineSmoother( time , sbasis = self.sbasis[per] , dof = self.dof[per] , degree = self.degree[per] , include_intercept = False ).basis for per in dpers ] + [len(dpers) * lin] )
+#
+#		## And find covariance matrix
+#		sig = np.std( np.sum( [X[per] for per in dpers] , axis = 0 ) - self.design @ self.hpar )
+#		self.hcov = np.linalg.inv( self.design.T @ self.design ) * sig**2 / ( np.sum( [self.dof[per] for per in dpers] ) + 2 )
+		
+		## Find the covariance matrix
+		Xr = { per : X[per] - ssm[per].predict() - lin @ x_lin for per in dpers }
+		
+		self.hcov = np.zeros( (self.hpar.size,self.hpar.size) )
+		for iper,per in enumerate(dpers):
+			spl = ssm[per]
+			n_spl = spl.sbasis
+			i0 =  iper    * n_spl
+			i1 = (iper+1) * n_spl
+			H  = np.hstack( (spl.basis,lin) )
 			H  = np.linalg.inv( H.T @ H )
-			S  = { s : H * float(Xr[s].std())**2 / self.dof for s in names }
+			S  = H * Xr[per].values.std()**2 / (ssm[per].dof + 2)
 			
-			n_spl = spl[names[0]].basis.shape[1]
-			self.hcov = np.zeros( (self.hpar.size,self.hpar.size) )
-			for i in range(len(names)):
-				i0 =  i    * n_spl
-				i1 = (i+1) * n_spl
-				
-				## Spline part
-				self.hcov[i0:i1,i0:i1] = S[s][:-2,:-2]
-				
-				## Linear part
-				self.hcov[-2:,i0:i1] = S[s][-2:,:n_spl]
-				self.hcov[i0:i1,-2:] = S[s][:n_spl,-2:]
-			self.hcov[-2:,-2:] = np.sum( [S[s][-2:,-2:] for s in names] , axis = 0 ) / len(names)**2
+			## Spline part
+			self.hcov[i0:i1,i0:i1] = S[:-2,:-2]
+			
+			## Linear part
+			self.hcov[-2:,i0:i1] = S[-2:,:n_spl]
+			self.hcov[i0:i1,-2:] = S[:n_spl,-2:]
+			self.hcov[-2:,-2:]   = self.hcov[-2:,-2:] + S[-2:,-2:]
 		
-		
+		self.hcov[-2:,-2:] = self.hcov[-2:,-2:] / len(dpers)**2
+
 		return self
 	##}}}
 	
 ##}}}
 
-def _mgam_multiple_fit_bootstrap( idx , X , XN , dof , degree , hpar_be = None ):##{{{
-	
-	## Find parameters and time axis
-	names = list(X)
-	for name in names:
-		periods = list(X[name])
-		for p in periods:
-			time = X[name][p].time.values
-			break
-		break
+def _mgam_multiple_fit( idx , X , XN , dof , sbasis , degree , init ):##{{{
 	
 	##
-	hpars = []
-	for _ in range(idx.size):
-		bs   = np.random.choice( time , time.size , replace = True )
-		Xbs  = { name : { p : X[name][p].loc[bs]  for p in periods } for name in names }
-		XNbs = { name : { p : XN[name][p].loc[bs] for p in periods } for name in names }
-		hpars.append( np.hstack( [MultiGAM( dof = dof , degree = degree ).fit( Xbs[name] , XNbs[name] , X0 = hpar_be[name] ).hpar for name in names] ) )
+	cnames    = list(init)
+	dpers     = list(X[cnames[0]])
+	n_hpar    = sum([init[cname].size for cname in cnames])
+	n_samples = idx.size
+	hpars     = np.zeros( (n_samples,n_hpar) ) + np.nan
+	time      = X[cnames[0]][dpers[0]].time.values
 	
-	return np.array(hpars)
+	##
+	for i in range(n_samples):
+		bs    = np.random.choice( time , time.size , replace = True )
+		Xbs   = { cname : { per : X[cname][per].loc[bs]  for per in dpers } for cname in cnames }
+		XNbs  = { cname : { per : XN[cname][per].loc[bs] for per in dpers } for cname in cnames }
+		mgams = { cname : MultiGAM( dof = dof[cname] , sbasis = sbasis[cname] , degree = degree[cname] , infer_hcov = False ).fit( Xbs[cname] , XNbs[cname] , hpar0 = init[cname] ) for cname in cnames }
+		hpar  = np.hstack( [mgams[cname].hpar for cname in cnames] )
+		hpars[i,:] = hpar
+
+	return hpars
 ##}}}
 
-def mgam_multiple_fit_bootstrap( X , XN , n_bootstrap , names , dof , degree , n_jobs , cluster ):##{{{
+def mgam_multiple_fit( X , XN , dof , sbasis , degree , n_samples , cluster ):##{{{
 	
-	## Fit the best estimate
-	hpar_be = {}
-	hcov_be = {}
-	for name in names:
-		mgam = MultiGAM( dof = dof , degree = degree , find_cov = True )
-		mgam.fit( X[name] , XN[name] )
-		hpar_be[name] = mgam.hpar
-		hcov_be[name] = mgam.hcov
+	## Fit multi gam for each covariate
+	cnames = list(X)
+	mgams  = { cname : MultiGAM( dof = dof[cname] , sbasis = sbasis[cname] , degree = degree[cname] ).fit( X[cname] , XN[cname] ) for cname in cnames }
 	
 	## If one covariate, just return parameters fitted
-	if len(names) == 1:
-		logger.info( "Only one covariate, no bootstrap required" )
-		return hpar_be[name],hcov_be[name]
+	if len(cnames) == 1:
+		hpar = mgams[cnames[0]].hpar
+		hcov = mgams[cnames[0]].hcov
+		return hpar,hcov
 	
 	## Find dtype
-	for name in names:
+	for name in cnames:
 		for p in X[name]:
 			dtype = X[name][p].dtype
 			break
 		break
 	
 	## Prepare dimension for parallelization
-	idxs = xr.DataArray( range(n_bootstrap) , dims = ["bootstrap"] , coords = [range(n_bootstrap)] ).chunk( { "bootstrap" : max( 1 , n_bootstrap // n_jobs ) } )
+	idxs = xr.DataArray( range(n_samples) , dims = ["sample"] , coords = [range(n_samples)] ).chunk( { "sample" : max( 1 , n_samples // len(cluster.workers) ) } )
+	init = { cname : mgams[cname].hpar for cname in cnames }
+	
 	
 	## Parallelization of the bootstrap
 	with distributed.Client(cluster) as client:
 		hpars = xr.apply_ufunc(
-		             _mgam_multiple_fit_bootstrap , idxs ,
-		             kwargs             = { "X" : X , "XN" : XN , "dof" : dof , "degree" : degree , "hpar_be" : hpar_be },
+		             _mgam_multiple_fit , idxs ,
+		             kwargs             = { "X" : X , "XN" : XN , "dof" : dof , "sbasis" : sbasis , "degree" : degree , "init" : init },
 		             input_core_dims    = [[]],
-		             output_core_dims   = [["parameter"]],
+		             output_core_dims   = [["hyper_parameter"]],
 		             output_dtypes      = dtype ,
-		             vectorize          = True ,
+		             vectorize          = False ,
 		             dask               = "parallelized" ,
-		             dask_gufunc_kwargs = { "output_sizes" : { "parameter" : sum([hpar_be[name].size for name in names]) } }
-		             ).persist().compute( scheduler = client )
+		             dask_gufunc_kwargs = { "output_sizes" : { "hyper_parameter" : sum([ mgams[cname].hpar.size for cname in cnames ]) } }
+		             ).persist().compute()
 	
 	## Now find final hyper-parameters and covariance matrix
-	hpar = np.hstack( [hpar_be[name] for name in names] )
+	hpar = np.hstack( [mgams[cname].hpar for cname in cnames] )
 	hcov = np.cov( hpars.values.T )
 	
 	## For the covariance matrix
-	for i,name in enumerate(names):
-		i0 =  i    * hcov_be[name].shape[0]
-		i1 = (i+1) * hcov_be[name].shape[0]
-		hcov[i0:i1,i0:i1] = hcov_be[name]
+	for i,cname in enumerate(cnames):
+		i0 =  i    * mgams[cname].hcov.shape[0]
+		i1 = (i+1) * mgams[cname].hcov.shape[0]
+		hcov[i0:i1,i0:i1] = mgams[cname].hcov
 	hcov = matrix_positive_part(hcov)
 	
 	return hpar,hcov
 ##}}}
-
 

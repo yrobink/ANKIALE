@@ -53,7 +53,7 @@ logger.addHandler(logging.NullHandler())
 ## nslaw_fit ##{{{
 
 @disable_warnings
-def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , cname , dpers , time ):
+def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , proj , cname ):
 	
 	## Init law
 	nslaw = nslaw_class()
@@ -64,27 +64,29 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 		s_spatial = tuple(Y.shape[:-4])
 	
 	## Init output
+	hpar_names = proj.hpar.values.tolist()
 	s_hparY = hpar.size + nslaw.nhpar
+	dpers   = proj.period.values.tolist()
 	ndpers  = Y.shape[-2]-1
-	hpars   = np.zeros( s_spatial + (samples.size,ndpers,s_hparY) ) + np.nan
+	hpars   = np.zeros( s_spatial + (samples.size,s_hparY) ) + np.nan
 	nrun    = Y.shape[-1]
 	
 	## Draw parameters
 	hpars[*([slice(None) for _ in range(hpars.ndim-1)] + [range(hpar.size)] ) ] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = hpars.size // s_hparY ).reshape( hpars.shape[:-1] + (hpar.size,) )
-	
-	## Find parameters used to build covariate
-	xhpars  = xr.DataArray( hpars , dims = [f"s{i}" for i in range(len(s_spatial))] + ["sample","period","hpar"] , coords = [ range(s) for s in s_spatial ] + [range(samples.size),range(ndpers),hpar_names+list(nslaw.h_name)] )
-	xhpars = xhpars.sel( hpar = [ h for h in xhpars.hpar.values.tolist() if cname in h ] )
-	xhpars = xhpars.assign_coords( hpar = [ h.replace( f"_{cname}" , "" ) for h in xhpars.hpar.values.tolist() ] )
-	lxXF   = [ ( design @ xhpars.sel( hpar = [ h for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).assign_coords( hpar = [ h.replace( f"_{dper}" , "" ) for h in xhpars.hpar.values.tolist() if dper in h or h in ["cst","slope"] ] ).sel( period = dpers.index(dper) ) ).sel( time = time ) for dper in dpers ]
+	hpars = xr.DataArray( hpars ,
+					      dims = [f"spatial{i}" for i in range(len(s_spatial))] + ["sample","hpar"],
+					    coords = [ range(s) for s in s_spatial ] + [range(samples.size),hpar_names+list(nslaw.h_name)]
+					  )
+	XF = ( proj.sel( name = cname ) @ hpars )
+	hpars = xr.concat( [ hpars for _ in dpers ] , dim = "period" ).assign_coords( period = dpers )
 	
 	## Now loop for fit
 	init = [None for _ in dpers]
-	for idx0 in itt.product( *[ range(s) for s in hpars.shape[:-2]] ):
+	for idx0 in itt.product( *[ range(s) for s in hpars.shape[1:-1]] ):
 		for iper,dper in enumerate(dpers):
 			
 			## X / Y and re-sampling
-			xX = np.array( [ lxXF[iper][ (slice(None),) + idx0 ].values for _ in range(nrun) ] ).T.ravel().copy()
+			xX = np.array( [ XF[ (iper,slice(None)) + idx0 ].values for _ in range(nrun) ] ).T.ravel().copy()
 			xY = np.nanmean( Y[ idx0[:-1] + (0,slice(None),[0,iper+1],slice(None)) ] , axis = 0 ).ravel().copy()
 			
 			## Keep only finite values
@@ -104,14 +106,12 @@ def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , design , hpar_names , c
 			ns_hpar = nslaw.fit_mle( xY[p] , xX[p] , init = init[iper] )
 			
 			## Save
-			hpars[ idx0 + (iper,slice(hpar.size,s_hparY,1)) ] = ns_hpar
+			hpars[ (iper,) + idx0 + (slice(hpar.size,s_hparY,1),) ] = ns_hpar
 	
-	## Transpose for output
-	trsp = [i for i in range(hpars.ndim)]
-	trsp[-2],trsp[-1] = trsp[-1],trsp[-2]
-	hpars = np.transpose( hpars , trsp )
+	odims = [f"spatial{i}" for i in range(len(s_spatial))] + ["sample","hpar","period"]
+	hpars = hpars.transpose(*odims)
 	
-	return hpars
+	return hpars.values
 ##}}}
 
 

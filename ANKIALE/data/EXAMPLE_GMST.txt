@@ -18,8 +18,7 @@
 
 ## Fixed Parameters
 BIAS_PERIOD='1900/1950'
-GAM_DOF=7
-GAM_DEGREE=3
+XCONFIGG='GMST:ssp126:6:6:3 GMST:ssp245:6:6:3 GMST:ssp370:6:6:3 GMST:ssp585:6:6:3'
 
 ## Clean and build path
 for p in $HPATH/LOG $DPATH/FIT $DPATH/SYNTHESIS $DPATH/CONSTRAIN $DPATH/FIGURES
@@ -45,7 +44,7 @@ do
                --input GMST,$DPATH/INPUT/X/$MODNC\
                --save-clim $DPATH/FIT/$MOD'_fitX.nc'\
                --common-period historical --different-periods ssp126,ssp245,ssp370,ssp585\
-               --config GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE\
+               --Xconfig $XCONFIGG\
                --total-memory $TOTAL_MEMORY\
                --n-workers $N_WORKERS\
                --threads-per-worker $THREADS_PER_WORKER
@@ -68,7 +67,8 @@ ank synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
                 --bias-period $BIAS_PERIOD\
                 --input $DPATH/FIT/*.nc\
                 --common-period historical --different-periods ssp126,ssp245,ssp370,ssp585\
-                --config GAM_dof=$GAM_DOF,GAM_degree=$GAM_DEGREE,names=GMST\
+                --config names=GMST\
+                --Xconfig $XCONFIGG\
                 --save-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                 --total-memory $TOTAL_MEMORY\
                 --n-workers $N_WORKERS\

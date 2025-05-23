@@ -57,7 +57,7 @@ Common arguments
     Ask to see the documentation
 -V
     Show the version
---log-level [loglevel,logfile]
+--log-level
     Set the log level, default is 'warning'.
 --log-file 
     Set the output log file, the default output is the console.
@@ -136,9 +136,13 @@ The 'fit' command
     --different-periods per0,per1,...
         Names of the differents periods (typically the scenarios)
     --config param0=value0,param1=value1,...
-        GAM_dof: Number of degree of freedom of the GAM model, default = 7
-        GAM_degree: Degree of the splines in the GAM model, default = 3
         XN_version: set the version of natural forcings, must be CMIP5 or CMIP6
+    --Xconfig
+        Set the configuration for the smoothing spline. The size of the basis
+        of the spline, the number of dof, and the degree can be set for each
+        period and each covariable. The expected format is:
+            cname:size_basis:dof:degree
+        See examples.
 * fit Y
     Fit the variable with the covariable fitted from --load-clim (again, dont
     forgive the --save-clim parameter)
@@ -163,9 +167,13 @@ The 'synthesize' command
         Name of the common period between scenarios (typically the historical)
     --different-periods per0,per1,...
         Names of the differents periods (typically the scenarios)
+    --Xconfig
+        Set the configuration for the smoothing spline. The size of the basis
+        of the spline, the number of dof, and the degree can be set for each
+        period and each covariable. The expected format is:
+            cname:size_basis:dof:degree
+        See examples.
     --config param0=value0,param1=value1,...
-        GAM_dof: Number of degree of freedom of the GAM model, default = 7
-        GAM_degree: Degree of the splines in the GAM model, default = 3
         grid: a file describing the grid of the synthesize (clim will be remap
               on this grid)
         grid_name: name of the variable for the grid

@@ -17,9 +17,9 @@
 ## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
 version_major = 1
-version_minor = 0
-version_patch = 4
-version_extra = ""
+version_minor = 1
+version_patch = 0
+version_extra = "a4"
 version      = f"{version_major}.{version_minor}.{version_patch}{version_extra}"
 
 name         = "ANKIALE"

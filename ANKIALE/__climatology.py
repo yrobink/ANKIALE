@@ -191,6 +191,12 @@ class Climatology:##{{{
 		
 		with netCDF4.Dataset( ifile , "r" ) as incf:
 			
+			if "ANK_version" in incf.ncattrs():
+				incf_version    = incf.getncattr("ANK_version")
+			elif "BSAC_version" in incf.ncattrs():
+				incf_version    = incf.getncattr("BSAC_version")
+			else:
+				raise ValueError("Impossible to find the ANKIALE version of the file")
 			clim.names      = incf.variables["names"][:]
 			clim.cper       = incf.variables["common_period"][:]
 			clim.dpers      = incf.variables["different_periods"][:]
@@ -208,16 +214,26 @@ class Climatology:##{{{
 			calendar  = nctime.getncattr( "calendar" )
 			clim.time = [ t.year for t in cftime.num2date( nctime[:] , units , calendar ) ]
 			
-			
-			clim._Xconfig = {}
-			for c,t in zip( ["GAM_dof","GAM_degree","XN_version"] , [int,int,str] ):
-				clim._Xconfig[c] = t(incf.variables["X"].getncattr(c))
-			
 			try:
 				clim._nslawid     = incf.variables["Y"].getncattr("nslawid")
 				clim._nslaw_class = nslawid_to_class(clim._nslawid)
 			except Exception:
 				pass
+			
+			clim._Xconfig = {}
+			for c,t in zip( ["XN_version"] , [str] ):
+				clim._Xconfig[c] = t(incf.variables["X"].getncattr(c))
+			
+			if incf_version < "1.1.0":
+				dof    = int(incf.variables["X"].getncattr("GAM_dof")) - 1
+				degree = int(incf.variables["X"].getncattr("GAM_degree"))
+				clim._Xconfig["dof"]    = { name : { per : dof    for iper,per in enumerate(clim.dpers) } for iname,name in enumerate(clim.namesX) }
+				clim._Xconfig["sbasis"] = { name : { per : dof    for iper,per in enumerate(clim.dpers) } for iname,name in enumerate(clim.namesX) }
+				clim._Xconfig["degree"] = { name : { per : degree for iper,per in enumerate(clim.dpers) } for iname,name in enumerate(clim.namesX) }
+			else:
+				clim._Xconfig["dof"]    = { name : { per : int(incf.variables["X_dof"][iname,iper]   ) for iper,per in enumerate(clim.dpers) } for iname,name in enumerate(clim.namesX) }
+				clim._Xconfig["sbasis"] = { name : { per : int(incf.variables["X_sbasis"][iname,iper]) for iper,per in enumerate(clim.dpers) } for iname,name in enumerate(clim.namesX) }
+				clim._Xconfig["degree"] = { name : { per : int(incf.variables["X_degree"][iname,iper]) for iper,per in enumerate(clim.dpers) } for iname,name in enumerate(clim.namesX) }
 			
 			spatial_is_fake = False
 			try:
@@ -282,12 +298,15 @@ class Climatology:##{{{
 			## Define variables
 			logger.info(" * Define variables")
 			ncvars = {
-			       "hyper_parameter"   : ncf.createVariable(   "hyper_parameter" , str       ,   ("hyper_parameter",) ),
-			       "names"             : ncf.createVariable(             "names" , str       ,             ("names",) ),
-			       "common_period"     : ncf.createVariable(     "common_period" , str       ,     ("common_period",) ),
-			       "different_periods" : ncf.createVariable( "different_periods" , str       , ("different_periods",) ),
-			       "time"              : ncf.createVariable(              "time" , "float32" ,              ("time",) ),
-			         "X"               : ncf.createVariable(                 "X" , "int32"                            ),
+			       "hyper_parameter"   : ncf.createVariable(   "hyper_parameter" , str       ,          ("hyper_parameter",) ),
+			       "names"             : ncf.createVariable(             "names" , str       ,                    ("names",) ),
+			       "common_period"     : ncf.createVariable(     "common_period" , str       ,            ("common_period",) ),
+			       "different_periods" : ncf.createVariable( "different_periods" , str       ,        ("different_periods",) ),
+			       "time"              : ncf.createVariable(              "time" , "float32" ,                     ("time",) ),
+			         "X_dof"           : ncf.createVariable(         "X_dof"     , "int32"   , ("names","different_periods") ),
+			         "X_sbasis"        : ncf.createVariable(         "X_sbasis"  , "int32"   , ("names","different_periods") ),
+			         "X_degree"        : ncf.createVariable(         "X_degree"  , "int32"   , ("names","different_periods") ),
+			         "X"               : ncf.createVariable(                 "X" , "int32"                                   ),
 			       "hpar"              : ncf.createVariable(              "hpar" , "float32" ,   ("hyper_parameter",) + spatial ),
 			       "hcov"              : ncf.createVariable(              "hcov" , "float32" ,   ("hyper_parameter","hyper_parameter") + spatial ),
 			}
@@ -341,11 +360,17 @@ class Climatology:##{{{
 			ncvars["hpar"][:] = self.hpar._internal.zdata.get_orthogonal_selection(idx1d)
 			ncvars["hcov"][:] = self.hcov._internal.zdata.get_orthogonal_selection(idx2d)
 			
+			## Fill GAM basis
+			logger.info( " * Fill GAM basis" )
+			for icname,cname in enumerate(self.namesX):
+				for idper,dper in enumerate(self.dpers):
+					ncvars["X_dof"][icname,idper]    = self.GAM_dof[cname][dper]
+					ncvars["X_sbasis"][icname,idper] = self.GAM_sbasis[cname][dper]
+					ncvars["X_degree"][icname,idper] = self.GAM_degree[cname][dper]
+			
 			## Fill informations variables
 			logger.info(" * Fill informations variables")
 			ncvars["X"][:] = 1
-			ncvars["X"].setncattr( "GAM_dof"    , self.GAM_dof    )
-			ncvars["X"].setncattr( "GAM_degree" , self.GAM_degree )
 			ncvars["X"].setncattr( "XN_version" , self.XN_version )
 			
 			if not self.onlyX:
@@ -451,48 +476,38 @@ class Climatology:##{{{
 		return self
 	##}}}
 	
-	def build_design_XFC(self):##{{{
-		
-		dof  = self.GAM_dof + 1
-		time = self.time
-		
-		## Build the design matrix
-		spl         = smg.BSplines( time , df = dof - 1 , degree = self.GAM_degree , include_intercept = False ).basis
-		lin         = np.stack( [np.ones(time.size),self.XN.loc[time].values] ).T.copy()
-		hpar_coords = [f"s{i}" for i in range(dof-2)] + ["cst","slope"]
-		designF_    = xr.DataArray( np.hstack( (spl,lin) )                , dims = ["time","hpar"] , coords = [time,hpar_coords] )
-		designC_    = xr.DataArray( np.hstack( (np.zeros_like(spl),lin) ) , dims = ["time","hpar"] , coords = [time,hpar_coords] )
-		
-		return spl,lin,designF_,designC_
+	def build_design_basis(self):##{{{
+		lin = np.stack( [np.ones(self.time.size),self.XN.loc[self.time].values] ).T.copy()
+		spl = { name : { per : smg.BSplines( self.time , df = self.GAM_sbasis[name][per] + 1 , degree = self.GAM_degree[name][per] , include_intercept = False ).basis for per in self.dpers } for name in self.namesX }
+		return lin,spl
 	##}}}
 	
 	def projection(self):##{{{
 		
+		lin,spl = self.build_design_basis()
 		time = self.time
-		spl,lin,_,_ = self.build_design_XFC()
+		dpers = self.dpers
 		nper = len(self.dpers)
-		
 		lprojF = []
 		lprojC = []
 		for name in self.namesX:
 			projF = []
 			projC = []
 			for iper,per in enumerate(self.dpers):
-				zeros_or_no = lambda x,i: spl if i == iper else np.zeros_like(spl)
+				zeros_or_no = lambda x,i: x if i == iper else np.zeros_like(x)
 				designF = []
 				designC = []
 				for nameX in self.namesX:
 					if nameX == name:
-						designF = designF + [zeros_or_no(spl,i) for i in range(nper)] + [lin]
-						designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [lin]
+						designF = designF + [zeros_or_no(spl[nameX][dpers[i]],i) for i in range(nper)] + [lin]
+						designC = designC + [np.zeros_like(spl[nameX][dpers[i]]) for i in range(nper)] + [lin]
 					else:
-						designF = designF + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
-						designC = designC + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
+						designF = designF + [np.zeros_like(spl[nameX][dpers[i]]) for i in range(nper)] + [np.zeros_like(lin)]
+						designC = designC + [np.zeros_like(spl[nameX][dpers[i]]) for i in range(nper)] + [np.zeros_like(lin)]
 				designF = designF + [np.zeros( (time.size,self.sizeY) )]
 				designC = designC + [np.zeros( (time.size,self.sizeY) )]
 				projF.append( np.hstack(designF) )
 				projC.append( np.hstack(designC) )
-			
 			lprojF.append( xr.DataArray( np.array(projF) , dims = ["period","time","hpar"] , coords = [self.dpers,time,self.hpar_names] ) )
 			lprojC.append( xr.DataArray( np.array(projC) , dims = ["period","time","hpar"] , coords = [self.dpers,time,self.hpar_names] ) )
 		
@@ -504,12 +519,8 @@ class Climatology:##{{{
 	
 	def rvsX( self , size , add_BE = False , return_hpar = False ):##{{{
 		
-		##
-		dof  = self.GAM_dof + 1
-		
 		## Build the design matrix
-		hpar_coords = [f"s{i}" for i in range(dof-2)] + ["cst","slope"]
-		spl,lin,designF_,designC_ = self.build_design_XFC()
+		projF,projC = self.projection()
 		
 		## Extract parameters of the distribution
 		if not self.onlyX:
@@ -528,33 +539,9 @@ class Climatology:##{{{
 		hpars = xr.DataArray( np.random.multivariate_normal( mean = hpar , cov = hcov , size = size ) , dims = ["sample","hpar"] , coords = [samples,self.hpar_names] )
 		if add_BE:
 			hpars[0,:] = hpar
-		
-		XF = xr.concat(
-		    [
-		     xr.concat(
-		        [
-		         xr.concat( [hpars[:,self.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designF_
-		         for per in self.dpers
-		        ],
-		        dim = "period"
-		        )
-		     for name in self.namesX
-		    ],
-		    dim = "name"
-		    ).assign_coords( { "period" : self.dpers , "name" : self.namesX } ).transpose("sample","name","period","time")
-		XC = xr.concat(
-		    [
-		     xr.concat(
-		        [
-		         xr.concat( [hpars[:,self.isel(p,name)] for p in [per,"lin"]] , dim = "hpar" ).assign_coords( hpar = hpar_coords ) @ designC_
-		         for per in self.dpers
-		        ],
-		        dim = "period"
-		        )
-		     for name in self.namesX
-		    ],
-		    dim = "name"
-		    ).assign_coords( { "period" : self.dpers , "name" : self.namesX } ).transpose("sample","name","period","time")
+
+		XF = projF @ hpars
+		XC = projC @ hpars
 		XA = XF - XC
 		
 		out = xr.Dataset( { "XF" : XF , "XC" : XC , "XA" : XA } )
@@ -692,7 +679,7 @@ class Climatology:##{{{
 		hparnames = []
 		for name in self.namesX:
 			for p in self.dpers:
-				hparnames = hparnames + [f"s{s}_{name}_{p}" for s in range(self.GAM_dof-1)]
+				hparnames = hparnames + [f"s{s}_{name}_{p}" for s in range(self.GAM_sbasis[name][p])]
 			hparnames = hparnames + [f"cst_{name}",f"slope_{name}"]
 		
 		if not self.onlyX:
@@ -744,16 +731,19 @@ class Climatology:##{{{
 	
 	@property
 	def GAM_dof(self):
-		return self._Xconfig["GAM_dof"]
+		return self._Xconfig["dof"]
+	
+	@property
+	def GAM_sbasis(self):
+		return self._Xconfig["sbasis"]
 	
 	@property
 	def GAM_degree(self):
-		return self._Xconfig["GAM_degree"]
+		return self._Xconfig["degree"]
 	
 	@property
 	def XN_version(self):
 		return self._Xconfig["XN_version"]
-	
 	
 	@property
 	def sizeX(self):

@@ -26,7 +26,7 @@ from ..__logs import log_start_end
 
 from ..__ANKParams import ankParams
 
-from ..stats.__MultiGAM import mgam_multiple_fit_bootstrap
+from ..stats.__MultiGAM import mgam_multiple_fit
 from ..stats.__tools    import nslawid_to_class
 from ..stats.__NSLawMLEFit import nslaw_fit
 from ..__sys import coords_samples
@@ -108,16 +108,39 @@ def run_ank_cmd_fit_X():
 	logger.info( "Build XN" )
 	XN   = { name : { p : ankParams.clim.XN.loc[X[name][p].time] for p in X[name] } for name in X }
 	
+	## Check GAM parameters
+	dof    = ankParams.clim.GAM_dof
+	sbasis = ankParams.clim.GAM_sbasis
+	degree = ankParams.clim.GAM_degree
+	
+	if dof is None or sbasis is None or degree is None:
+		dof    = {}
+		sbasis = {}
+		degree = {}
+		for name in X:
+			dof[name]    = {}
+			sbasis[name] = {}
+			degree[name] = {}
+			for per in periods:
+				dof[name][per]    = 6
+				sbasis[name][per] = 6
+				degree[name][per] = 3
+		ankParams.clim._Xconfig["dof"]    = dof
+		ankParams.clim._Xconfig["sbasis"] = sbasis
+		ankParams.clim._Xconfig["degree"] = degree
+	
 	## Fit MultiGAM model with bootstrap
-	logger.info( f"Fit the MultiGAM model (number of bootstrap: {ankParams.n_samples})" )
-	hpar,hcov = mgam_multiple_fit_bootstrap( X , XN ,
-	                                         n_bootstrap = ankParams.n_samples,
-	                                         names  = ankParams.clim.names,
-	                                         dof    = ankParams.clim.GAM_dof,
-	                                         degree = ankParams.clim.GAM_degree,
-	                                         n_jobs = ankParams.n_jobs,
-	                                        cluster = ankParams.get_cluster()
-	                                         )
+	if len(X) > 1:
+		logger.info( f"Fit the MultiGAM model (number of bootstrap: {ankParams.n_samples})" )
+	else:
+		logger.info( f"Fit the MultiGAM model" )
+	hpar,hcov = mgam_multiple_fit( X , XN ,
+	                               dof    = dof,
+	                               sbasis = sbasis,
+	                               degree = degree,
+	                            n_samples = ankParams.n_samples,
+	                           cluster    = ankParams.get_cluster()
+	                               )
 	
 	ankParams.clim.hpar = hpar
 	ankParams.clim.hcov = hcov
@@ -193,7 +216,7 @@ def run_ank_cmd_fit_Y():
 	hpar_namesY = clim.hpar_names + list(nslaw.h_name)
 	
 	## Design matrix of the covariate
-	_,_,design,_ = clim.build_design_XFC()
+	proj,_ = clim.projection()
 	
 	## Time axis
 	time = sorted( list( set(clim.time.tolist()) & set(Y.time.values.tolist()) ) )
@@ -210,7 +233,7 @@ def run_ank_cmd_fit_Y():
 	output_dtypes    = [ float ]
 	dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["time","period","run"] , []],
 	                     "output_core_dims" : [ ["hparY","dperiod"] ],
-	                     "kwargs" : { "nslaw_class" : nslaw_class , "design" : design , "hpar_names" : clim.hpar_names , "cname" : cname , "dpers" : clim.dpers , "time" : time },
+	                     "kwargs" : { "nslaw_class" : nslaw_class , "proj" : proj , "cname" : cname },
 	                     "dask" : "parallelized",
 	                     "dask_gufunc_kwargs" : { "output_sizes" : { "hparY" : len(hpar_namesY) , "dperiod" : len(clim.dpers) } },
 	                     "output_dtypes"  : [clim.hpar.dtype]

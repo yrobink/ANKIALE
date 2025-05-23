@@ -122,8 +122,11 @@ def run_ank():
 		if ankParams.save_clim is not None:
 			ankParams.clim.save( ankParams.save_clim )
 			logger.info(LINE)
-	except DevException:
-		pass
+	except DevException as e:
+		logger.info(LINE)
+		logger.info("STOP FOR DEVELOPMENT")
+		logger.info(e)
+		logger.info(LINE)
 	finally:
 		ankParams.stop_dask()
 	

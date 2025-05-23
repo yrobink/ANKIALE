@@ -72,6 +72,7 @@ class ANKParams:
 	tmp_gen_stan: tempfile.TemporaryDirectory | None = None
 	tmp_stan    : str | None         = None
 	
+	Xconfig : list | None = None
 	config : str | None = None
 	use_KCC: bool = False
 	use_MAR2: bool = False
@@ -114,6 +115,7 @@ class ANKParams:
 		parser.add_argument( "--cluster"                , default = "PROCESS" )
 		
 		parser.add_argument( "--config" , default = None )
+		parser.add_argument( "--Xconfig" , nargs = "+" , action = "extend" )
 		parser.add_argument( "--no-STAN" , action = "store_const" , const = True , default = False )
 		parser.add_argument( "--use-KCC" , action = "store_const" , const = True , default = False )
 		parser.add_argument( "--use-MAR2" , action = "store_const" , const = True , default = False )
@@ -220,14 +222,16 @@ class ANKParams:
 		## Init from scratch
 		self.clim = Climatology()
 		
-		self.clim._Xconfig["GAM_dof"]    = int( self.config.get( "GAM_dof"    , 7 ) )
-		self.clim._Xconfig["GAM_degree"] = int( self.config.get( "GAM_degree" , 3 ) )
-		
 		self.clim.bper  = self.bias_period
 		self.clim.cper  = self.common_period
 		self.clim.dpers = self.different_periods
 		self.clim._tmp  = self.tmp
 		
+		self.clim._Xconfig["degree"] = self.config.get('GAM_degree')
+		self.clim._Xconfig["dof"]    = self.config.get('GAM_dof')
+		self.clim._Xconfig["sbasis"] = self.config.get('GAM_sbasis')
+
+
 	##}}}
 	
 	def get_cluster(self):##{{{
@@ -283,6 +287,26 @@ class ANKParams:
 			else:
 				self.config = {}
 			
+			## Create GAM configuration, if given
+			if self.Xconfig is not None:
+				for g in ["GAM_sbasis","GAM_dof","GAM_degree"]:
+					if g not in self.config:
+						self.config[g] = {}
+				for f in self.Xconfig:
+					
+					## Extract
+					cname,dper,sbasis,dof,degree = f.split(":")
+					
+					## Create dict
+					for g in ["GAM_sbasis","GAM_dof","GAM_degree"]:
+						if cname not in self.config[g]:
+							self.config[g][cname] = {}
+
+					## Set
+					self.config["GAM_sbasis"][cname][dper] = int(sbasis)
+					self.config["GAM_dof"][cname][dper] = int(dof)
+					self.config["GAM_degree"][cname][dper] = int(degree)
+
 		except Exception as e:
 			self.abort = True
 			self.error = e
