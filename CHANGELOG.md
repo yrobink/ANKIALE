@@ -12,7 +12,7 @@
   If not given the default configuration is `6:6:3`. Note that the dof is only
   for the spline basis, without the intercept. So the total numbers of degree
   of freedom is `dof+2` for each different periods.
-- Add the method `ANKIALE.Climatology.build_design_basis method`, which return
+- Add the method `ANKIALE.Climatology.build_design_basis` method, which return
   the linear part of the covariate, and a dict for the spline part.
 - Add a class `ANKIALE.stats.SplineSmoother` to smooth on a spline basis
   controlling the dof and degree.
