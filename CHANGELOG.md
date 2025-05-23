@@ -8,9 +8,7 @@
   and the degree can be set for each covariate, and each differents periods.
   These new parameters can be passed to ANKIALE with the new option
   `--Xconfig`, which takes arguments of the form:
-       ~~~bash
-       --Xconfig name_covariate:period:size_basis:dof:degree
-       ~~~
+       `--Xconfig name_covariate:period:size_basis:dof:degree`
   If not given the default configuration is `6:6:3`. Note that the dof is only
   for the spline basis, without the intercept. So the total numbers of degree
   of freedom is `dof+2` for each different periods.
