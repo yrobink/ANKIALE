@@ -135,7 +135,8 @@ def run_ank_cmd_constrain_X():
 		zXo[name] = Xo
 	
 	## Check if KCC can be used
-	if ankParams.use_KCC and len(zXo) > 2:
+	method = ankParams.config.get("method","INDEPENDENT")
+	if method == "KCC" and len(zXo) > 2:
 		raise ValueError("KCC can not be used for a constraint with more than 2 covariates ({len(zXo)} required)")
 	
 	##
@@ -168,7 +169,6 @@ def run_ank_cmd_constrain_X():
 	A = np.vstack(proj)
 	
 	## Find natural variability of obs
-	method = ankParams.config.get("method","INDEPENDENT")
 	if method not in ["KCC","MAR2","INDEPENDENT"]:
 		raise ValueError( f"Unknow method '{method}'")
 	logger.info( f"Method used: {method}" )
