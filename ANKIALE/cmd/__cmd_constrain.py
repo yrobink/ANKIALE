@@ -87,7 +87,9 @@ def run_ank_cmd_constrain_X():
 	clim = ankParams.clim
 	d_spatial = clim.d_spatial
 	c_spatial = clim.c_spatial
-	
+	tleft  = str(int(clim.time[ 0]))
+	tright = str(int(clim.time[-1]))
+
 	## Load observations
 	zXo = {}
 	for i,inp in enumerate(ankParams.input):
@@ -98,7 +100,7 @@ def run_ank_cmd_constrain_X():
 			raise ValueError( f"Unknown variable {name}" )
 		
 		## Open data
-		idata = xr.open_dataset(ifile)
+		idata = xr.open_dataset(ifile).sel( time = slice(tleft,tright) )
 		
 		## Time axis
 		time = idata.time.dt.year.values
