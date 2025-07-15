@@ -1,4 +1,4 @@
-include ANKIALE/data/XN_CMIP5.nc
+include ANKIALE/data/XN_CMIP5.csv
 include ANKIALE/data/XN_CMIP6.csv
 include ANKIALE/data/STAN_GEVMODEL_PRIOR-MULTINORMAL.stan
 include ANKIALE/data/STAN_GEVMODEL_PRIOR-NORMAL.stan
