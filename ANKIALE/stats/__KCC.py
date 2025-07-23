@@ -156,7 +156,7 @@ class MAR2:##{{{
             ars  = AR1( hpar[3] , logit(hpar[4]) , np.exp(hpar[5]) )
             size = X.size
             cov  = arf.cov(size) + ars.cov(size)
-            return -sc.multivariate_normal.logpdf( X , mean = np.zeros(size) , cov = cov ).sum()
+            return -sc.multivariate_normal.logpdf( X , mean = np.zeros(size) , cov = cov , allow_singular = True ).sum()
         try:
             hpar0 = MAR2.fit( X , method = "backfitting" ).hpar
         except:
