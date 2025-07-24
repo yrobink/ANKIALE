@@ -34,11 +34,12 @@ from ..__sys import Error
 import numpy  as np
 import xarray as xr
 import scipy.linalg as scl
-import statsmodels.gam.api as smg
 import statsmodels.gam.api as gamapi
 import distributed
 
+from typing import Any
 from typing import Sequence
+from typing import Self
 from ..__exceptions import DevException
 
 
@@ -56,19 +57,22 @@ logger.addHandler(logging.NullHandler())
 
 class SplineSmoother:##{{{
     
-    def __init__( self , x , sbasis , dof , degree , include_intercept = True ):##{{{
-        self._spl = smg.BSplines( x , df = sbasis + int(not include_intercept) , degree = degree , include_intercept = include_intercept )
-        self._gam = None
+    _spl: gamapi.BSplines
+    _gam: gamapi.GLMGam | None = None
+    dof: float
+
+    def __init__( self , x: np.ndarray , sbasis: int , dof: float , degree: int , include_intercept: bool = True ) -> None:##{{{
+        self._spl = gamapi.BSplines( x , df = sbasis + int(not include_intercept) , degree = degree , include_intercept = include_intercept )
         self.dof  = dof
     ##}}}
     
-    def fit( self , X ):##{{{
+    def fit( self , X: np.ndarray ) -> Self:##{{{
         
         alpha = 1e-6
         edof  = self.sbasis + 1
         while edof > self.dof:
             alpha *= 10
-            gam    = smg.GLMGam( endog = X , smoother = self._spl , alpha = alpha )
+            gam    = gamapi.GLMGam( endog = X , smoother = self._spl , alpha = alpha )
             res    = gam.fit()
             edof   = res.edf.sum()
         
@@ -76,7 +80,7 @@ class SplineSmoother:##{{{
         alphaR = alphaL / 10
         while np.abs(edof - self.dof) > 1e-2:
             alpha = ( alphaL + alphaR ) / 2
-            gam    = smg.GLMGam( endog = X , smoother = self._spl , alpha = alpha )
+            gam    = gamapi.GLMGam( endog = X , smoother = self._spl , alpha = alpha )
             res    = gam.fit()
             edof   = res.edf.sum()
             if edof < self.dof:
@@ -90,7 +94,7 @@ class SplineSmoother:##{{{
         return self
     ##}}}
     
-    def predict( self , *args , **kwargs ):##{{{
+    def predict( self , *args: Any , **kwargs: Any ) -> np.ndarray:##{{{
         if self._res is not None:
             return self._res.predict( *args , **kwargs )
     ##}}}
@@ -98,33 +102,33 @@ class SplineSmoother:##{{{
     ## Properties ##{{{
     
     @property
-    def degree(self):
+    def degree(self) -> int:
         return int(self._spl.degree[0])
     
     @property
-    def sbasis(self):
+    def sbasis(self) -> int:
         return self._spl.dim_basis
     
     @property
-    def include_intercept(self):
+    def include_intercept(self) -> bool:
         return self._spl.include_intercept
     
     @property
-    def basis(self):
+    def basis(self) -> np.ndarray:
         return self._spl.basis
     
     @property
-    def edof(self):
+    def edof(self) -> float:
         if self._res is not None:
             return self._res.edf.sum()
     
     @property
-    def hpar(self):
+    def hpar(self) -> np.ndarray:
         if self._res is not None:
             return self._res.params
     
     @property
-    def hcov(self):
+    def hcov(self) -> np.ndarray:
         if self._res is not None:
             return self._res.cov_params()
     

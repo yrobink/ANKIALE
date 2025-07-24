@@ -34,7 +34,6 @@ from ..__logs import log_start_end
 
 from ..__ANKParams import ankParams
 from ..__climatology import Climatology
-from ..stats.__tools import nslawid_to_class
 from ..stats.__synthesis import synthesis
 
 from ..__exceptions import DevException
@@ -52,7 +51,7 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def zsynthesis( hpars , hcovs ):##{{{
+def zsynthesis( hpars: zr.ZXArray , hcovs: zr.ZXArray ) -> tuple[zr.ZXArray,zr.ZXArray]:##{{{
     
     ssp   = hpars.shape[:-2]
 #    nmod  = hpars.shape[-2]
@@ -76,7 +75,7 @@ def zsynthesis( hpars , hcovs ):##{{{
 
 ## run_ank_cmd_synthesize ##{{{
 @log_start_end(logger)
-def run_ank_cmd_synthesize():
+def run_ank_cmd_synthesize() -> None:
     
     ##
     clim = ankParams.clim

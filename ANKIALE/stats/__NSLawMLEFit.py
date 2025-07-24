@@ -53,7 +53,7 @@ logger.addHandler(logging.NullHandler())
 ## nslaw_fit ##{{{
 
 @disable_warnings
-def nslaw_fit( hpar , hcov , Y , samples , nslaw_class , proj , cname ):
+def nslaw_fit( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , samples: np.ndarray , nslaw_class: type , proj: xr.DataArray , cname: str ) -> np.ndarray:
     
     ## Init law
     nslaw = nslaw_class()

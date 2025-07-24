@@ -50,7 +50,7 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def synthesis( hpars , hcovs ):##{{{
+def synthesis( hpars: np.ndarray , hcovs: np.ndarray ) -> tuple[np.ndarray,np.ndarray]:##{{{
     
     if np.all( ~np.isfinite(hpars)) or np.all( ~np.isfinite(hcovs)):
         hpar = np.zeros( hpars.shape[1:] ) + np.nan

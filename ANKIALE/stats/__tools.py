@@ -27,6 +27,7 @@
 
 import logging
 
+from .models.__AbstractModel import AbstractModel
 from .models.__GEVModel    import GEVModel
 from .models.__GEVMinModel import GEVMinModel
 from .models.__NormalModel import NormalModel
@@ -50,12 +51,16 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def nslawid_to_class( nslawid ):
-    if nslawid == "GEV":
-        return GEVModel
-    if nslawid == "GEVMin":
-        return GEVMinModel
-    if nslawid == "Normal":
-        return NormalModel
+def nslawid_to_class( nslawid: str ) -> AbstractModel:
     
-    raise ValueError( f"NSlaw not known (={nslawid})" )
+    match nslawid:
+        case "GEV":
+            cnslaw = GEVModel
+        case "GEVMin":
+            cnslaw = GEVMinModel
+        case "Normal":
+            cnslaw = NormalModel
+        case _:
+            raise ValueError( f"NSlaw not known (={nslawid})" )
+
+    return cnslaw
