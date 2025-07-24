@@ -150,8 +150,10 @@ def run_ank_cmd_fit_Y() -> None:
     
     ## The current climatology
     clim = ankParams.clim
+    logger.info(" * Find parameters")
+    
     ## Name of the variable to fit
-    name = ankParams.config["name"]
+    vname = ankParams.config["vname"]
     
     ## Spatial dimensions
     d_spatial = ankParams.config.get("spatial")
@@ -164,25 +166,33 @@ def run_ank_cmd_fit_Y() -> None:
     ## Set the covariate
     cname = ankParams.config.get("cname",clim.names[-1])
     
+    ## Find the nslaw
+    idnslaw = ankParams.config.get("nslaw")
+    if idnslaw is None:
+        raise ValueError( "nslaw must be set" )
+    
+    ## And set Y config
+    clim.Yconfig._vname  = vname
+    clim.Yconfig._cname  = cname
+    clim.Yconfig.idnslaw = idnslaw
+    clim._names.append(vname)
+
     ## Open the data
+    logger.info(" * Open data")
     ifile = ankParams.input[0]
     idata = xr.open_dataset(ifile).load()
     
     ## Check if variables in idata
-    for v in (name,) + d_spatial:
+    for v in (vname,) + d_spatial:
         if v not in idata:
             raise ValueError( f"Variable '{v}' not in input data" )
     
     ## Spatial coordinates
     c_spatial = { d : idata[d] for d in d_spatial }
     
-    ## Find the nslaw
-    nslawid = ankParams.config.get("nslaw")
-    if nslawid is None:
-        raise ValueError( "nslaw must be set" )
-    
     ## Find the bias, and remove it
-    Y     = idata[name]
+    logger.info(" * Compute bias")
+    Y     = idata[vname]
     biasY = Y.sel( time = slice(*clim.bias_period) ).mean( dim = [d for d in Y.dims if d not in d_spatial] )
     Y     = Y - biasY
     try:
@@ -199,7 +209,7 @@ def run_ank_cmd_fit_Y() -> None:
     
     ## Transform in ZXArray
     zY = zr.ZXArray.from_xarray(Y)
-    
+
     ## Check periods
     periods = list(set(clim.dpers) & set(Y.period.values.tolist()))
     periods.sort()
@@ -208,12 +218,15 @@ def run_ank_cmd_fit_Y() -> None:
     clim = clim.restrict_dpers(periods)
     
     ## Find the nslaw
-    nslaw_class = nslawid_to_class(nslawid)
-    nslaw       = nslaw_class()
-    hpar_namesY = clim.hpar_names + list(nslaw.h_name)
+    cnslaw = clim.Yconfig.cnslaw
+    nslaw  = cnslaw()
     
     ## Design matrix of the covariate
-    proj,_ = clim.projection()
+    chpar_names = clim.chpar_names
+    vhpar_names = clim.vhpar_names
+    hpar_names  = clim.hpar_names
+    projF,_ = clim.projection()
+    projF = projF.sel( hpar = chpar_names )
     
     ## Time axis
     time = sorted( list( set(clim.time.tolist()) & set(Y.time.values.tolist()) ) )
@@ -226,21 +239,22 @@ def run_ank_cmd_fit_Y() -> None:
     
     ## zxarray.apply_ufunc parameters
     output_dims      = [ ("hparY","dperiod","sample") + d_spatial ]
-    output_coords    = [ [hpar_namesY,clim.dpers,samples.dataarray] + [ c_spatial[d] for d in d_spatial ] ]
+    output_coords    = [ [hpar_names,clim.dpers,samples.dataarray] + [ c_spatial[d] for d in d_spatial ] ]
     output_dtypes    = [ float ]
     dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["time","period","run"] , []],
                          "output_core_dims" : [ ["hparY","dperiod"] ],
-                         "kwargs" : { "nslaw_class" : nslaw_class , "proj" : proj , "cname" : cname },
+                         "kwargs" : { "nslaw_class" : cnslaw , "proj" : projF , "cname" : cname },
                          "dask" : "parallelized",
-                         "dask_gufunc_kwargs" : { "output_sizes" : { "hparY" : len(hpar_namesY) , "dperiod" : len(clim.dpers) } },
+                         "dask_gufunc_kwargs" : { "output_sizes" : { "hparY" : len(hpar_names) , "dperiod" : len(clim.dpers) } },
                          "output_dtypes"  : [clim.hpar.dtype]
                         }
     
     ## Block memory function
-    nhpar = len(clim.hpar_names)
-    block_memory = lambda x : 2 * ( nhpar + nhpar**2 + len(time) * (len(clim.dpers)+1) * Y["run"].size + len(hpar_namesY) * len(clim.dpers) ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+    nhpar = len(hpar_names)
+    block_memory = lambda x : 2 * ( nhpar + nhpar**2 + len(time) * (clim.ndpers+1) * Y["run"].size + nhpar * clim.ndpers ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
     
     ## Fit samples of parameters
+    logger.info(" * Fit samples")
     hpar  = clim.hpar
     hcov  = clim.hcov
     with ankParams.get_cluster() as cluster:
@@ -259,20 +273,21 @@ def run_ank_cmd_fit_Y() -> None:
     
     ## And find parameters of the distribution
     output_dims      = [ ("hpar",) + d_spatial , ("hpar0","hpar1") + d_spatial ]
-    output_coords    = [ [hpar_namesY] + [ c_spatial[d] for d in d_spatial ] , [hpar_namesY,hpar_namesY] + [ c_spatial[d] for d in d_spatial ] ]
+    output_coords    = [ [hpar_names] + [ c_spatial[d] for d in d_spatial ] , [hpar_names,hpar_names] + [ c_spatial[d] for d in d_spatial ] ]
     output_dtypes    = [float,float]
     dask_kwargs      = { "input_core_dims"  : [ ["hparY","dperiod","sample"]],
                          "output_core_dims" : [ ["hpar"] , ["hpar0","hpar1"] ],
                          "kwargs" : {},
                          "dask" : "parallelized",
-                         "dask_gufunc_kwargs" : { "output_sizes" : { "hpar" : len(hpar_namesY) , "hpar0" : len(hpar_namesY) , "hpar1" : len(hpar_namesY) } },
+                         "dask_gufunc_kwargs" : { "output_sizes" : { "hpar" : len(hpar_names) , "hpar0" : len(hpar_names) , "hpar1" : len(hpar_names) } },
                          "output_dtypes"  : [hpars.dtype,hpars.dtype]
                         }
     
     ## Block memory function
-    block_memory = lambda x : 2 * ( nhpar * len(clim.dpers) * n_samples + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+    block_memory = lambda x : 2 * ( nhpar * clim.ndpers * n_samples + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
     
     ## Apply
+    logger.info(" * Find hpar and hcov from samples")
     with ankParams.get_cluster() as cluster:
         hpar,hcov = zr.apply_ufunc( mean_cov_hpars , hpars,
                                     block_dims         = d_spatial,
@@ -288,13 +303,10 @@ def run_ank_cmd_fit_Y() -> None:
                                     )
     
     ## Update the climatology
+    logger.info(" * Update clim")
     clim.hpar  = hpar
     clim.hcov  = hcov
-    clim._names.append(name)
-    clim._bias[name]  = biasY
-    clim._nslawid     = nslawid
-    clim._nslaw_class = nslaw_class
-    clim.cname    = cname
+    clim._bias[vname]  = biasY
     clim._spatial = c_spatial
     
 ##}}}

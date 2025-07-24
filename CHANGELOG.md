@@ -27,6 +27,7 @@
 - Documentation has been changed accordingly to the new spline basis
   parameters.
 - Examples have been changed accordingly to the new spline basis parameters.
+- name for variable (and not covariate) is renamed vname
 
 ### Removed
 - In the `--config` option, `GAM_dof` and `GAM_degree` have been removed.

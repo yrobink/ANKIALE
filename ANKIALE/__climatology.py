@@ -89,7 +89,7 @@ class XConfig:##{{{
 class YConfig:##{{{
     _cname: str | None
     _vname: str | None
-    idnslaw: str | None
+    _idnslaw: str | None
     cnslaw: AbstractModel | None = None
     
     def __init__( self , cname: str | None = None,
@@ -98,11 +98,19 @@ class YConfig:##{{{
         self._cname = cname
         self._vname = vname
         self.idnslaw = idnslaw
-        if self.idnslaw is not None:
-            self.cnslaw = nslawid_to_class(self.idnslaw)
     
     def copy(self) -> Self:
         return YConfig( self._cname , self._vname , self.idnslaw )
+    
+    @property
+    def idnslaw(self) -> str:
+        return self._idnslaw
+    
+    @idnslaw.setter
+    def idnslaw( self , value: str | None ) -> None:
+        if value is not None:
+            self._idnslaw = value
+            self.cnslaw = nslawid_to_class(self.idnslaw)
 
     @property
     def is_init(self) -> bool:
@@ -130,7 +138,7 @@ class YConfig:##{{{
 
 class Climatology:##{{{
     
-    ## 
+    ## Attributes ##{{{
     _names: Sequence[str]
     _cper: str
     _bper: tuple[int,int]
@@ -147,6 +155,8 @@ class Climatology:##{{{
     Xconfig: XConfig
     Yconfig: YConfig = YConfig()
     
+    ##}}}
+
     ## Input / output ##{{{
     
     def __init__( self ) -> None:##{{{
@@ -273,9 +283,9 @@ class Climatology:##{{{
                 incf_version    = incf.getncattr("BSAC_version")
             else:
                 raise ValueError("Impossible to find the ANKIALE version of the file")
-            clim._names     = incf.variables["names"][:]
-            clim.cper       = incf.variables["common_period"][:]
-            clim.dpers      = incf.variables["different_periods"][:]
+            clim._names     = incf.variables["names"][:].tolist()
+            clim.cper       = incf.variables["common_period"][:].tolist()
+            clim.dpers      = incf.variables["different_periods"][:].tolist()
             
             clim._bias = {}
             for name in clim.names:
@@ -292,9 +302,9 @@ class Climatology:##{{{
             
             ## Y config
             try:
-                cname   = incf.variables["Y"].getncattr("cname")
-                vname   = incf.variables["Y"].getncattr("vname")
-                idnslaw = incf.variables["Y"].getncattr("nslawid")
+                cname   = str(incf.variables["Y"].getncattr("cname"))
+                vname   = str(incf.variables["Y"].getncattr("vname"))
+                idnslaw = str(incf.variables["Y"].getncattr("idnslaw"))
                 clim.Yconfig = YConfig( cname = cname , vname = vname , idnslaw = idnslaw )
             except Exception:
                 vname = ""
@@ -436,6 +446,7 @@ class Climatology:##{{{
             logger.info( " * Fill GAM basis" )
             ncvars["X_nknot"][:]  = self.nknot
             ncvars["X_degree"][:] = self.degree
+            ncvars["X_dof"][:] = 0
             for icname,cname in enumerate(self.cnames):
                 for idper,dper in enumerate(self.dpers):
                     ncvars["X_dof"][icname,idper]    = self.dof[f"{cname}_{dper}"]
@@ -506,11 +517,11 @@ class Climatology:##{{{
         return clim
     ##}}}
     
-    def restrict_dpers2( self , periods ):##{{{
-        hpar_names = self.hpar_names
+    def restrict_dpers( self , periods: Sequence[str] ) -> Self:##{{{
+        hpar_names = self._hpar.coords["hpar"].values.tolist()
         idx = []
         for ih,h in enumerate(hpar_names):
-            if "cst_" in h or "slope_" in h:
+            if "X0" in h or "XN" in h:
                 idx.append(ih)
             else:
                 _,_,p = h.split("_")
@@ -667,7 +678,7 @@ class Climatology:##{{{
     def vhpar_names(self) -> Sequence[str]:
         if self.onlyX:
             return []
-        return self.Yconfig.cnslaw().h_name
+        return list(self.Yconfig.cnslaw().h_name)
 
     @property
     def hpar_names(self) -> Sequence[str]:
