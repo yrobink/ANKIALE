@@ -30,34 +30,34 @@ import xarray as xr
 ###############
 
 def get_XN( time = None , version = "CMIP6" ):##{{{
-	"""
-	ANKIALE.get_XN
-	==============
-	
-	Arguments
-	---------
-	time: time axis or None
-		Get only a subset of natural forcings
-	version: str
-		Version of forcings, must be CMIP5 or CMIP6
-	
-	Returns
-	-------
-	XN: xarray.DataArray
-		A dataarray of natural response
-	"""
-	cpath = os.path.dirname(os.path.abspath(__file__))
-	
-	if version not in ["CMIP5","CMIP6"]:
-		raise ValueError( "Version of XNGenerator must be CMIP5 or CMIP6")
-	
-	dX = pd.read_csv( os.path.join( cpath , "data" , f"XN_{version}.csv" ) )
-	
-	XN = xr.DataArray( dX["XN"].values.astype(float) , dims = ["time"] , coords = [dX["year"].values.astype(int)] )
-	
-	if time is not None:
-		XN = XN.loc[time]
-	
-	return XN
+    """
+    ANKIALE.get_XN
+    ==============
+    
+    Arguments
+    ---------
+    time: time axis or None
+        Get only a subset of natural forcings
+    version: str
+        Version of forcings, must be CMIP5 or CMIP6
+    
+    Returns
+    -------
+    XN: xarray.DataArray
+        A dataarray of natural response
+    """
+    cpath = os.path.dirname(os.path.abspath(__file__))
+    
+    if version not in ["CMIP5","CMIP6"]:
+        raise ValueError( "Version of XNGenerator must be CMIP5 or CMIP6")
+    
+    dX = pd.read_csv( os.path.join( cpath , "data" , f"XN_{version}.csv" ) )
+    
+    XN = xr.DataArray( dX["XN"].values.astype(float) , dims = ["time"] , coords = [dX["year"].values.astype(int)] )
+    
+    if time is not None:
+        XN = XN.loc[time]
+    
+    return XN
 ##}}}
 

@@ -51,11 +51,11 @@ logger.addHandler(logging.NullHandler())
 ###############
 
 def nslawid_to_class( nslawid ):
-	if nslawid == "GEV":
-		return GEVModel
-	if nslawid == "GEVMin":
-		return GEVMinModel
-	if nslawid == "Normal":
-		return NormalModel
-	
-	raise ValueError( f"NSlaw not known (={nslawid})" )
+    if nslawid == "GEV":
+        return GEVModel
+    if nslawid == "GEVMin":
+        return GEVMinModel
+    if nslawid == "Normal":
+        return NormalModel
+    
+    raise ValueError( f"NSlaw not known (={nslawid})" )

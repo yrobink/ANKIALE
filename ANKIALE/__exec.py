@@ -77,163 +77,163 @@ logger.addHandler(logging.NullHandler())
 
 @log_start_end(logger)
 def run_ank():
-	"""
-	ANKIALE.run_ank
-	===============
-	
-	Main execution, after the control of user input.
-	
-	"""
-	
-	ankParams.init_dask()
-	try:
-		
-		## Init clim
-		ankParams.init_clim()
-		logger.info(LINE)
-		logger.info("Summary of the climatology")
-		logger.info(ankParams.clim)
-		logger.info(LINE)
-		
-		## Run command
-		cmd = ankParams.cmd
-		if cmd.lower() == "show":
-			run_ank_cmd_show()
-		elif cmd.lower() == "fit":
-			run_ank_cmd_fit()
-		elif cmd.lower() == "draw":
-			run_ank_cmd_draw()
-		elif cmd.lower() == "synthesize":
-			run_ank_cmd_synthesize()
-		elif cmd.lower() == "constrain":
-			run_ank_cmd_constrain()
-		elif cmd.lower() == "attribute":
-			run_ank_cmd_attribute()
-		elif cmd.lower() == "misc":
-			run_ank_cmd_misc()
-		elif cmd.lower() == "example":
-			run_ank_cmd_example()
-		
-		## And save clim ?
-		logger.info(LINE)
-		logger.info("Summary of the climatology")
-		logger.info(ankParams.clim)
-		logger.info(LINE)
-		if ankParams.save_clim is not None:
-			ankParams.clim.save( ankParams.save_clim )
-			logger.info(LINE)
-	except DevException as e:
-		logger.info(LINE)
-		logger.info("STOP FOR DEVELOPMENT")
-		logger.info(e)
-		logger.info(LINE)
-	finally:
-		ankParams.stop_dask()
-	
+    """
+    ANKIALE.run_ank
+    ===============
+    
+    Main execution, after the control of user input.
+    
+    """
+    
+    ankParams.init_dask()
+    try:
+        
+        ## Init clim
+        ankParams.init_clim()
+        logger.info(LINE)
+        logger.info("Summary of the climatology")
+        logger.info(ankParams.clim)
+        logger.info(LINE)
+        
+        ## Run command
+        cmd = ankParams.cmd
+        if cmd.lower() == "show":
+            run_ank_cmd_show()
+        elif cmd.lower() == "fit":
+            run_ank_cmd_fit()
+        elif cmd.lower() == "draw":
+            run_ank_cmd_draw()
+        elif cmd.lower() == "synthesize":
+            run_ank_cmd_synthesize()
+        elif cmd.lower() == "constrain":
+            run_ank_cmd_constrain()
+        elif cmd.lower() == "attribute":
+            run_ank_cmd_attribute()
+        elif cmd.lower() == "misc":
+            run_ank_cmd_misc()
+        elif cmd.lower() == "example":
+            run_ank_cmd_example()
+        
+        ## And save clim ?
+        logger.info(LINE)
+        logger.info("Summary of the climatology")
+        logger.info(ankParams.clim)
+        logger.info(LINE)
+        if ankParams.save_clim is not None:
+            ankParams.clim.save( ankParams.save_clim )
+            logger.info(LINE)
+    except DevException as e:
+        logger.info(LINE)
+        logger.info("STOP FOR DEVELOPMENT")
+        logger.info(e)
+        logger.info(LINE)
+    finally:
+        ankParams.stop_dask()
+    
 ##}}}
 
 def start_ank(*argv):##{{{
-	"""
-	ANKIALE.start_ank
-	=================
-	
-	Starting point of 'ank'.
-	
-	"""
-	## Time counter
-	walltime0 = dt.datetime.now(dt.UTC)
-	## Read input
-	try:
-		ankParams.init_from_user_input(*argv)
-	except NoUserInputException as e:
-		print(e)
-		return
-	
-	## Init logs
-	ankParams.init_logging()
-	
-	## Logging
-	logger.info(LINE)
-	logger.info( "Start: {}".format( str(walltime0)[:19].replace(' ','T') + 'Z' ) )
-	logger.info(LINE)
-	logger.info( r"           _   _ _  _______          _      ______ " )
-	logger.info( r"     /\   | \ | | |/ /_   _|   /\   | |    |  ____|" )
-	logger.info( r"    /  \  |  \| | ' /  | |    /  \  | |    | |__   " )
-	logger.info( r"   / /\ \ | . ` |  <   | |   / /\ \ | |    |  __|  " )
-	logger.info( r"  / ____ \| |\  | . \ _| |_ / ____ \| |____| |____ " )
-	logger.info( r" /_/    \_\_| \_|_|\_\_____/_/    \_\______|______|" )
-	logger.info( r"                                                   " )
-	logger.info(LINE)
-	
-	## Package version
-	pkgs = [
-	        ("numpy"      , np ),
-	        ("pandas"     , pd ),
-	        ("xarray"     , xr ),
-	        ("zxarray"    , zr ),
-	        ("dask"       , dask ),
-	        ("distributed", distributed ),
-	        ("zarr"       , zarr ),
-	        ("netCDF4"    , netCDF4 ),
-	        ("SDFC"       , SDFC )
-	       ]
-	
-	logger.info( "Packages version:" )
-	logger.info( " * {:{fill}{align}{n}}".format( "ANKIALE" , fill = " " , align = "<" , n = 12 ) + f"version {version}" )
-	for name_pkg,pkg in pkgs:
-		logger.info( " * {:{fill}{align}{n}}".format( name_pkg , fill = " " , align = "<" , n = 12 ) +  f"version {pkg.__version__}" )
-	logger.info(LINE)
-	
-	## Set (or not) the seed
-	if ankParams.set_seed is not None:
-		np.random.seed(int(ankParams.set_seed))
-	
-	## Serious functions start here
-	try:
-		
-		## Check inputs
-		ankParams.check()
-		
-		## Init temporary
-		ankParams.init_tmp()
-		zr.zxParams.tmp_folder = ankParams.tmp
-		
-		## List of all input
-		logger.info("Input parameters:")
-		for key in ankParams.keys():
-			logger.info( " * {:{fill}{align}{n}}".format( key , fill = " ",align = "<" , n = 10 ) + ": {}".format(ankParams[key]) )
-		logger.info(LINE)
-		
-		## User asks help
-		if ankParams.help:
-			print_doc()
-		
-		## User asks help
-		if ankParams.version:
-			print(version)
-		
-		## In case of abort, raise Exception
-		if ankParams.abort:
-			raise ankParams.error
-		
-		## Go!
-		run_ank()
-		
-	except AbortForHelpException:
-		pass
-	except Exception as e:
-		logger.error(LINE)
-		logger.error( traceback.print_tb( sys.exc_info()[2] ) )
-		logger.error( f"Error: {e}" )
-		logger.error(LINE)
-	finally:
-		ankParams.clean_tmp()
-	
-	## End
-	walltime1 = dt.datetime.now(dt.UTC)
-	logger.info(LINE)
-	logger.info( "End: {}".format( str(walltime1)[:19].replace(' ','T') + 'Z' ) )
-	logger.info( "Wall time: {}".format(walltime1 - walltime0) )
-	logger.info(LINE)
+    """
+    ANKIALE.start_ank
+    =================
+    
+    Starting point of 'ank'.
+    
+    """
+    ## Time counter
+    walltime0 = dt.datetime.now(dt.UTC)
+    ## Read input
+    try:
+        ankParams.init_from_user_input(*argv)
+    except NoUserInputException as e:
+        print(e)
+        return
+    
+    ## Init logs
+    ankParams.init_logging()
+    
+    ## Logging
+    logger.info(LINE)
+    logger.info( "Start: {}".format( str(walltime0)[:19].replace(' ','T') + 'Z' ) )
+    logger.info(LINE)
+    logger.info( r"           _   _ _  _______          _      ______ " )
+    logger.info( r"     /\   | \ | | |/ /_   _|   /\   | |    |  ____|" )
+    logger.info( r"    /  \  |  \| | ' /  | |    /  \  | |    | |__   " )
+    logger.info( r"   / /\ \ | . ` |  <   | |   / /\ \ | |    |  __|  " )
+    logger.info( r"  / ____ \| |\  | . \ _| |_ / ____ \| |____| |____ " )
+    logger.info( r" /_/    \_\_| \_|_|\_\_____/_/    \_\______|______|" )
+    logger.info( r"                                                   " )
+    logger.info(LINE)
+    
+    ## Package version
+    pkgs = [
+            ("numpy"      , np ),
+            ("pandas"     , pd ),
+            ("xarray"     , xr ),
+            ("zxarray"    , zr ),
+            ("dask"       , dask ),
+            ("distributed", distributed ),
+            ("zarr"       , zarr ),
+            ("netCDF4"    , netCDF4 ),
+            ("SDFC"       , SDFC )
+           ]
+    
+    logger.info( "Packages version:" )
+    logger.info( " * {:{fill}{align}{n}}".format( "ANKIALE" , fill = " " , align = "<" , n = 12 ) + f"version {version}" )
+    for name_pkg,pkg in pkgs:
+        logger.info( " * {:{fill}{align}{n}}".format( name_pkg , fill = " " , align = "<" , n = 12 ) +  f"version {pkg.__version__}" )
+    logger.info(LINE)
+    
+    ## Set (or not) the seed
+    if ankParams.set_seed is not None:
+        np.random.seed(int(ankParams.set_seed))
+    
+    ## Serious functions start here
+    try:
+        
+        ## Check inputs
+        ankParams.check()
+        
+        ## Init temporary
+        ankParams.init_tmp()
+        zr.zxParams.tmp_folder = ankParams.tmp
+        
+        ## List of all input
+        logger.info("Input parameters:")
+        for key in ankParams.keys():
+            logger.info( " * {:{fill}{align}{n}}".format( key , fill = " ",align = "<" , n = 10 ) + ": {}".format(ankParams[key]) )
+        logger.info(LINE)
+        
+        ## User asks help
+        if ankParams.help:
+            print_doc()
+        
+        ## User asks help
+        if ankParams.version:
+            print(version)
+        
+        ## In case of abort, raise Exception
+        if ankParams.abort:
+            raise ankParams.error
+        
+        ## Go!
+        run_ank()
+        
+    except AbortForHelpException:
+        pass
+    except Exception as e:
+        logger.error(LINE)
+        logger.error( traceback.print_tb( sys.exc_info()[2] ) )
+        logger.error( f"Error: {e}" )
+        logger.error(LINE)
+    finally:
+        ankParams.clean_tmp()
+    
+    ## End
+    walltime1 = dt.datetime.now(dt.UTC)
+    logger.info(LINE)
+    logger.info( "End: {}".format( str(walltime1)[:19].replace(' ','T') + 'Z' ) )
+    logger.info( "Wall time: {}".format(walltime1 - walltime0) )
+    logger.info(LINE)
 ##}}}
 

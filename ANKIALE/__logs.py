@@ -32,48 +32,48 @@ import datetime as dt
 LINE = "=" * 80
 
 def log_start_end(plog):##{{{
-	"""
-	ANKIALE.log_start_end
-	=====================
-	
-	Decorator to add to the log the start / end of a function, and a walltime
-	
-	Parameters
-	----------
-	plog:
-		A logger from logging
-	
-	"""
-	def _decorator(f):
-		
-		@functools.wraps(f)
-		def f_decor(*args,**kwargs):
-			plog.info(f"ANKIALE:{f.__name__}:start")
-			time0 = dt.datetime.now(dt.UTC)
-			out = f(*args,**kwargs)
-			time1 = dt.datetime.now(dt.UTC)
-			plog.info(f"ANKIALE:{f.__name__}:walltime:{time1-time0}")
-			plog.info(f"ANKIALE:{f.__name__}:end")
-			return out
-		
-		return f_decor
-	
-	return _decorator
+    """
+    ANKIALE.log_start_end
+    =====================
+    
+    Decorator to add to the log the start / end of a function, and a walltime
+    
+    Parameters
+    ----------
+    plog:
+        A logger from logging
+    
+    """
+    def _decorator(f):
+        
+        @functools.wraps(f)
+        def f_decor(*args,**kwargs):
+            plog.info(f"ANKIALE:{f.__name__}:start")
+            time0 = dt.datetime.now(dt.UTC)
+            out = f(*args,**kwargs)
+            time1 = dt.datetime.now(dt.UTC)
+            plog.info(f"ANKIALE:{f.__name__}:walltime:{time1-time0}")
+            plog.info(f"ANKIALE:{f.__name__}:end")
+            return out
+        
+        return f_decor
+    
+    return _decorator
 ##}}}
 
 def disable_warnings( fun ):##{{{
-	"""
-	ANKIALE.disable_warnings
-	========================
-	
-	Decorator to supress warnings
-	"""
-	def fun_without_warnings( *args , **kwargs ):
-		with warnings.catch_warnings():
-			warnings.simplefilter("ignore")
-			res = fun( *args , **kwargs )
-		return res
-	
-	return fun_without_warnings
+    """
+    ANKIALE.disable_warnings
+    ========================
+    
+    Decorator to supress warnings
+    """
+    def fun_without_warnings( *args , **kwargs ):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res = fun( *args , **kwargs )
+        return res
+    
+    return fun_without_warnings
 ##}}}
 

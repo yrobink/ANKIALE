@@ -26,6 +26,6 @@ from ANKIALE import start_ank
 ##########
 
 if __name__ == "__main__":
-	
-	start_ank(*sys.argv[1:])
-	
+    
+    start_ank(*sys.argv[1:])
+    

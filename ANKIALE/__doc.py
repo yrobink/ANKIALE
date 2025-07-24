@@ -204,8 +204,8 @@ The 'constrain' command
     --config param0=value0,param1=value1,...
         size_chain: Length of each MCMC chain
     --output ofile
-    	Optionnal, if given samples are stored in the file ofile. Be careful,
-    	the size of this dataset can be very large
+        Optionnal, if given samples are stored in the file ofile. Be careful,
+        the size of this dataset can be very large
 
 
 The 'draw' command

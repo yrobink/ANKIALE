@@ -51,23 +51,23 @@ logger.addHandler(logging.NullHandler())
 ###############
 
 def synthesis( hpars , hcovs ):##{{{
-	
-	if np.all( ~np.isfinite(hpars)) or np.all( ~np.isfinite(hcovs)):
-		hpar = np.zeros( hpars.shape[1:] ) + np.nan
-		hcov = np.zeros( hcovs.shape[1:] ) + np.nan
-		return hpar,hcov
-	
-	n_mod = hpars.shape[0]
-	Si    = np.nansum( hcovs , axis = 0 ) ## Sum of covariance matrix of the models
-	Se    = (n_mod-1) * nancov(hpars)    ## Inter-model covariance matrix
-	Su    = ( Se - (1 - 1 / n_mod) * Si ) / (n_mod - 1) ## Climate model uncertainty
-	Su    = matrix_positive_part(Su)
-	
-	hpar = np.nanmean( hpars , axis = 0 )
-	hcov = (1 + 1 / n_mod) * Su + Si / n_mod**2
-	hcov = matrix_positive_part(hcov)
-	
-	return hpar,hcov
+    
+    if np.all( ~np.isfinite(hpars)) or np.all( ~np.isfinite(hcovs)):
+        hpar = np.zeros( hpars.shape[1:] ) + np.nan
+        hcov = np.zeros( hcovs.shape[1:] ) + np.nan
+        return hpar,hcov
+    
+    n_mod = hpars.shape[0]
+    Si    = np.nansum( hcovs , axis = 0 ) ## Sum of covariance matrix of the models
+    Se    = (n_mod-1) * nancov(hpars)    ## Inter-model covariance matrix
+    Su    = ( Se - (1 - 1 / n_mod) * Si ) / (n_mod - 1) ## Climate model uncertainty
+    Su    = matrix_positive_part(Su)
+    
+    hpar = np.nanmean( hpars , axis = 0 )
+    hcov = (1 + 1 / n_mod) * Su + Si / n_mod**2
+    hcov = matrix_positive_part(hcov)
+    
+    return hpar,hcov
 ##}}}
 
 

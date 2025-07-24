@@ -21,9 +21,9 @@
 #############
 
 try:
-	import curses
+    import curses
 except ModuleNotFoundError:
-	pass
+    pass
 
 from .__doc import doc as txt_doc
 
@@ -32,83 +32,83 @@ from .__doc import doc as txt_doc
 ###############
 
 def txt2curses_doc(doc):##{{{
-	"""
-	ANKIALE.txt2curses_doc
-	======================
-	
-	Function which split a text in a list of lines, and add bold / underline
-	style for headers of sections / sub-sections.
-	
-	"""
-	
-	lines = doc.split("\n")
-	
-	clines = []
-	for line in lines:
-		
-		if line == ("=" * len(line)) and len(line) > 0:
-			clines[-1][1] = [curses.A_BOLD | curses.A_UNDERLINE]
-		elif line == ("-" * len(line)) and len(line) > 0:
-			clines[-1][1] = [curses.A_UNDERLINE]
-		else:
-			clines.append( [line,[]] )
-	
-	return clines
+    """
+    ANKIALE.txt2curses_doc
+    ======================
+    
+    Function which split a text in a list of lines, and add bold / underline
+    style for headers of sections / sub-sections.
+    
+    """
+    
+    lines = doc.split("\n")
+    
+    clines = []
+    for line in lines:
+        
+        if line == ("=" * len(line)) and len(line) > 0:
+            clines[-1][1] = [curses.A_BOLD | curses.A_UNDERLINE]
+        elif line == ("-" * len(line)) and len(line) > 0:
+            clines[-1][1] = [curses.A_UNDERLINE]
+        else:
+            clines.append( [line,[]] )
+    
+    return clines
 ##}}}
 
 def print_curses_doc( screen , doc ):##{{{
-	"""
-	ANKIALE.print_curses_doc
-	========================
-	
-	Curses function to print documentation.
-	
-	"""
-	
-	cdoc = txt2curses_doc(doc)
-	
-	start = 0
-	
-	curses.init_pair( 1 , curses.COLOR_BLACK , curses.COLOR_WHITE )
-	while True:
-		screen.clear()
-		
-		## Print rows
-		for i in range(start,min(start+curses.LINES - 2,len(cdoc)),1):
-			screen.addstr( i - start , 0 , cdoc[i][0] , *cdoc[i][1] )
-		screen.addstr( curses.LINES - 1 , 0 , "Press 'q' to quit" , curses.A_BOLD | curses.color_pair(1) )
-		
-		screen.refresh()
-		
-		c = screen.getch()
-		
-		if chr(c) == 'q':
-			break
-		if c == 259:
-			start = max( 0 , start - 1 )
-		if c == 258:
-			start = min( max( len(cdoc) - 10 , 0 ) , start + 1 )
-		if c == 339:
-			start = max( 0 , start - int(curses.LINES / 2) )
-		if c == 338:
-			start = min( max( len(cdoc) - 10 , 0 ) , start + int(curses.LINES / 2) )
+    """
+    ANKIALE.print_curses_doc
+    ========================
+    
+    Curses function to print documentation.
+    
+    """
+    
+    cdoc = txt2curses_doc(doc)
+    
+    start = 0
+    
+    curses.init_pair( 1 , curses.COLOR_BLACK , curses.COLOR_WHITE )
+    while True:
+        screen.clear()
+        
+        ## Print rows
+        for i in range(start,min(start+curses.LINES - 2,len(cdoc)),1):
+            screen.addstr( i - start , 0 , cdoc[i][0] , *cdoc[i][1] )
+        screen.addstr( curses.LINES - 1 , 0 , "Press 'q' to quit" , curses.A_BOLD | curses.color_pair(1) )
+        
+        screen.refresh()
+        
+        c = screen.getch()
+        
+        if chr(c) == 'q':
+            break
+        if c == 259:
+            start = max( 0 , start - 1 )
+        if c == 258:
+            start = min( max( len(cdoc) - 10 , 0 ) , start + 1 )
+        if c == 339:
+            start = max( 0 , start - int(curses.LINES / 2) )
+        if c == 338:
+            start = min( max( len(cdoc) - 10 , 0 ) , start + int(curses.LINES / 2) )
 ##}}}
 
 def print_doc():##{{{
-	"""
-	ANKIALE.print_doc
-	=================
-	
-	Function which print the documentation. Try first with curses for interactive
-	documentation, but if curses not available (e.g. for microsoft system), just
-	print.
-	
-	"""
-	
-	try:
-		curses.wrapper( print_curses_doc , txt_doc )
-	except Exception:
-		print(txt_doc)
+    """
+    ANKIALE.print_doc
+    =================
+    
+    Function which print the documentation. Try first with curses for interactive
+    documentation, but if curses not available (e.g. for microsoft system), just
+    print.
+    
+    """
+    
+    try:
+        curses.wrapper( print_curses_doc , txt_doc )
+    except Exception:
+        print(txt_doc)
 ##}}}
 
 

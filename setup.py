@@ -23,44 +23,44 @@ from distutils.core import setup
 
 ## Release elements
 class Release:##{{{
-	def __init__( self , pkg ):
-		self._release = {}
-		cpath = os.path.dirname(os.path.abspath(__file__)) ## current-path
-		with open( os.path.join( cpath , pkg , "__release.py" ) , "r" ) as f:
-		    lines = f.readlines()
-		exec( "".join(lines) , {} , self._release )
-	
-	@property
-	def name(self):
-		return self._release['name']
-	
-	@property
-	def version(self):
-		return self._release['version']
-	
-	@property
-	def description(self):
-		return self._release['description']
-	
-	@property
-	def long_description(self):
-		return self._release['long_description']
-	
-	@property
-	def author(self):
-		return self._release['author']
-	
-	@property
-	def author_email(self):
-		return self._release['author_email']
-	
-	@property
-	def src_url(self):
-		return self._release['src_url']
-	
-	@property
-	def license(self):
-		return self._release['license']
+    def __init__( self , pkg ):
+        self._release = {}
+        cpath = os.path.dirname(os.path.abspath(__file__)) ## current-path
+        with open( os.path.join( cpath , pkg , "__release.py" ) , "r" ) as f:
+            lines = f.readlines()
+        exec( "".join(lines) , {} , self._release )
+    
+    @property
+    def name(self):
+        return self._release['name']
+    
+    @property
+    def version(self):
+        return self._release['version']
+    
+    @property
+    def description(self):
+        return self._release['description']
+    
+    @property
+    def long_description(self):
+        return self._release['long_description']
+    
+    @property
+    def author(self):
+        return self._release['author']
+    
+    @property
+    def author_email(self):
+        return self._release['author_email']
+    
+    @property
+    def src_url(self):
+        return self._release['src_url']
+    
+    @property
+    def license(self):
+        return self._release['license']
 ##}}}
 
 release = Release("ANKIALE")
@@ -93,16 +93,16 @@ packages    = [
     ]
 
 classifiers      = [
-	"Development Status :: 5 - Production/Stable",
-	"License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-	"Natural Language :: English",
-	"Operating System :: MacOS :: MacOS X",
-	"Operating System :: POSIX :: Linux",
-	"Programming Language :: Python :: 3",
-	"Topic :: Scientific/Engineering :: Mathematics",
-	"Topic :: Scientific/Engineering :: Atmospheric Science",
-	"Intended Audience :: Science/Research",
-	]
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Natural Language :: English",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Intended Audience :: Science/Research",
+    ]
 
 
 ## Now the setup
@@ -121,8 +121,8 @@ setup(  name             = release.name,
         license          = release.license,
         keywords         = keywords,
         platforms        = platforms,
-		classifiers      = classifiers,
-		include_package_data = True
+        classifiers      = classifiers,
+        include_package_data = True
     )
 
 

@@ -30,43 +30,43 @@ from .__AbstractModel import AbstractModel
 ##########
 
 class GEVModel(AbstractModel):##{{{
-	
-	def __init__( self ):##{{{
-		
-		AbstractModel.__init__( self ,
-		                        p_name    = ("loc","scale","shape"),
-		                        h_name    = ("loc0","loc1","scale0","scale1","shape0"),
-		                        sdlaw     = sd.GEV,
-		                        sclaw     = sc.genextreme,
-		                        stan_file = "STAN_GEVMODEL_PRIOR-NORMAL.stan"
-		                        )
-		
-	##}}}
-	
-	def __repr__(self):##{{{
-		return self.__str__()
-	##}}}
-	
-	def __str__(self):##{{{
-		return "ANKIALE.stats.GEVModel"
-	##}}}
-	
-	def _map_sdfit( self , Y , X ):##{{{
-		return (Y,),{ "c_loc" : X , "c_scale" : X , "l_scale" : sd.link.ULExponential() }
-	##}}}
-	
-	def _map_scpar( self , **kwargs ):##{{{
-		return { "loc" : kwargs["loc"] , "scale" : kwargs["scale"] , "c" : - kwargs["shape"] }
-	##}}}
-	
-	def draw_params( self , X , hpar ):##{{{
-		
-		loc   = hpar.sel( hpar = "loc0" ) + hpar.sel( hpar = "loc1" ) * X
-		scale = np.exp( hpar.sel( hpar = "scale0" ) + hpar.sel( hpar = "scale1" ) * X )
-		shape = hpar.sel( hpar = "shape0" ) + 0 * X
-		
-		return { "loc" : loc , "scale" : scale , "shape" : shape }
-	##}}}
-	
+    
+    def __init__( self ):##{{{
+        
+        AbstractModel.__init__( self ,
+                                p_name    = ("loc","scale","shape"),
+                                h_name    = ("loc0","loc1","scale0","scale1","shape0"),
+                                sdlaw     = sd.GEV,
+                                sclaw     = sc.genextreme,
+                                stan_file = "STAN_GEVMODEL_PRIOR-NORMAL.stan"
+                                )
+        
+    ##}}}
+    
+    def __repr__(self):##{{{
+        return self.__str__()
+    ##}}}
+    
+    def __str__(self):##{{{
+        return "ANKIALE.stats.GEVModel"
+    ##}}}
+    
+    def _map_sdfit( self , Y , X ):##{{{
+        return (Y,),{ "c_loc" : X , "c_scale" : X , "l_scale" : sd.link.ULExponential() }
+    ##}}}
+    
+    def _map_scpar( self , **kwargs ):##{{{
+        return { "loc" : kwargs["loc"] , "scale" : kwargs["scale"] , "c" : - kwargs["shape"] }
+    ##}}}
+    
+    def draw_params( self , X , hpar ):##{{{
+        
+        loc   = hpar.sel( hpar = "loc0" ) + hpar.sel( hpar = "loc1" ) * X
+        scale = np.exp( hpar.sel( hpar = "scale0" ) + hpar.sel( hpar = "scale1" ) * X )
+        shape = hpar.sel( hpar = "shape0" ) + 0 * X
+        
+        return { "loc" : loc , "scale" : scale , "shape" : shape }
+    ##}}}
+    
 ##}}}
 
