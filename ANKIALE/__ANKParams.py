@@ -36,7 +36,7 @@ import zxarray as zr
 from .__exceptions  import AbortForHelpException
 from .__exceptions  import NoUserInputException
 from .__climatology import Climatology
-from .__climatology import XConfig
+from .__climatology import CoVarConfig
 
 from typing import Any
 from typing import Sequence
@@ -76,7 +76,7 @@ class ANKParams:
     tmp_gen_stan: tempfile.TemporaryDirectory | None = None
     tmp_stan    : str | None         = None
     
-    Xconfig : list | None = None
+    covar_config : list | None = None
     config : str | None = None
     no_STAN: bool = False
     
@@ -117,7 +117,7 @@ class ANKParams:
         parser.add_argument( "--cluster"                , default = "PROCESS" )
         
         parser.add_argument( "--config" , default = None )
-        parser.add_argument( "--Xconfig" , nargs = "+" , action = "extend" )
+        parser.add_argument( "--covar-config" , nargs = "+" , action = "extend" )
         parser.add_argument( "--no-STAN" , action = "store_const" , const = True , default = False )
         
         parser.add_argument( "--input" , nargs = "+" , action = "extend" )
@@ -226,7 +226,7 @@ class ANKParams:
         self.clim.cper  = self.common_period
         self.clim.dpers = self.different_periods
         
-        self.clim.Xconfig = XConfig( self.config.get("X_dof") , self.config.get("X_degree") )
+        self.clim.cconfig = CoVarConfig( self.config.get("X_dof") , self.config.get("X_degree") )
 
     ##}}}
     
@@ -288,9 +288,9 @@ class ANKParams:
                 self.config["X_dof"] = {}
             if "X_degree" not in self.config:
                 self.config["X_degree"] = 3
-            if self.Xconfig is not None:
+            if self.covar_config is not None:
                 
-                for f in self.Xconfig:
+                for f in self.covar_config:
                     
                     ## Extract
                     cname,dper,dof = f.split(":")

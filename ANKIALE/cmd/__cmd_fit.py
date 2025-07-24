@@ -114,9 +114,9 @@ def run_ank_cmd_fit_X() -> None:
     ## Init smooth parameters
     for cname in cnames:
         for per in periods:
-            if f"{cname}_{per}" not in clim.Xconfig.dof:
-                clim.Xconfig.dof[f"{cname}_{per}"] = 6
-    clim.Xconfig.find_nknot()
+            if f"{cname}_{per}" not in clim.cconfig.dof:
+                clim.cconfig.dof[f"{cname}_{per}"] = 6
+    clim.cconfig.find_nknot()
     
     ## Find natural forcings version
     clim._vXN = ankParams.XN_version
@@ -127,7 +127,7 @@ def run_ank_cmd_fit_X() -> None:
         XN = clim.XN,
         cnames = cnames,
         dpers = periods,
-        spl_config = clim.Xconfig.spl_config
+        spl_config = clim.cconfig.spl_config
     )
     
     ## Fit
@@ -172,9 +172,9 @@ def run_ank_cmd_fit_Y() -> None:
         raise ValueError( "nslaw must be set" )
     
     ## And set Y config
-    clim.Yconfig._vname  = vname
-    clim.Yconfig._cname  = cname
-    clim.Yconfig.idnslaw = idnslaw
+    clim.vconfig._vname  = vname
+    clim.vconfig._cname  = cname
+    clim.vconfig.idnslaw = idnslaw
     clim._names.append(vname)
 
     ## Open the data
@@ -218,7 +218,7 @@ def run_ank_cmd_fit_Y() -> None:
     clim = clim.restrict_dpers(periods)
     
     ## Find the nslaw
-    cnslaw = clim.Yconfig.cnslaw
+    cnslaw = clim.vconfig.cnslaw
     nslaw  = cnslaw()
     
     ## Design matrix of the covariate

@@ -57,7 +57,7 @@ logger.addHandler(logging.NullHandler())
 ## Classes ##
 #############
 
-class XConfig:##{{{
+class CoVarConfig:##{{{
     degree: int
     dof: dict[str,int]
     nknot: int
@@ -71,7 +71,7 @@ class XConfig:##{{{
     ##}}}
     
     def copy(self) -> Self:
-        return XConfig( self.dof , self.degree , self.vXN )
+        return CoVarConfig( self.dof , self.degree , self.vXN )
 
     def find_nknot(self) -> None:##{{{
         self.nknot  = 0
@@ -86,7 +86,7 @@ class XConfig:##{{{
 
 ##}}}
 
-class YConfig:##{{{
+class VarConfig:##{{{
     _cname: str | None
     _vname: str | None
     _idnslaw: str | None
@@ -100,7 +100,7 @@ class YConfig:##{{{
         self.idnslaw = idnslaw
     
     def copy(self) -> Self:
-        return YConfig( self._cname , self._vname , self.idnslaw )
+        return VarConfig( self._cname , self._vname , self.idnslaw )
     
     @property
     def idnslaw(self) -> str:
@@ -152,8 +152,8 @@ class Climatology:##{{{
     
     _spatial     = None
     
-    Xconfig: XConfig
-    Yconfig: YConfig = YConfig()
+    cconfig: CoVarConfig
+    vconfig: VarConfig = VarConfig()
     
     ##}}}
 
@@ -169,7 +169,7 @@ class Climatology:##{{{
         def not_defined( object_: object, attr: str , joiner = ", " , max_size = 60 ):
             try:
                 out = getattr( object_ , attr )
-                if isinstance( out , Sequence ):
+                if isinstance( out , (list,tuple) ):
                     out = joiner.join( [str(o) for o in out] )
                 out = str(out)
             except Exception:
@@ -180,7 +180,7 @@ class Climatology:##{{{
             return out
         
         ## Build strings
-        onlyX = not_defined( self , "onlyX" )
+        only_covar = not_defined( self , "only_covar" )
         cname = not_defined( self , "cname" )
         vname = not_defined( self , "vname" )
         names = not_defined( self , "names" )
@@ -195,7 +195,7 @@ class Climatology:##{{{
         spatial = "Not defined" if self._spatial is None else ", ".join(self._spatial)
         
         sns = [
-               "onlyX",
+               "only_covar",
                "names",
                "cname",
                "vname",
@@ -210,7 +210,7 @@ class Climatology:##{{{
                "spatial"
               ]
         ss  = [
-               onlyX,
+               only_covar,
                names,
                cname,
                vname,
@@ -258,8 +258,8 @@ class Climatology:##{{{
                 oclim._bias[key] = float(b)
         oclim.time = self.time
         
-        oclim.Xconfig = self.Xconfig.copy()
-        oclim.Yconfig = self.Yconfig.copy()
+        oclim.cconfig = self.cconfig.copy()
+        oclim.vconfig = self.vconfig.copy()
         
         if self._spatial is not None:
             oclim._spatial = {}
@@ -305,7 +305,7 @@ class Climatology:##{{{
                 cname   = str(incf.variables["Y"].getncattr("cname"))
                 vname   = str(incf.variables["Y"].getncattr("vname"))
                 idnslaw = str(incf.variables["Y"].getncattr("idnslaw"))
-                clim.Yconfig = YConfig( cname = cname , vname = vname , idnslaw = idnslaw )
+                clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
             except Exception:
                 vname = ""
             
@@ -320,7 +320,7 @@ class Climatology:##{{{
             else:
                 dof    = { f"{cname}_{per}" : int(incf.variables["X_dof"][icname,iper]) for (icname,cname),(iper,per) in itt.product(enumerate(cnames),enumerate(clim.dpers)) }
                 degree = int(incf.variables["X_degree"][:])
-            clim.Xconfig = XConfig( dof = dof , degree = degree , vXN = vXN )
+            clim.cconfig = CoVarConfig( dof = dof , degree = degree , vXN = vXN )
             
             ## And spatial
             spatial_is_fake = False
@@ -410,7 +410,7 @@ class Climatology:##{{{
                     ncvars[d] = ncf.createVariable( d , "double" , (d,) )
                     ncvars[d][:] = np.array(self._spatial[d]).ravel()
             
-            if not self.onlyX:
+            if not self.only_covar:
                 ncvars["Y"] = ncf.createVariable( "Y" , "int32" )
             
             ## Fill variables of dimension
@@ -454,9 +454,9 @@ class Climatology:##{{{
             ## Fill informations variables
             logger.info(" * Fill informations variables")
             ncvars["X"][:] = 1
-            ncvars["X"].setncattr( "XN_version" , self.Xconfig.vXN )
+            ncvars["X"].setncattr( "XN_version" , self.cconfig.vXN )
             
-            if not self.onlyX:
+            if not self.only_covar:
                 ncvars["Y"][:] = 1
                 ncvars["Y"].setncattr( "idnslaw" , self.idnslaw )
                 ncvars["Y"].setncattr( "cname"   , self.cname    )
@@ -498,7 +498,7 @@ class Climatology:##{{{
                 clim.hpar = hpar
                 clim.hcov = hcov
                 clim._spatial = { "fake" : fakes }
-                if not self.onlyX:
+                if not self.only_covar:
                     clim._bias[self.vname] = xr.DataArray( [float(clim._bias[self.vname])] , dims = ["fake"] , coords = [fakes] )
         
         clim._names = self._names
@@ -511,8 +511,8 @@ class Climatology:##{{{
         clim._nslawid     = self._nslawid
         clim._nslaw_class = self._nslaw_class
         
-        clim._Xconfig = self._Xconfig
-        clim._Yconfig = self._Yconfig
+        clim._cconfig = self._cconfig
+        clim._vconfig = self._vconfig
         
         return clim
     ##}}}
@@ -537,7 +537,7 @@ class Climatology:##{{{
     
     def projection(self) -> tuple[xr.DataArray,xr.DataArray]:##{{{
         
-        mps = MPeriodSmoother( self.XN , self.cnames , self.dpers , self.Xconfig.spl_config )
+        mps = MPeriodSmoother( self.XN , self.cnames , self.dpers , self.cconfig.spl_config )
         chpar_names = self.chpar_names
         
         ## Create projF, for X
@@ -547,7 +547,7 @@ class Climatology:##{{{
                              )
         
         ## Add variable part
-        if self.onlyX:
+        if self.only_covar:
             projF = cprojF
         else:
             vhpar_names = self.vhpar_names
@@ -569,7 +569,7 @@ class Climatology:##{{{
         
         
         ## Extract parameters of the distribution
-        if not self.onlyX:
+        if not self.only_covar:
             hpar = np.nanmean( self.hpar.dataarray.values , axis = tuple([i+1 for i in range(self.hpar.ndim-1)]) )
             hcov = np.nanmean( self.hcov.dataarray.values , axis = tuple([i+2 for i in range(self.hpar.ndim-1)]) )
         else:
@@ -645,7 +645,7 @@ class Climatology:##{{{
     
     @property
     def cnames(self) -> Sequence[str]:
-        return self.names if self.onlyX else [cname for cname in self.names if not cname == self.Yconfig.vname]
+        return self.names if self.only_covar else [cname for cname in self.names if not cname == self.vconfig.vname]
     
     @property
     def ncnames(self) -> int:
@@ -657,7 +657,7 @@ class Climatology:##{{{
     
     @property
     def vsize(self) -> int:
-        return self.Yconfig.vsize
+        return self.vconfig.vsize
     
     @property
     def size(self) -> int:
@@ -676,9 +676,9 @@ class Climatology:##{{{
     
     @property
     def vhpar_names(self) -> Sequence[str]:
-        if self.onlyX:
+        if self.only_covar:
             return []
-        return list(self.Yconfig.cnslaw().h_name)
+        return list(self.vconfig.cnslaw().h_name)
 
     @property
     def hpar_names(self) -> Sequence[str]:
@@ -779,24 +779,28 @@ class Climatology:##{{{
     @property
     def XN(self) -> xr.DataArray:
         if self._XN is None:
-            self._XN = get_XN( time = self.time , version = self.Xconfig.vXN )
+            self._XN = get_XN( time = self.time , version = self.cconfig.vXN )
         return self._XN
     
     @property
-    def onlyX(self) -> bool:
-        return not self.Yconfig.is_init
+    def only_covar(self) -> bool:
+        return not self.vconfig.is_init
     
     @property
+    def has_var(self) -> bool:
+        return not self.only_covar
+
+    @property
     def dof(self) -> dict:
-        return self.Xconfig.dof
+        return self.cconfig.dof
     
     @property
     def nknot(self) -> int:
-        return self.Xconfig.nknot
+        return self.cconfig.nknot
     
     @property
     def degree(self) -> int:
-        return self.Xconfig.degree
+        return self.cconfig.degree
 
     ##}}}
     
@@ -804,19 +808,19 @@ class Climatology:##{{{
     
     @property
     def idnslaw(self) -> str:
-        return self.Yconfig.idnslaw
+        return self.vconfig.idnslaw
     
     @property
     def cnslaw(self) -> AbstractModel:
-        return self.Yconfig.cnslaw
+        return self.vconfig.cnslaw
 
     @property
     def cname(self) -> str:
-        return self.Yconfig.cname
+        return self.vconfig.cname
     
     @property
     def vname(self) -> str:
-        return self.Yconfig.vname
+        return self.vconfig.vname
 
     ##}}}
     

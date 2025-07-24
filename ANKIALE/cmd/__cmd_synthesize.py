@@ -37,6 +37,8 @@ from ..__climatology import Climatology
 from ..stats.__tools import nslawid_to_class
 from ..stats.__synthesis import synthesis
 
+from ..__exceptions import DevException
+
 
 ##################
 ## Init logging ##
@@ -99,11 +101,19 @@ def run_ank_cmd_synthesize():
     logger.info( " * Extract parameters" )
     ifiles      = ankParams.input
     clim._names = ankParams.config["names"].split(":")
+    
+    ## Set the v parameters
     try:
-        clim._nslawid     = ankParams.config["nslaw"]
-        clim._nslaw_class = nslawid_to_class(clim._nslawid)
-    except Exception:
+        vname       = ankParams.config["vname"]
+        cname       = ankParams.config["cname"]
+        idnslaw     = ankParams.config["nslaw"]
+        clim.vconfig._cname = cname
+        clim.vconfig._vname = vname
+        clim.vconfig.idnslaw = idnslaw
+    except:
         pass
+    
+
     hpar_names = clim.hpar_names
     d_spatial = clim.d_spatial
     c_spatial = clim.c_spatial
@@ -116,7 +126,7 @@ def run_ank_cmd_synthesize():
     hcovs = zr.ZXArray( data = np.nan , coords = hcovs_coords )
     
     ##
-    clim._bias = { n : 0 for n in clim.names }
+    obias = { n : 0 for n in clim.names }
     
     ## Open all clims, and store in zarr files
     logger.info( " * Open all clims, and store in zarr files" )
@@ -129,64 +139,54 @@ def run_ank_cmd_synthesize():
         cname = iclim.cname
         time  = iclim.time
         bper  = iclim._bper
-        if not clim.onlyX:
-            bias  = iclim.bias[iclim.vname]
-        hpar  = iclim.hpar.dataarray
-        hcov  = iclim.hcov.dataarray
+        if clim.has_var:
+            ibias  = iclim.bias[iclim.vname]
+        ihpar  = iclim.hpar.dataarray
+        ihcov  = iclim.hcov.dataarray
         
         if regrid:
             logger.info( "    | Regrid" )
             
             ## Grid
-            igrid  = xr.Dataset( iclim._spatial )
-            try:
-                rgrd2d = xesmf.Regridder( igrid , grid , "bilinear" )
-            except Exception:
-                rgrd2d = None
-            rgrdnn = xesmf.Regridder( igrid , grid , "nearest_s2d" )
+            igrid = xr.Dataset( iclim._spatial )
+            #rgrd  = xesmf.Regridder( igrid , grid , "bilinear" )
+            rgrd  = xesmf.Regridder( igrid , grid , "nearest_s2d" )
             
             ## bias is float
-            if isinstance( bias , float ):
+            if isinstance( ibias , float ):
                 logger.info( "    | Convert bias float => xarray" )
-                bias = xr.DataArray( [[bias]] , coords = igrid.coords )
+                ibias = xr.DataArray( [[ibias]] , coords = igrid.coords )
             
             ## Regrid
-            try:
-                logger.info( "    | * Bias with bilinear..." )
-                raise Exception
-                bias = rgrd2d(bias).where( mask , np.nan )
-            except Exception:
-                logger.info( "    | * Bias with nearest-neighborhood..." )
-                bias = rgrdnn(bias).where( mask , np.nan )
-            try:
-                logger.info( "    | * hpar with bilinear..." )
-                raise Exception
-                hpar = rgrd2d(hpar).where( mask , np.nan )
-            except Exception:
-                hpar = rgrdnn(hpar).where( mask , np.nan )
-                logger.info( "    | * hpar with nearest-neighborhood..." )
+            logger.info( "    | * Bias with nearest-neighborhood" )
+            ibias = rgrd(ibias).where( mask , np.nan )
+            
+            logger.info( "    | * hpar with nearest-neighborhood" )
+            ihpar = rgrd(ihpar).where( mask , np.nan )
+            
             logger.info( "    | * hcov with nearest-neighborhood" )
-            hcov = rgrdnn(hcov).where( mask , np.nan )
+            ihcov = rgrd(ihcov).where( mask , np.nan )
         
         ## Store
         idx0 = tuple([slice(None) for _ in range(len(d_spatial))])
-        hpars.loc[(i,hpar["hpar"])+idx0] = hpar.values
-        hcovs.loc[(i,hcov["hpar0"],hcov["hpar1"]) + idx0] = hcov.values
+        hpars.loc[(i,ihpar["hpar"])+idx0] = ihpar.values
+        hcovs.loc[(i,ihcov["hpar0"],ihcov["hpar1"]) + idx0] = ihcov.values
         
-        for n in clim.namesX:
-            clim._bias[n] += iclim.bias[n]
-        if not clim.onlyX:
-            clim._bias[clim.vname] += bias
+        for n in clim.cnames:
+            obias[n] += iclim.bias[n]
+        if clim.has_var:
+            obias[clim.vname] += ibias
     
     ## Final bias
+    logger.info( " * Final bias" )
     for n in clim.names:
-        clim._bias[n] /= len(ifiles)
+        obias[n] /= len(ifiles)
+    clim._bias = obias
     
     ## Now the synthesis
     logger.info( " * Run synthesis" )
     if clim.has_spatial:
         hpar_names    = clim.hpar_names
-#        nhpar_names   = len(hpar_names)
         output_dims   = [("hpar",) + d_spatial,("hpar0","hpar1") + d_spatial]
         output_coords = [[hpar_names] + [ c_spatial[d] for d in d_spatial ],[hpar_names,hpar_names] + [ c_spatial[d] for d in d_spatial ]]
         output_dtypes = [hpars.dtype,hpars.dtype]
@@ -221,7 +221,6 @@ def run_ank_cmd_synthesize():
     logger.info( " * Copy to the clim" )
     clim.hpar = hpar
     clim.hcov = hcov
-    clim.cname = cname
     clim._time = time
     clim._bper = bper
     ankParams.clim = clim
