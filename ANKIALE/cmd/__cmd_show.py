@@ -47,75 +47,75 @@ logger.addHandler(logging.NullHandler())
 
 ## run_ank_cmd_show_XN ##{{{
 @log_start_end(logger)
-def run_ank_cmd_show_XN():
-	plot_XN( ankParams.output )
+def run_ank_cmd_show_XN() -> None:
+    plot_XN( ankParams.output )
 ##}}}
 
 ## run_ank_cmd_show_X ##{{{
 @log_start_end(logger)
-def run_ank_cmd_show_X():
-	
-	## Draw data
-	XFC = ankParams.clim.rvsX( size = ankParams.n_samples )
-	
-	## And plot it
-	plot_covariates( XFC , ofile = ankParams.output )
-	
+def run_ank_cmd_show_X() -> None:
+    
+    ## Draw data
+    XFC = ankParams.clim.crvs( size = ankParams.n_samples )
+    
+    ## And plot it
+    plot_covariates( XFC , ofile = ankParams.output )
+    
 ##}}}
 
 ## run_ank_cmd_show_CX ##{{{
 @log_start_end(logger)
-def run_ank_cmd_show_CX():
-	
-	## Read climatology for comparison
-	ifileS = ankParams.input[0]
-	climS  = Climatology.init_from_file(ifileS)
-	
-	## Read observations
-	Xo = {}
-	for inp in ankParams.input[1:]:
-		key     = inp.split(",")[0]
-		ifile   = inp.split(",")[1]
-		Xo[key] = xr.open_dataset(ifile)[key]
-		Xo[key] = Xo[key] - Xo[key].sel( time = slice(*[str(y) for y in ankParams.bias_period]) ).mean()
-	
-	## Draw data
-	XFC = ankParams.clim.rvsX( size = ankParams.n_samples )
-	SFC = climS.rvsX( size = ankParams.n_samples )
-	
-	## And plot it
-	plot_constrain_CX( XFC , SFC , Xo , ofile = ankParams.output )
-	
+def run_ank_cmd_show_CX() -> None:
+    
+    ## Read climatology for comparison
+    ifileS = ankParams.input[0]
+    climS  = Climatology.init_from_file(ifileS)
+    
+    ## Read observations
+    Xo = {}
+    for inp in ankParams.input[1:]:
+        key     = inp.split(",")[0]
+        ifile   = inp.split(",")[1]
+        Xo[key] = xr.open_dataset(ifile)[key]
+        Xo[key] = Xo[key] - Xo[key].sel( time = slice(*[str(y) for y in ankParams.bias_period]) ).mean()
+    
+    ## Draw data
+    XFC = ankParams.clim.crvs( size = ankParams.n_samples )
+    SFC = climS.crvsX( size = ankParams.n_samples )
+    
+    ## And plot it
+    plot_constrain_CX( XFC , SFC , Xo , ofile = ankParams.output )
+    
 ##}}}
 
 ## run_ank_cmd_show_Y ##{{{
 @log_start_end(logger)
-def run_ank_cmd_show_Y():
-	raise NotImplementedError
+def run_ank_cmd_show_Y() -> None:
+    raise NotImplementedError
 ##}}}
 
 ## run_ank_cmd_show ##{{{
 @log_start_end(logger)
-def run_ank_cmd_show():
-	
-	## Check the command
-	if not len(ankParams.arg) == 1:
-		raise ValueError(f"Bad numbers of arguments of the show command: {', '.join(ankParams.arg)}")
-	
-	available_commands = ["XN","X","Y","CX"]
-	if not ankParams.arg[0] in available_commands:
-		raise ValueError(f"Bad argument of the show command ({ankParams.arg[0]}), must be: {', '.join(available_commands)}")
-	
-	## OK, run the good command
-	if ankParams.arg[0] == "XN":
-		run_ank_cmd_show_XN()
-	if ankParams.arg[0] == "X":
-		run_ank_cmd_show_X()
-	if ankParams.arg[0] == "CX":
-		run_ank_cmd_show_CX()
-	if ankParams.arg[0] == "Y":
-		run_ank_cmd_show_Y()
-	
+def run_ank_cmd_show() -> None:
+    
+    ## Check the command
+    if not len(ankParams.arg) == 1:
+        raise ValueError(f"Bad numbers of arguments of the show command: {', '.join(ankParams.arg)}")
+    
+    available_commands = ["XN","X","Y","CX"]
+    if not ankParams.arg[0] in available_commands:
+        raise ValueError(f"Bad argument of the show command ({ankParams.arg[0]}), must be: {', '.join(available_commands)}")
+    
+    ## OK, run the good command
+    if ankParams.arg[0] == "XN":
+        run_ank_cmd_show_XN()
+    if ankParams.arg[0] == "X":
+        run_ank_cmd_show_X()
+    if ankParams.arg[0] == "CX":
+        run_ank_cmd_show_CX()
+    if ankParams.arg[0] == "Y":
+        run_ank_cmd_show_Y()
+    
 ##}}}
 
 

@@ -29,8 +29,12 @@ from .__exec import start_ank
 
 from .__sys import coords_samples
 from .__sys import sort_run
+from .__sys import Error
 
 from .__natural import get_XN
 
 from .__climatology import Climatology
+
+from . import plot
+from . import stats
 

@@ -16,8 +16,9 @@
 ## You should have received a copy of the GNU General Public License
 ## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
-from .__MultiGAM    import MultiGAM
-from .__MultiGAM    import SplineSmoother
+from .__MultiGAM import SplineSmoother
+from .__MultiGAM import MPeriodSmoother
+
 from .__NSLawMLEFit import nslaw_fit
 from .__synthesis   import synthesis
 from .__constraint  import gaussian_conditionning

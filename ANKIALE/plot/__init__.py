@@ -16,4 +16,6 @@
 ## You should have received a copy of the GNU General Public License
 ## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
+from .__colors import colorsCMIP
+from .__colors import colorC
 
