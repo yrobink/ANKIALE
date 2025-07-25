@@ -30,10 +30,17 @@ import logging
 import numpy as np
 import scipy.stats as sc
 import xarray as xr
+import zxarray as zr
+
+from typing import Sequence
+from typing import Any
+
+from .__MultiGAM import MPeriodSmoother
 
 from .__KCC import KCC
 from .__KCC import MAR2
 
+from ..__sys import Error
 from ..__exceptions import StanError
 from ..__exceptions import StanInitError
 from ..__exceptions import MCMCError
@@ -57,142 +64,160 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-@disable_warnings
-def _gaussian_conditionning_kcc_2covariates( *args , hparXo , A = None , timeXo = None , dep = 1 ):##{{{
+def build_projection_matrix( mps: MPeriodSmoother , zXo: dict[str,zr.ZXArray] , method_constraint: dict | None = None ):##{{{
+
+    time   = mps.time
+    cnames = mps.cnames
+    dpers  = mps.dpers
+    lin    = mps.lin
+    SB0    = mps.SB0
+    nper = len(dpers)
+
+    if method_constraint is None:
+        method_constraint = { cname : "full" for cname in zXo }
+
+    drP = {}
+    for icname,cname in enumerate(zXo):
+        cst = nper if method_constraint[cname] == "full" else 1
+        rP = [lin]
+
+        for per in dpers:
+            if method_constraint[cname] == "full":
+                rP.append(SB0 / cst)
+            else:
+                rP.append( (per == method_constraint[cname]) * SB0 )
+        idxt = [ t in zXo[cname][f'time{icname}'].values for t in time]
+        drP[cname] = np.hstack(rP)[idxt,:]
+
+    P = []
+    for cname0 in zXo:
+        row = []
+        for cname1 in cnames:
+            row.append( drP[cname0] * (cname0 == cname1))
+        P.append( np.hstack(row) )
+    P = np.vstack(P)
+
+    return P
+##}}}
+
+
+def infer_hcov_o_IND( Ros: Sequence[xr.DataArray] , size: int ) -> np.ndarray:##{{{
+    hcov_o = np.zeros((size,size))
+    b = 0
+    for Ro in Ros:
+        e = b + Ro.size
+        hcov_o[b:e,b:e] = np.diag( np.ones(Ro.size) * float(np.std(Ro)**2))
+        b += Ro.size
     
-    ## Extract arguments
-    hpar = args[0]
-    hcov = args[1]
-    lXo  = args[2:]
-    gXo  = np.concatenate( args[2:] , axis = 0 )
+    return hcov_o
+##}}}
+
+def infer_hcov_o_MAR2( Ros: Sequence[xr.DataArray] , size: int ) -> np.ndarray:##{{{
+    hcov_o = np.zeros((size,size))
+    b = 0
+    for Ro in Ros:
+        e = b + Ro.size
+        hcov_o[b:e,b:e] = MAR2.fit( Ro ).cov(Ro.size)
+        b += Ro.size
     
-    ## Variance of obs
-    R      = gXo - A @ hparXo
-    size0  = lXo[0].size
-    RXo0   = xr.DataArray( R[:size0] , dims = ["time"] , coords = [timeXo[0].values] )
-    RXo1   = xr.DataArray( R[size0:] , dims = ["time"] , coords = [timeXo[1].values] )
+    return hcov_o
+##}}}
+
+def infer_hcov_o_KCC( Ros: Sequence[xr.DataArray] , size: int ) -> np.ndarray:##{{{
     
-    ## Find observed variability
     hcov_o_meas0 = 0
     hcov_o_meas1 = 0
-    kcc          = KCC().fit( RXo0 , RXo1 )
+    kcc          = KCC().fit( Ros[0] , Ros[1] )
     hcov_o_iv0   = kcc.cov_iv0
     hcov_o_iv1   = kcc.cov_iv1
-    hcov_o_iv01  = kcc.cov_iv01 * dep
+    hcov_o_iv01  = kcc.cov_iv01
     hcov_o       = np.block( [ [hcov_o_meas0 + hcov_o_iv0 , hcov_o_iv01  ],
                                [hcov_o_iv01.T , hcov_o_meas1 + hcov_o_iv1] ] )
     
-    ## Application
-    K0 = A @ hcov
-    K1 = ( hcov @ A.T ) @ np.linalg.inv( K0 @ A.T + hcov_o )
-    hpar = hpar + K1 @ ( gXo.squeeze() - A @ hpar )
-    hcov = hcov - K1 @ K0
-    
-    return hpar,hcov,hcov_o
+    return hcov_o
 ##}}}
 
-@disable_warnings
-def _gaussian_conditionning_kcc_1covariate( *args , hparXo , A = None , timeXo = None , dep = 1 ):##{{{
-    
-    ## Extract arguments
-    hpar = args[0]
-    hcov = args[1]
-    gXo  = args[2]
-    
-    ## Variance of obs
-    R      = gXo - A @ hparXo
-    RXo0   = xr.DataArray( R , dims = ["time"] , coords = [timeXo[0].values] )
-    
-    mar2   = MAR2().fit( RXo0.values )
-    hcov_o = mar2._covariance_matrix()
-    
-    ## Application
-    K0 = A @ hcov
-    K1 = ( hcov @ A.T ) @ np.linalg.inv( K0 @ A.T + hcov_o )
-    hpar = hpar + K1 @ ( gXo.squeeze() - A @ hpar )
-    hcov = hcov - K1 @ K0
-    
-    return hpar,hcov,hcov_o
+def _infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArray] , P: np.ndarray , method_oerror: str = 'IND' ) -> np.ndarray:##{{{
+
+    ## Find individual residuals
+    X = P @ hpar
+    b = 0
+    Ros = []
+    for Xo in Xos:
+        e = b + Xo.size
+        Ros.append( Xo.values - X[b:e] )
+        b += Xo.size
+    hcov_o = np.zeros((b,b))
+
+    match method_oerror.upper():
+        case 'IND':
+            hcov_o = infer_hcov_o_IND( Ros , b )
+        case 'MAR2':
+            hcov_o = infer_hcov_o_MAR2( Ros , b )
+        case 'KCC':
+            hcov_o = infer_hcov_o_KCC( Ros , b )
+        case _:
+            raise ValueError("Bad observed error method")
+
+    return hcov_o
 ##}}}
 
-@disable_warnings
-def gaussian_conditionning_KCC( *args , A = None , timeXo = None , dep = 1 ):##{{{
-    
-    args   = list(args)
-    
-    if len(args[2:]) == 1:
-        _gaussian_conditionning_kcc = _gaussian_conditionning_kcc_1covariate
-    else:
-        _gaussian_conditionning_kcc = _gaussian_conditionning_kcc_2covariates
-    
-    lhpars = [args[0]]
-    lhcovs = [args[1]]
-    for i in range(10):
-        hpar,hcov,hcov_o = _gaussian_conditionning_kcc( *args , hparXo = lhpars[-1] , A = A , timeXo = timeXo , dep = dep )
-        lhpars.append(hpar)
-        lhcovs.append(hcov)
-        
-        if i > 0:
-            err  = np.linalg.norm( hcov_o_p - hcov_o )
-            rerr = err / np.linalg.norm(hcov_o_p)
-            logger.debug( f"KCC error: {err}, rerr: {rerr}" )
-            if rerr < 0.01:
-                break
-        hcov_o_p = hcov_o.copy()
-    
-    logger.debug( f"Numbers of KCC iterations: {i}" )
-    
-    return hpar,hcov
+def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArray] , P: np.ndarray , method_oerror: str = 'IND' ) -> np.ndarray:##{{{
+    try:
+        hcov_o = _infer_hcov_o( hpar , hcov , Xos , P , method_oerror )
+    except Exception as e:
+        match method_oerror:
+            case "KCC":
+                logger.warning("Fail to use KCC, back to MAR2")
+                hcov_o = infer_hcov_o( hpar , hcov , Xos , P , "MAR2" )
+            case "MAR2":
+                logger.warning("Fail to use MAR2, back to IND")
+                hcov_o = infer_hcov_o( hpar , hcov , Xos , P , "IND" )
+            case _:
+                raise e
+    return hcov_o
 ##}}}
 
-def gaussian_conditionning_independent( *args , A = None , timeXo = None ):##{{{
-    
-    ## Extract arguments
-    hpar = args[0]
-    hcov = args[1]
-    lXo  = args[2:]
-    gXo  = np.concatenate( args[2:] , axis = 0 )
-    
-    ## Find observed variability
-    R      = gXo - A @ hpar
-    hcov_o = []
-    i      = 0
-    for Xo in lXo:
-        s = Xo.size
-        hcov_o.append( np.ones(s) * float(np.std(R[i:(i+s)]))**2 )
-        i += s
-    hcov_o = np.diag( np.hstack(hcov_o) )
-    
-    ## Application
-    K0    = A @ hcov
-    K1    = ( hcov @ A.T ) @ np.linalg.inv( K0 @ A.T + hcov_o )
-    hparC = hpar + K1 @ ( gXo.squeeze() - A @ hpar )
+
+def gaussian_conditionning( hpar: np.ndarray , hcov: np.ndarray , P: np.ndarray , Xo: np.ndarray , hcov_o: np.ndarray ) -> tuple[np.ndarray,np.ndarray]:##{{{
+    K0    = P @ hcov
+    K1    = ( hcov @ P.T ) @ np.linalg.inv( K0 @ P.T + hcov_o )
+    hparC = hpar + K1 @ ( Xo - P @ hpar )
     hcovC = hcov - K1 @ K0
+
+    return hparC,hcovC
+##}}}
+
+def constraint_covar( *args: np.ndarray , P: np.ndarray | None = None , timeXo: Sequence[np.ndarray] | None = None , method_oerror: str | None = None ) -> tuple[np.ndarray,np.ndarray]:##{{{
+    
+    ## Extract data
+    hpar = args[0]
+    hcov = args[1]
+    Xos  = [ xr.DataArray( Xo , dims = ["time"] , coords = [time] )
+            for Xo,time in zip(args[2:],timeXo) ]
+    
+    ## Check data are finite
+    if not np.isfinite(hpar).all() or not np.isfinite(hcov).all():
+        hparC = np.zeros_like(hpar) + np.nan
+        hcovC = np.zeros_like(hcov) + np.nan
+        return hparC,hcovC
+    
+    ## Init
+    err = Error()
+    hcov_o = infer_hcov_o( hpar , hcov , Xos , P , method_oerror )
+    
+    ## Loop on constraint until convergence
+    gXo = np.hstack( [Xo.values for Xo in Xos] )
+    while not err.stop:
+        hparC,hcovC = gaussian_conditionning( hpar , hcov , P , gXo , hcov_o )
+        hcov_u      = infer_hcov_o( hparC , hcovC , Xos , P , method_oerror )
+        err.value   = np.linalg.norm( hcov_o - hcov_u ) / np.linalg.norm(hcov_o)
+        hcov_o      = hcov_u
     
     return hparC,hcovC
 ##}}}
 
-def gaussian_conditionning( *args , A = None , timeXo = None , method = None ):##{{{
-    
-    match method:
-        case "KCC":
-            try:
-                hpar,hcov = gaussian_conditionning_KCC( *args , A = A , timeXo = timeXo , dep = 1 )
-            except Exception as e:
-                logger.warning(f"Fail to use KCC, use MAR2 method (reason {e})")
-                raise DevException
-                hpar,hcov = gaussian_conditionning( *args , A = A , timeXo = timeXo , method = "MAR2" )
-        case "MAR2":
-            try:
-                hpar,hcov = gaussian_conditionning_KCC( *args , A = A , timeXo = timeXo , dep = 0 )
-            except Exception as e:
-                logger.warning(f"Fail to use MAR2, use independent method (reason {e})")
-                hpar,hcov = gaussian_conditionning( *args , A = A , timeXo = timeXo , method = "INDEPENDENT" )
-        case _:
-            hpar,hcov = gaussian_conditionning_independent( *args , A = A , timeXo = timeXo )
-    
-    return hpar,hcov
-##}}}
+
 
 def mcmc( hpar , hcov , Y , A , size_chain , nslaw_class , use_STAN , tmp_stan = None , n_try = 5 ):##{{{
     

@@ -81,7 +81,7 @@ def run_ank_cmd_show_CX() -> None:
     
     ## Draw data
     XFC = ankParams.clim.crvs( size = ankParams.n_samples )
-    SFC = climS.crvsX( size = ankParams.n_samples )
+    SFC = climS.crvs( size = ankParams.n_samples )
     
     ## And plot it
     plot_constrain_CX( XFC , SFC , Xo , ofile = ankParams.output )

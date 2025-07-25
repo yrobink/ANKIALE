@@ -26,6 +26,7 @@
 #############
 
 import logging
+from typing import Self
 
 import numpy as np
 import xarray as xr
@@ -47,30 +48,36 @@ logger.addHandler(logging.NullHandler())
 ###########################
 
 class AR1:##{{{
+    """Class modeling an AR1 process of the form:
+    Xt = c + alpha X(t-1) + N(0,scale^2)
+    """
+    c: float
+    alpha: float
+    scale: float
     
-    def __init__( self , c , alpha , scale ):
+    def __init__( self , c: float , alpha: float , scale: float ) -> None:
         self.c     = c
         self.alpha = alpha
         self.scale = scale
 
-    def __str__( self ):
+    def __str__( self ) -> str:
         s = "AR1: X(t) = {:.3f} + {:.3f}X(t-1) + N(0,{:.3f})".format( self.c , self.alpha , self.scale )
         return s
     
-    def __repr__( self ):
+    def __repr__( self ) -> str:
         return self.__str__()
     
-    def mu( self ):
+    def mu( self ) -> float:
         return self.c / ( 1 - self.alpha )
     
-    def cov( self , size ):
+    def cov( self , size: int ) -> np.ndarray:
         C = self.scale**2 / ( 1 - self.alpha**2) * scl.toeplitz( self.alpha**np.arange( 0 , size , 1 ) )
         return C
     
-    def rvs( self , size = 1 , samples = 1 , burn = None ):
+    def rvs( self , size: int = 1 , samples: int = 1 , burn: int = -1 ) -> np.ndarray:
         X    = np.zeros((size,samples))
         X[0,:] = np.random.normal( loc = self.c , scale = self.scale , size = samples )
-        if burn is None:
+        if not burn > 0:
             burn = int( 0.1 * size )
         for _ in range(burn):
             X[0,:] = self.c + self.alpha * X[0,:] + np.random.normal( loc = 0 , scale = self.scale , size = samples )
@@ -84,7 +91,7 @@ class AR1:##{{{
         return X
 
     @staticmethod
-    def fit( X ):
+    def fit( X: np.ndarray ) -> Self:
         a,c,_,_,_ = sc.linregress( X[:-1] , X[1:] )
         s = np.std( X[1:] - c - a * X[:-1] )
         
@@ -94,30 +101,33 @@ class AR1:##{{{
 
 class MAR2:##{{{
     
-    def __init__( self , alpha_f , alpha_s , scale_f , scale_s , c_f = 0 , c_s = 0 ):
+    _ar_f: AR1
+    _ar_s: AR1
+
+    def __init__( self , alpha_f: float , alpha_s: float , scale_f: float , scale_s: float , c_f: float = 0 , c_s: float = 0 ) -> None:
         if abs(alpha_s) < abs(alpha_f):
             alpha_f,scale_f,c_f,alpha_s,scale_s,c_s = alpha_s,scale_s,c_s,alpha_f,scale_f,c_f
         self._ar_f = AR1( c_f , alpha_f , scale_f )
         self._ar_s = AR1( c_s , alpha_s , scale_s )
 
-    def __repr__( self ):
+    def __repr__( self ) -> str:
         return self.__str__()
 
-    def __str__( self ):
+    def __str__( self ) -> str:
         sf = str(self._ar_f)
         ss = str(self._ar_s)
         return "\n".join( [sf,ss] )
     
-    def cov( self , size ):
+    def cov( self , size: int ) -> np.ndarray:
         return self._ar_f.cov(size) + self._ar_s.cov(size)
     
-    def rvs( self , size = 1 , samples = 1 , burn = None ):
+    def rvs( self , size: int = 1 , samples: int = 1 , burn: int = -1 ) -> np.ndarray:
         Xf = self._ar_f.rvs( size = size , samples = samples , burn = burn )
         Xs = self._ar_s.rvs( size = size , samples = samples , burn = burn )
         return Xf + Xs
 
     @staticmethod
-    def _fit_backfitting( X , maxit , tol ):
+    def _fit_backfitting( X: np.ndarray , maxit: int = 50, tol: float = 1e-3 ) -> Self:
         X = X - X.mean()
         R = X
         p = np.zeros(6) + np.nan
@@ -143,13 +153,13 @@ class MAR2:##{{{
         return MAR2( c[0] , c[3] , c[1] , c[4] , c[2] , c[5] )
 
     @staticmethod
-    def _fit_mle( X ):
+    def _fit_mle( X: np.ndarray , maxtry: int = 5 ) -> Self:
 
         def logit( x , a = -1 , b = 1 ):
             return 1. / ( 1 + np.exp(-x) ) * (b - a) + a
     
         def ilogit( y , a = -1 , b = 1 ):
-            return np.where( np.abs(y) < 1 , - np.log( (b-a) / (y - a) - 1 ) , np.sign(y) - np.sign(y) * 1e-3 )
+            return np.where( np.abs(y) < 1 , - np.log( (b-a) / (y - a) - 1 ) , np.sign(y) - np.sign(y) * 1e-6 )
 
         def _nlll( hpar , X ):
             arf  = AR1( hpar[0] , logit(hpar[1]) , np.exp(hpar[2]) )
@@ -161,17 +171,30 @@ class MAR2:##{{{
             hpar0 = MAR2.fit( X , method = "backfitting" ).hpar
         except:
             hpar0 = np.array([0,0.1,1,0,0.1,1])
+        
         hpar0[[1,4]] = ilogit(hpar0[[1,4]])
         hpar0[[2,5]] = np.log(hpar0[[2,5]])
-        res = sco.minimize( _nlll , x0 = hpar0 , args = (X,) , method = "BFGS" )
-        hpar = res.x
+        hparI = hpar0.copy()
+        
+        success = False
+        nit = 0
+        while not success:
+            try:
+                res = sco.minimize( _nlll , x0 = hpar0 , args = (X,) , method = "BFGS" )
+                hpar = res.x
+                success = True
+            except:
+                hpar0 = hparI + np.random.normal( scale = np.abs(hparI) / 5 )
+            nit += 1
+            if nit > maxtry:
+                raise ValueError("Impossible to fit the MAR2")
         arf  = AR1( hpar[0] , logit(hpar[1]) , np.exp(hpar[2]) )
         ars  = AR1( hpar[3] , logit(hpar[4]) , np.exp(hpar[5]) )
         
         return MAR2( arf.alpha , ars.alpha , arf.scale , ars.scale , arf.c , ars.c )
     
     @staticmethod
-    def fit( X , method = "mle" , maxit = 50 , tol = 1e-3 ):
+    def fit( X: np.ndarray , method: str = "mle" , maxit: int = 50 , tol: float = 1e-3 ) -> Self:
 
         match method.lower():
             case "backfitting":
@@ -182,36 +205,43 @@ class MAR2:##{{{
         return mar2
 
     @property
-    def alpha_f(self):
+    def alpha_f(self) -> float:
         return self._ar_f.alpha
     
     @property
-    def alpha_s(self):
+    def alpha_s(self) -> float:
         return self._ar_s.alpha
 
     @property
-    def scale_f(self):
+    def scale_f(self) -> float:
         return self._ar_f.scale
     
     @property
-    def scale_s(self):
+    def scale_s(self) -> float:
         return self._ar_s.scale
     
     @property
-    def c_f(self):
+    def c_f(self) -> float:
         return self._ar_f.c
     
     @property
-    def c_s(self):
+    def c_s(self) -> float:
         return self._ar_s.c
 
     @property
-    def hpar(self):
+    def hpar(self) -> np.ndarray:
         return np.array( [self.c_f,self.alpha_f,self.scale_f,self.c_s,self.alpha_s,self.scale_s] )
 ##}}}
 
 class KCC:##{{{
     
+    _size0: int | None
+    _size1: int | None
+    _mar2_0: MAR2 | None
+    _mar2_1: MAR2 | None
+    _L: int | None
+    _cov_iv01: np.ndarray | None
+
     def __init__( self ):##{{{
         self._size0    = None
         self._size1    = None
@@ -222,7 +252,7 @@ class KCC:##{{{
     ##}}}
     
     @staticmethod
-    def _build_toeplitz_iv( alpha_0 , alpha_1 , size0 , size1 ):##{{{
+    def _build_toeplitz_iv( alpha_0: float , alpha_1: float , size0: int , size1: int ) -> np.ndarray:##{{{
         sizen  = min(size0,size1)
         sizex  = max(size0,size1)
         cov_ll = scl.toeplitz( alpha_0**np.arange( 0 , size0 , 1 ).astype(int) )
@@ -237,7 +267,7 @@ class KCC:##{{{
     ##}}}
     
     @staticmethod
-    def _build_cst_iv(  L , alpha_0 , alpha_1 , scale_0 , scale_1 ):##{{{
+    def _build_cst_iv(  L: float , alpha_0: float , alpha_1: float , scale_0: float , scale_1: float ) -> float:##{{{
         
         n0  = L * scale_0 * scale_1
         d0  = np.sqrt( 1 - alpha_0**2 )
@@ -249,11 +279,11 @@ class KCC:##{{{
         return cst
     ##}}}
     
-    def _build_lag_cov( self , h , L , alpha_0 , alpha_1 , scale_0 , scale_1 ):##{{{
+    def _build_lag_cov( self , h: int , L: float , alpha_0: float , alpha_1: float , scale_0: float , scale_1: float ) -> np.ndarray:##{{{
         return alpha_0**h * self._build_cst_iv( L , alpha_0 , alpha_1 , scale_0 , scale_1 )
     ##}}}
     
-    def _find_L( self , R0 , R1 ):##{{{
+    def _find_L( self , R0: xr.DataArray , R1: xr.DataArray ) -> None:##{{{
         
         cf_max = self._build_cst_iv( 1. , self._mar2_0.alpha_f , self._mar2_1.alpha_f , self._mar2_0.scale_f , self._mar2_1.scale_f )
         cs_max = self._build_cst_iv( 1. , self._mar2_0.alpha_s , self._mar2_1.alpha_s , self._mar2_0.scale_s , self._mar2_1.scale_s )
@@ -264,15 +294,15 @@ class KCC:##{{{
         self._L = max( min( self._rho_res / self._rho_mar , 1 ) , -1 )
     ##}}}
     
-    def fit( self , R0 , R1 ):##{{{
+    def fit( self , R0: xr.DataArray , R1: xr.DataArray ) -> Self:##{{{
         
         ## Store parameters
         self._size0 = R0.size
         self._size1 = R1.size
 
         ## Fit the mixture of two AR1 processes
-        self._mar2_0 = MAR2.fit( R0.values , method = "backfitting" )
-        self._mar2_1 = MAR2.fit( R1.values , method = "backfitting" )
+        self._mar2_0 = MAR2.fit( R0.values )
+        self._mar2_1 = MAR2.fit( R1.values )
         
         ## Find L
         self._find_L( R0 , R1 )
@@ -293,19 +323,19 @@ class KCC:##{{{
     ## Properties ##{{{
     
     @property
-    def L(self):
+    def L(self) -> float:
         return self._L
     
     @property
-    def cov_iv0(self):
+    def cov_iv0(self) -> np.ndarray:
         return self._mar2_0.cov(self._size0)
     
     @property
-    def cov_iv1(self):
+    def cov_iv1(self) -> np.ndarray:
         return self._mar2_1.cov(self._size1)
     
     @property
-    def cov_iv01(self):
+    def cov_iv01(self) -> np.ndarray:
         return self._cov_iv01
     
     ##}}}

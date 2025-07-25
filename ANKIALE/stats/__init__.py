@@ -21,8 +21,11 @@ from .__MultiGAM import MPeriodSmoother
 
 from .__NSLawMLEFit import nslaw_fit
 from .__synthesis   import synthesis
+from .__constraint  import build_projection_matrix
 from .__constraint  import gaussian_conditionning
+from .__constraint  import constraint_covar
 
+from .__KCC import AR1
 from .__KCC import MAR2
 from .__KCC import KCC
 

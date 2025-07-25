@@ -24,20 +24,22 @@ import logging
 import itertools as itt
 import gc
 import distributed
-
-from ..__logs import log_start_end
-
-from ..__ANKParams import ankParams
+import netCDF4
 
 import numpy  as np
 import xarray as xr
 import zxarray as zr
 
-import netCDF4
+from ..__ANKParams import ankParams
 
+from ..__exceptions import DevException
+
+from ..__logs import log_start_end
 from ..__sys     import coords_samples
 
-from ..stats.__constraint import gaussian_conditionning
+from ..stats.__MultiGAM   import MPeriodSmoother
+from ..stats.__constraint import build_projection_matrix
+from ..stats.__constraint import constraint_covar
 from ..stats.__constraint import mcmc
 
 from ..__linalg import mean_cov_hpars
@@ -55,7 +57,7 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def zgaussian_conditionning( *args , A = None , timeXo = None , method = None ):##{{{
+def zconstraint_covar( *args: np.ndarray , P: np.ndarray | None = None , timeXo: np.ndarray | None = None , method_oerror: str | None = None ) -> tuple[np.ndarray,np.ndarray]:##{{{
     
     ihpar = args[0]
     ihcov = args[1]
@@ -72,7 +74,7 @@ def zgaussian_conditionning( *args , A = None , timeXo = None , method = None ):
         ic    = ihcov[idx2d]
         iargs = [ih,ic] + [ Xo[idx1d] for Xo in lXo ]
         
-        oh,oc = gaussian_conditionning( *iargs , A = A , timeXo = timeXo , method = method )
+        oh,oc = constraint_covar( *iargs , P = P , timeXo = timeXo , method_oerror = method_oerror )
         ohpar[idx1d] = oh
         ohcov[idx2d] = oc
     
@@ -81,7 +83,7 @@ def zgaussian_conditionning( *args , A = None , timeXo = None , method = None ):
 
 ## run_ank_cmd_constrain_X ##{{{
 @log_start_end(logger)
-def run_ank_cmd_constrain_X():
+def run_ank_cmd_constrain_X() -> None:
     
     ## Parameters
     clim = ankParams.clim
@@ -96,7 +98,7 @@ def run_ank_cmd_constrain_X():
         
         ## Name and file
         name,ifile = inp.split(",")
-        if name not in clim.namesX:
+        if name not in clim.cnames:
             raise ValueError( f"Unknown variable {name}" )
         
         ## Open data
@@ -125,56 +127,50 @@ def run_ank_cmd_constrain_X():
                 Xo[(slice(None),) + idx] = xXo
         else:
             raise NotImplementedError
-            for idx in itt.product(*[range(s) for s in clim.s_spatial]):
-                xXo  = idata[name][(slice(None),)+idx]
-                anom = float(xXo.sel( time = slice(*[str(y) for y in clim.bper]) ).mean( dim = "time" ))
-                xXo  = xXo.values.squeeze() - anom
-                Xo.set_orthogonal_selection( (slice(None),) + idx , xXo )
-                bias[idx] = anom
         clim._bias[name] = bias
         
         ## Store zarr file
         zXo[name] = Xo
+
+    ## Method to find natural variability of obs
+    method_oerror = ankParams.config.get("method_oerror","IND")
+    if method_oerror not in ["IND","MAR2","KCC"]:
+        raise ValueError(f"Observation constraint method must be one of 'IND', 'MAR2' or 'KCC' ({method_oerror} is given)")
+    if method_oerror == "KCC" and not len(zXo) == 2:
+        logging.warning("'KCC' method can not be used if covariate number '{len(zXo)' != 2. Use 'MAR2' method.")
+        method_oerror = 'MAR2'
+    logger.info( f"Observation error method used: {method_oerror}" )
+
+    ## And find configuration
+    method_constraint = ankParams.config.get("method_constraint")
+    if method_constraint is None:
+        method_constraint = { cname : "full" for cname in zXo }
+    else:
+        method_constraint = { cname : goal.lower() for cname,goal in [s.split(":") for s in method_constraint.split("::")] }
+        for cname in zXo:
+            if cname not in method_constraint:
+                method_constraint[cname] = "full"
+            if method_constraint[cname] not in ["full"] + clim.dpers:
+                raise ValueError(f"Constraint method not coherent: {cname} / {method_constraint['cname']}")
+                
+    logger.info( f"Constraint method used: {method_constraint}")
     
-    ## Check if KCC can be used
-    method = ankParams.config.get("method","INDEPENDENT")
-    if method == "KCC" and len(zXo) > 2:
-        raise ValueError("KCC can not be used for a constraint with more than 2 covariates ({len(zXo)} required)")
-    
-    ##
+    ## Init smoother matrix for projection
     time = clim.time
-    lin,spl = clim.build_design_basis()
     nper = len(clim.dpers)
+    mps = MPeriodSmoother(
+        XN = clim.XN,
+        cnames = clim.cnames,
+        dpers = clim.dpers,
+        spl_config = clim.cconfig.spl_config
+    )
+    P = build_projection_matrix( mps , zXo , method_constraint )
     
-    ## Create projection matrix A
-    proj = []
-    for iname,name in enumerate(zXo):
-        
-        ##
-        Xo = zXo[name]
-        
-        ## Build the design_matrix for projection
-        design_ = []
-        for nameX in clim.namesX:
-            if nameX == name:
-                design_ = design_ + [spl[nameX][clim.dpers[iper]] for iper in range(nper)] + [nper * lin]
-            else:
-                design_ = design_ + [np.zeros_like(spl[nameX][clim.dpers[iper]]) for iper in range(nper)] + [np.zeros_like(lin)]
-        design_ = design_ + [np.zeros( (time.size,clim.sizeY) )]
-        design_ = np.hstack(design_)
-        
-        
-        T = xr.DataArray( np.identity(design_.shape[0]) , dims = ["timeA","timeB"] , coords = [time,time] ).loc[Xo[f"time{iname}"],time].values
-        A = T @ design_ / nper
-        
-        proj.append(A)
-    A = np.vstack(proj)
-    
-    ## Find natural variability of obs
-    if method not in ["KCC","MAR2","INDEPENDENT"]:
-        raise ValueError( f"Unknow method '{method}'")
-    logger.info( f"Method used: {method}" )
-    
+    ## Add to projection matrix the design part for variable
+    if clim.has_var:
+        vP = np.zeros( (P.shape[0],clim.vsize) )
+        P  = np.hstack( (P,vP) )
+
     ## Build apply arguments
     hpar_names       = clim.hpar_names
     c_spatial        = clim.c_spatial
@@ -185,7 +181,7 @@ def run_ank_cmd_constrain_X():
     output_dtypes    = [float,float]
     dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] ] + [ [f"time{i}"] for i in range(len(zXo)) ],
                          "output_core_dims" : [ ["hpar"] , ["hpar0","hpar1"] ],
-                     "kwargs" : { "A" : A , "timeXo" : [zXo[name][f"time{iname}"] for iname,name in enumerate(zXo)] , "method" : method } ,
+                     "kwargs" : { "P" : P , "timeXo" : [zXo[name][f"time{iname}"] for iname,name in enumerate(zXo)] , "method_oerror" : method_oerror } ,
                          "dask" : "parallelized",
                          "output_dtypes"  : [clim.hpar.dtype,clim.hcov.dtype]
                         }
@@ -196,7 +192,7 @@ def run_ank_cmd_constrain_X():
     
     ##
     with ankParams.get_cluster() as cluster:
-        hpar,hcov = zr.apply_ufunc( zgaussian_conditionning , *args ,
+        hpar,hcov = zr.apply_ufunc( zconstraint_covar , *args ,
                                     block_dims         = d_spatial,
                                     total_memory       = ankParams.total_memory,
                                     block_memory       = block_memory,
@@ -451,7 +447,7 @@ def run_ank_cmd_constrain_Y():
 
 ## run_ank_cmd_constrain ##{{{
 @log_start_end(logger)
-def run_ank_cmd_constrain():
+def run_ank_cmd_constrain() -> None:
     ## Check the command
     if not len(ankParams.arg) == 1:
         raise ValueError(f"Bad numbers of arguments of the fit command: {', '.join(ankParams.arg)}")
