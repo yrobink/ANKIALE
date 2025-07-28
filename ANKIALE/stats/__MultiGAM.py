@@ -155,6 +155,7 @@ class MPeriodSmoother:##{{{
                   cnames: Sequence[str],
                   dpers: Sequence[str],
                   spl_config: dict[str,int | float],
+                  init_smoother: bool = True,
                 ) -> None:
         self.XN = XN
         self.cnames = cnames
@@ -165,7 +166,8 @@ class MPeriodSmoother:##{{{
                                               self.dpers)]
 
         self._build_design_matrix()
-        self._init_smoother()
+        if init_smoother:
+            self._init_smoother()
     ## End __init__ }}}
 
     def _build_design_matrix(self):##{{{

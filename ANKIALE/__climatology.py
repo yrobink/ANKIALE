@@ -305,13 +305,22 @@ class Climatology:##{{{
             clim.time = [ t.year for t in cftime.num2date( nctime[:] , units , calendar ) ]
             
             ## Y config
-            try:
-                cname   = str(incf.variables["Y"].getncattr("cname"))
-                vname   = str(incf.variables["Y"].getncattr("vname"))
-                idnslaw = str(incf.variables["Y"].getncattr("idnslaw"))
-                clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
-            except Exception:
-                vname = ""
+            if incf_version < "1.1.0":
+                try:
+                    cname   = str(incf.variables["Y"].getncattr("cname"))
+                    idnslaw = str(incf.variables["Y"].getncattr("nslawid"))
+                    vname   = clim._names[-1]
+                    clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
+                except Exception:
+                    vname = ""
+            else:
+                try:
+                    cname   = str(incf.variables["Y"].getncattr("cname"))
+                    vname   = str(incf.variables["Y"].getncattr("vname"))
+                    idnslaw = str(incf.variables["Y"].getncattr("idnslaw"))
+                    clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
+                except Exception:
+                    vname = ""
             
             ## X config
             vXN    = str(incf.variables["X"].getncattr("XN_version"))
@@ -325,6 +334,8 @@ class Climatology:##{{{
                 dof    = { f"{cname}_{per}" : int(incf.variables["X_dof"][icname,iper]) for (icname,cname),(iper,per) in itt.product(enumerate(cnames),enumerate(clim.dpers)) }
                 degree = int(incf.variables["X_degree"][:])
             clim.cconfig = CoVarConfig( dof = dof , degree = degree , vXN = vXN )
+            if incf_version < "1.1.0":
+                clim.cconfig.nknot = int(incf.variables["X"].getncattr("GAM_dof")) - 1
             
             ## And spatial
             spatial_is_fake = False
@@ -538,7 +549,7 @@ class Climatology:##{{{
     
     def projection(self) -> tuple[xr.DataArray,xr.DataArray]:##{{{
         
-        mps = MPeriodSmoother( self.XN , self.cnames , self.dpers , self.cconfig.spl_config )
+        mps = MPeriodSmoother( self.XN , self.cnames , self.dpers , self.cconfig.spl_config , init_smoother = False )
         chpar_names = self.chpar_names
         
         ## Create projF, for X
