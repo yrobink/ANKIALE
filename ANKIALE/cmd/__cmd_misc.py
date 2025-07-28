@@ -23,14 +23,16 @@
 import logging
 import datetime as dt
 import itertools as itt
-from ..__logs import log_start_end
-from ..__logs import disable_warnings
-
-from ..__ANKParams import ankParams
+from typing import Sequence
 
 import numpy  as np
 import xarray as xr
 import zxarray as zr
+
+from ..__logs import log_start_end
+from ..__logs import disable_warnings
+
+from ..__ANKParams import ankParams
 
 from ..__release import version
 from ..__sys import coords_samples
@@ -53,7 +55,7 @@ logger.addHandler(logging.NullHandler())
 ## zwpe ##{{{
 
 @disable_warnings
-def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mode , ci ):
+def zwpe( hpar: np.ndarray , hcov: np.ndarray , bias: np.ndarray , proj: np.ndarray , pwpe: np.ndarray , cnslaw: type , side: str , n_samples: int , mode: str , ci: float ) -> Sequence[np.ndarray]:
     
     ##
     ## hpar = ssp + (1,) + (nhpar,)
@@ -70,7 +72,7 @@ def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mo
     nper    = proj.shape[-1]
     npwpe   = pwpe.size
     n_modes = n_samples if mode == "sample" else 3
-    nslaw   = nslaw_class()
+    nslaw   = cnslaw()
     
     ## Output
     IFC = np.zeros( ssp + (nper,npwpe,n_modes) ) + np.nan
@@ -151,7 +153,7 @@ def zwpe( hpar , hcov , bias , proj , pwpe , nslaw_class , side , n_samples , mo
 
 ## run_ank_cmd_misc_wpe ##{{{
 @log_start_end(logger)
-def run_ank_cmd_misc_wpe():
+def run_ank_cmd_misc_wpe() -> None:
     
     ## Parameters
     clim      = ankParams.clim
@@ -185,7 +187,7 @@ def run_ank_cmd_misc_wpe():
     d_spatial   = clim.d_spatial
     c_spatial   = clim.c_spatial
     hpar_names  = clim.hpar_names
-    nslaw_class = clim._nslaw_class
+    cnslaw = clim.cnslaw
     
     ihpar     = clim.hpar
     ihcov     = clim.hcov
@@ -214,7 +216,7 @@ def run_ank_cmd_misc_wpe():
     output_dtypes    = [clim.hpar.dtype for _ in range(2)]
     dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , [] , ["time","hpar","period"] , [] ],
                          "output_core_dims" : [[mode,"period"],[mode,"period"]],
-                         "kwargs"           : { "nslaw_class" : nslaw_class , "side" : side , "n_samples" : n_samples , "mode" : mode , "ci" : ci } ,
+                         "kwargs"           : { "cnslaw" : cnslaw , "side" : side , "n_samples" : n_samples , "mode" : mode , "ci" : ci } ,
                          "dask"             : "parallelized",
                          "output_dtypes"    : [ihpar.dtype,ihpar.dtype],
                          "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size} }
@@ -308,7 +310,7 @@ def run_ank_cmd_misc_wpe():
 
 ## run_ank_cmd_misc ##{{{
 @log_start_end(logger)
-def run_ank_cmd_misc():
+def run_ank_cmd_misc() -> None:
     
     ## Check the command
     if not len(ankParams.arg) == 1:
