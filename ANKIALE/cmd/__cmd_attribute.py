@@ -24,6 +24,15 @@ import sys
 import itertools as itt
 import datetime as dt
 import logging
+from typing import Any
+from typing import Sequence
+
+import numpy  as np
+import xarray as xr
+import zxarray as zr
+import netCDF4
+import cftime
+
 from ..__logs import log_start_end
 from ..__logs import disable_warnings
 from ..__release import version
@@ -31,13 +40,6 @@ from ..__release import version
 from ..__ANKParams import ankParams
 
 from ..__sys import coords_samples
-
-
-import numpy  as np
-import xarray as xr
-import zxarray as zr
-import netCDF4
-import cftime
 
 
 ##################
@@ -55,7 +57,18 @@ logger.addHandler(logging.NullHandler())
 ## zattribute_fcreturnt ##{{{
 
 @disable_warnings
-def zattribute_fcreturnt( hpar , hcov , bias , projF , projC , RT , nslaw_class , side , world , mode , n_samples , ci ):
+def zattribute_fcreturnt( hpar: np.ndarray,
+                         hcov: np.ndarray,
+                         bias: np.ndarray,
+                         projF: np.ndarray,
+                         projC: np.ndarray,
+                         RT: np.ndarray,
+                         cnslaw: type,
+                         side: str,
+                         world: str,
+                         mode: str,
+                         n_samples: int,
+                         ci: float ) -> Sequence[np.ndarray]:
     
     ## Coordinates
 #    nhpar = hpar.shape[-1]
@@ -66,7 +79,7 @@ def zattribute_fcreturnt( hpar , hcov , bias , projF , projC , RT , nslaw_class 
     ##
     projF = projF.reshape( (nper,) + projF.shape[-2:] )
     projC = projC.reshape( (nper,) + projF.shape[-2:] )
-    nslaw = nslaw_class()
+    nslaw = cnslaw()
     
     ## Prepare output
     pF = np.zeros( ssp + (nper,RT.size,ntime,n_samples) ) + np.nan
@@ -154,7 +167,7 @@ def zattribute_fcreturnt( hpar , hcov , bias , projF , projC , RT , nslaw_class 
 
 ## run_ank_cmd_attribute_fcreturnt ##{{{
 @log_start_end(logger)
-def run_ank_cmd_attribute_fcreturnt(arg):
+def run_ank_cmd_attribute_fcreturnt(arg: Any) -> None:
     
     ## Parameters
     clim      = ankParams.clim
@@ -202,7 +215,7 @@ def run_ank_cmd_attribute_fcreturnt(arg):
     ##
     time        = np.array(clim.time)
     dpers       = np.array(clim.dpers)
-    nslaw_class = clim._nslaw_class
+    cnslaw = clim.cnslaw
     d_spatial   = clim.d_spatial
     c_spatial   = clim.c_spatial
     zbias       = zr.ZXArray.from_xarray(clim.bias[clim.vname])
@@ -213,7 +226,7 @@ def run_ank_cmd_attribute_fcreturnt(arg):
     output_dtypes    = [clim.hpar.dtype for _ in range(8)]
     dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , [] , ["time","hpar"] , ["time","hpar"] , [] ],
                          "output_core_dims" : [ ["time",mode] for _ in range(8) ],
-                         "kwargs"           : { "nslaw_class" : nslaw_class , "side" : side , "world" : arg[0].upper() , "mode" : mode , "n_samples" : n_samples , "ci" : ci } ,
+                         "kwargs"           : { "cnslaw" : cnslaw , "side" : side , "world" : arg[0].upper() , "mode" : mode , "n_samples" : n_samples , "ci" : ci } ,
                          "dask"             : "parallelized",
                          "output_dtypes"    : [clim.hpar.dtype for _ in range(8)],
                          "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size } }
@@ -317,7 +330,7 @@ def run_ank_cmd_attribute_fcreturnt(arg):
             ncvars[key][:] = out[key]._internal.zdata.get_orthogonal_selection(idx)
         
         ## Global attributes
-        ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
+        ncf.setncattr( "creation_date" , str(dt.datetime.now(dt.UTC))[:19] + " (UTC)" )
         ncf.setncattr( "ANKIALE_version"  , version )
         ncf.setncattr( "description" , f"Attribute {arg}" )
     
@@ -327,7 +340,7 @@ def run_ank_cmd_attribute_fcreturnt(arg):
 ## zattribute_fintensity ##{{{
 
 @disable_warnings
-def zattribute_fintensity( hpar , hcov , bias , xIF , projF , projC , nslaw_class , side , mode , n_samples , ci ):
+def zattribute_fintensity( hpar: np.ndarray , hcov: np.ndarray , bias: np.ndarray , xIF: np.ndarray , projF: np.ndarray , projC: np.ndarray , cnslaw: type , side: str , mode: str , n_samples: int , ci: float ) -> Sequence[np.ndarray]:
     
     ## Coordinates
 #    nhpar = hpar.shape[-1]
@@ -338,7 +351,7 @@ def zattribute_fintensity( hpar , hcov , bias , xIF , projF , projC , nslaw_clas
     ##
     projF = projF.reshape( (nper,) + projF.shape[-2:] )
     projC = projC.reshape( (nper,) + projF.shape[-2:] )
-    nslaw = nslaw_class()
+    nslaw = cnslaw()
     
     ## Prepare output
     pF = np.zeros( ssp + (nper,ntime,n_samples) ) + np.nan
@@ -419,7 +432,7 @@ def zattribute_fintensity( hpar , hcov , bias , xIF , projF , projC , nslaw_clas
 
 ## run_ank_cmd_attribute_fintensity ##{{{
 @log_start_end(logger)
-def run_ank_cmd_attribute_fintensity(arg):
+def run_ank_cmd_attribute_fintensity(arg: Any) -> None:
     
     ## Parameters
     clim      = ankParams.clim
@@ -475,7 +488,7 @@ def run_ank_cmd_attribute_fintensity(arg):
     ##
     time        = np.array(clim.time)
     dpers       = np.array(clim.dpers)
-    nslaw_class = clim._nslaw_class
+    cnslaw = clim.cnslaw
     d_spatial   = clim.d_spatial
     c_spatial   = clim.c_spatial
     zbias       = zr.ZXArray.from_xarray(clim.bias[clim.vname])
@@ -486,7 +499,7 @@ def run_ank_cmd_attribute_fintensity(arg):
     output_dtypes    = [clim.hpar.dtype for _ in range(8)]
     dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , [] , [] , ["time","hpar"] , ["time","hpar"] ],
                          "output_core_dims" : [ ["time",mode] for _ in range(8) ],
-                         "kwargs"           : { "nslaw_class" : nslaw_class , "side" : side , "mode" : mode , "n_samples" : n_samples , "ci" : ci } ,
+                         "kwargs"           : { "cnslaw" : cnslaw , "side" : side , "mode" : mode , "n_samples" : n_samples , "ci" : ci } ,
                          "dask"             : "parallelized",
                          "output_dtypes"    : [clim.hpar.dtype for _ in range(8)],
                          "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size } }
@@ -587,7 +600,7 @@ def run_ank_cmd_attribute_fintensity(arg):
             ncvars[key][:] = out[key]._internal.zdata.get_orthogonal_selection(idx)
         
         ## Global attributes
-        ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
+        ncf.setncattr( "creation_date" , str(dt.datetime.now(dt.UTC))[:19] + " (UTC)" )
         ncf.setncattr( "ANKIALE_version"  , version )
         ncf.setncattr( "description" , f"Attribute {arg}" )
     
@@ -597,7 +610,7 @@ def run_ank_cmd_attribute_fintensity(arg):
 ## zattribute_event ##{{{
 
 @disable_warnings
-def zattribute_event( hpar , hcov , bias , event , projF , projC , idx_event , nslaw_class , side , mode , n_samples , ci ):
+def zattribute_event( hpar: np.ndarray , hcov: np.ndarray , bias: np.ndarray , event: np.ndarray , projF: np.ndarray , projC: np.ndarray , idx_event: int , cnslaw: type , side: str , mode: str , n_samples: int , ci: float ) -> Sequence[np.ndarray]:
     
     ## Coordinates
 #    nhpar = hpar.shape[-1]
@@ -608,7 +621,7 @@ def zattribute_event( hpar , hcov , bias , event , projF , projC , idx_event , n
     ##
     projF = projF.reshape( (nper,) + projF.shape[-2:] )
     projC = projC.reshape( (nper,) + projF.shape[-2:] )
-    nslaw = nslaw_class()
+    nslaw = cnslaw()
     
     ## Prepare output
     pF = np.zeros( ssp + (nper,ntime,n_samples) ) + np.nan
@@ -695,7 +708,7 @@ def zattribute_event( hpar , hcov , bias , event , projF , projC , idx_event , n
 
 ## run_ank_cmd_attribute_event ##{{{
 @log_start_end(logger)
-def run_ank_cmd_attribute_event():
+def run_ank_cmd_attribute_event() -> None:
     
     ## Parameters
     clim      = ankParams.clim
@@ -759,7 +772,7 @@ def run_ank_cmd_attribute_event():
     ##
     time        = np.array(clim.time)
     dpers       = np.array(clim.dpers)
-    nslaw_class = clim._nslaw_class
+    cnslaw = clim.cnslaw
     d_spatial   = clim.d_spatial
     c_spatial   = clim.c_spatial
     zbias       = zr.ZXArray.from_xarray(clim.bias[clim.vname])
@@ -770,7 +783,7 @@ def run_ank_cmd_attribute_event():
     output_dtypes    = [clim.hpar.dtype for _ in range(8)]
     dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , [] , [] , ["time","hpar"] , ["time","hpar"] ],
                          "output_core_dims" : [ ["time",mode] for _ in range(8) ],
-                         "kwargs"           : { "idx_event" : idx_event , "nslaw_class" : nslaw_class , "side" : side , "mode" : mode , "n_samples" : n_samples , "ci" : ci } ,
+                         "kwargs"           : { "idx_event" : idx_event , "cnslaw" : cnslaw , "side" : side , "mode" : mode , "n_samples" : n_samples , "ci" : ci } ,
                          "dask"             : "parallelized",
                          "output_dtypes"    : [clim.hpar.dtype for _ in range(8)],
                          "dask_gufunc_kwargs" : { "output_sizes"     : { mode : modes.size } }
@@ -871,7 +884,7 @@ def run_ank_cmd_attribute_event():
             ncvars[key][:] = out[key]._internal.zdata.get_orthogonal_selection(idx)
         
         ## Global attributes
-        ncf.setncattr( "creation_date" , str(dt.datetime.utcnow())[:19] + " (UTC)" )
+        ncf.setncattr( "creation_date" , str(dt.datetime.now(dt.UTC))[:19] + " (UTC)" )
         ncf.setncattr( "ANKIALE_version"  , version )
         ncf.setncattr( "description" , f"Attribute event {t_event}" )
     
@@ -880,13 +893,13 @@ def run_ank_cmd_attribute_event():
 
 ## run_ank_cmd_attribute ##{{{
 @log_start_end(logger)
-def run_ank_cmd_attribute():
+def run_ank_cmd_attribute() -> None:
     
     avail_arg = ["event","freturnt","creturnt","fintensity"]
     try:
         arg = ankParams.arg[0]
     except Exception:
-        raise ValueError( f"A argument must be given for the attribute command ({', '.join(avail_arg)})" )
+        raise ValueError( f"An argument must be given for the attribute command ({', '.join(avail_arg)})" )
     
     if arg not in avail_arg:
         raise ValueError( f"Bad argument for the attribute command ({', '.join(avail_arg)})" )
