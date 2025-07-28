@@ -21,6 +21,7 @@
 
 import os
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -29,7 +30,7 @@ import xarray as xr
 ## Functions ##
 ###############
 
-def get_XN( time = None , version = "CMIP6" ):##{{{
+def get_XN( time: np.ndarray | None = None , version: str = "CMIP6" ) -> xr.DataArray:##{{{
     """
     ANKIALE.get_XN
     ==============

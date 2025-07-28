@@ -31,7 +31,7 @@ from .__doc import doc as txt_doc
 ## Functions ##
 ###############
 
-def txt2curses_doc(doc):##{{{
+def txt2curses_doc( doc: str ) -> str:##{{{
     """
     ANKIALE.txt2curses_doc
     ======================
@@ -56,7 +56,7 @@ def txt2curses_doc(doc):##{{{
     return clines
 ##}}}
 
-def print_curses_doc( screen , doc ):##{{{
+def print_curses_doc( screen: Any , doc: str ) -> None:##{{{
     """
     ANKIALE.print_curses_doc
     ========================
@@ -94,7 +94,7 @@ def print_curses_doc( screen , doc ):##{{{
             start = min( max( len(cdoc) - 10 , 0 ) , start + int(curses.LINES / 2) )
 ##}}}
 
-def print_doc():##{{{
+def print_doc() -> None:##{{{
     """
     ANKIALE.print_doc
     =================

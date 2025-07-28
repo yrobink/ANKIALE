@@ -47,7 +47,7 @@ logger.addHandler(logging.NullHandler())
 
 ## plot_XN ##{{{
 @log_start_end(logger)
-def plot_XN( ofile = None ):
+def plot_XN( ofile = None ) -> None:
     
     ## Matplotlib parameters
     mpl.rcdefaults()

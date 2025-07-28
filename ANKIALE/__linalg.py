@@ -32,9 +32,9 @@ from .__logs import disable_warnings
 ###############
 
 
-def matrix_positive_part(M):##{{{
+def matrix_positive_part( M: np.ndarray ) -> np.ndarray:##{{{
     
-    def _matrix_positive_part( M ):
+    def _matrix_positive_part( M: np.ndarray ) -> np.ndarray:
         
         if not np.isfinite(M).all():
             return M + np.nan
@@ -59,7 +59,7 @@ def matrix_positive_part(M):##{{{
 
 ##}}}
 
-def nancov(X):##{{{
+def nancov( X: np.ndarray ) -> np.ndarray:##{{{
     if X.ndim == 2:
         return np.ma.cov( np.ma.masked_invalid(X) , rowvar = False ).filled(np.nan)
     else:
@@ -72,9 +72,9 @@ def nancov(X):##{{{
         return P
 ##}}}
 
-def sqrtm( C ):##{{{
+def sqrtm( C: np.ndarray ) -> np.ndarray:##{{{
     
-    def _sqrtm(c):
+    def _sqrtm( c: np.ndarray ) -> np.ndarray:
         if not np.isfinite(c).all():
             return np.zeros_like(c) + np.nan
         u,s,v = np.linalg.svd(c)
@@ -93,7 +93,7 @@ def sqrtm( C ):##{{{
     return S.reshape(shape_nd)
 ##}}}
 
-def robust_covariance( X , method = "empirical" , index = slice(None) ):##{{{
+def robust_covariance( X: np.ndarray , method: str = "empirical" , index: slice = slice(None) ):##{{{
     
     if method == "norm-quantile":
         XX = X[:,index]
@@ -114,7 +114,7 @@ def robust_covariance( X , method = "empirical" , index = slice(None) ):##{{{
 ## mean_cov_hpars ##{{{
 
 @disable_warnings
-def mean_cov_hpars( hpars ):
+def mean_cov_hpars( hpars: np.ndarray ) -> tuple[np.ndarray,np.ndarray]:
     
     nhpar = hpars.shape[-3]
     hpar  = np.nanmean( hpars , axis = (-2,-1) )

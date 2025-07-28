@@ -22,10 +22,13 @@
 import os
 import warnings
 import tempfile
+from typing import Any
 
 import numpy as np
 import scipy.stats as sc
 import xarray as xr
+
+from SDFC.__AbstractLaw import AbstractLaw
 
 import cmdstanpy as stan
 import logging
@@ -38,12 +41,16 @@ from ...__exceptions import StanInitError
 cmdstanpy_logger = logging.getLogger("cmdstanpy")
 cmdstanpy_logger.disabled = True
 
+PriorType = sc._multivariate.multivariate_normal_frozen
+ValueType = np.ndarray | float
+
+
 ## Classes
 ##########
 
 class AbstractModel:##{{{
     
-    def __init__( self , p_name , h_name , sdlaw , sclaw , stan_file ):##{{{
+    def __init__( self , p_name: Sequence[str] , h_name: Sequence[str] , sdlaw: type , sclaw: type , stan_file: str ) -> None:##{{{
         self.sdlaw     = sdlaw
         self.sclaw     = sclaw
         self.p_name    = p_name
@@ -55,28 +62,28 @@ class AbstractModel:##{{{
     ## Properties ##{{{
     
     @property
-    def npar(self):
+    def npar(self) -> int:
         return len(self.p_name)
     
     @property
-    def nhpar(self):
+    def nhpar(self) -> int:
         return len(self.h_name)
     
     ##}}}
     
-    def _map_sdfit( self , Y , X ):##{{{
+    def _map_sdfit( self , Y: np.ndarray , X: np.ndarray ) -> tuple[np.ndarray,dict]:##{{{
         raise NotImplementedError
     ##}}}
     
-    def _map_scpar( self , **kwargs ):##{{{
+    def _map_scpar( self , **kwargs: dict[str,np.ndarray] ) -> dict[str,np.ndarray] :##{{{
         raise NotImplementedError
     ##}}}
     
-    def _map_stanpar( self , Y , X ):##{{{
+    def _map_stanpar( self , Y: np.ndarray , X: np.ndarray ) -> tuple[np.ndarray,np.ndarray]:##{{{
         return Y,X
     ##}}}
     
-    def fit_mle( self , Y , X , **kwargs ):##{{{
+    def fit_mle( self , Y: np.ndarray , X: np.ndarray , **kwargs: Any ) -> np.ndarray:##{{{
         law = self.sdlaw( method = "mle" )
         sdargs,sdkwargs = self._map_sdfit( Y , X )
         with warnings.catch_warnings():
@@ -85,7 +92,7 @@ class AbstractModel:##{{{
         return law.coef_
     ##}}}
     
-    def init_stan( self , tmp , force_compile = False ):##{{{
+    def init_stan( self , tmp: str , force_compile: bool = False ) -> stan.CmdStanModel:##{{{
         ### Define stan model
         stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" )
         stan_ifile = os.path.join( stan_path , self.stan_file )
@@ -97,7 +104,7 @@ class AbstractModel:##{{{
         return stan_model
     ##}}}
     
-    def _fit_bayesian_ORIGIN( self , Y , X , prior , n_mcmc_drawn , n_try = 5 ):##{{{
+    def _fit_bayesian_ORIGIN( self, Y: np.ndarray, X: np.ndarray, prior: PriorType, n_mcmc_drawn: int , n_try: int = 5 ) -> np.ndarray:##{{{
         
         sdargs,sdkwargs = self._map_sdfit( Y , X )
         for _ in range(n_try):
@@ -121,7 +128,7 @@ class AbstractModel:##{{{
         return draw
     ##}}}
     
-    def _fit_bayesian_STAN( self , Y , X , prior , n_mcmc_drawn , tmp ):##{{{
+    def _fit_bayesian_STAN( self , Y: np.ndarray , X: np.ndarray , prior: PriorType , n_mcmc_drawn: int , tmp: str ) -> np.ndarray:##{{{
         YY,XX = self._map_stanpar(Y,X)
         show_console = False
         
@@ -169,7 +176,7 @@ class AbstractModel:##{{{
         return draw
     ##}}}
     
-    def fit_bayesian( self , Y , X , prior , n_mcmc_drawn , use_STAN , tmp , n_try = 5 ):##{{{
+    def fit_bayesian( self , Y: np.ndarray , X: np.ndarray , prior: PriorType , n_mcmc_drawn: int , use_STAN: bool , tmp: str , n_try: int = 5 ) -> np.ndarray:##{{{
         if use_STAN:
             draw = self._fit_bayesian_STAN( Y , X , prior , n_mcmc_drawn , tmp )
         else:
@@ -178,7 +185,7 @@ class AbstractModel:##{{{
         return draw
     ##}}}
     
-    def _cdf_sf( self , x , side , **kwargs ):##{{{
+    def _cdf_sf( self , x: ValueType , side: str , **kwargs: Any ) -> ValueType:##{{{
         
         sckwargs = self._map_scpar(**kwargs)
         
@@ -188,7 +195,7 @@ class AbstractModel:##{{{
             return self.sclaw.cdf( x , **sckwargs )
     ##}}}
     
-    def _icdf_sf( self , p , side , **kwargs ):##{{{
+    def _icdf_sf( self , p: ValueType , side: str , **kwargs: Any ) -> ValueType:##{{{
         
         sckwargs = self._map_scpar(**kwargs)
         
@@ -198,19 +205,19 @@ class AbstractModel:##{{{
             return self.sclaw.ppf( p , **sckwargs )
     ##}}}
     
-    def cdf_sf( self , x , side , **kwargs ):##{{{
+    def cdf_sf( self , x: ValueType , side: str , **kwargs: Any ) -> ValueType:##{{{
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             return self._cdf_sf( x , side , **kwargs )
     ##}}}
     
-    def icdf_sf( self , p , side , **kwargs ):##{{{
+    def icdf_sf( self , p: ValueType , side: str , **kwargs: Any ) -> ValueType:##{{{
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             return self._icdf_sf( p , side , **kwargs )
     ##}}}
     
-    def draw_params( self , X , hpar ):##{{{
+    def draw_params( self , X: xr.DataArray , hpar: xr.DataArray ) -> dict[str,xr.DataArray]:##{{{
         raise NotImplementedError
     ##}}}
     

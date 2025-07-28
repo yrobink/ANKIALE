@@ -70,8 +70,9 @@ class CoVarConfig:##{{{
         self.find_nknot()
     ##}}}
     
-    def copy(self) -> Self:
+    def copy(self) -> Self:##{{{
         return CoVarConfig( self.dof , self.degree , self.vXN )
+    ##}}}
 
     def find_nknot(self) -> None:##{{{
         self.nknot  = 0
@@ -80,9 +81,12 @@ class CoVarConfig:##{{{
         self.nknot += self.degree + 1
     ##}}}
     
+    ## Properties ##{{{
+
     @property
     def spl_config(self) -> dict:
         return { **self.dof , **{ 'degree' : self.degree , 'nknot' : self.nknot} }
+    ##}}}    
 
 ##}}}
 
@@ -475,7 +479,7 @@ class Climatology:##{{{
     
     ##}}}
     
-    def restrict_spatial2( self , coords , drop = False ):##{{{
+    def restrict_spatial( self , coords: dict[str,xr.DataArray] , drop: bool = False ) -> Self:##{{{
         clim = Climatology()
         
         clim._hpar = self.hpar.zsel( drop = drop , **coords )
@@ -507,9 +511,6 @@ class Climatology:##{{{
         clim._dpers = self._dpers
         
         clim._time = self._time
-        
-        clim._nslawid     = self._nslawid
-        clim._nslaw_class = self._nslaw_class
         
         clim._cconfig = self._cconfig
         clim._vconfig = self._vconfig
@@ -566,7 +567,6 @@ class Climatology:##{{{
     ##}}}
     
     def crvs( self , size: int , add_BE: bool = False ) -> xr.Dataset:##{{{
-        
         
         ## Extract parameters of the distribution
         if not self.only_covar:
@@ -823,8 +823,6 @@ class Climatology:##{{{
         return self.vconfig.vname
 
     ##}}}
-    
-    
     
     ##}}}
     

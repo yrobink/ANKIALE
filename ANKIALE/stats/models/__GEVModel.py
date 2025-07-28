@@ -20,6 +20,7 @@
 ###########
 
 import numpy as np
+import xarray as xr
 import scipy.stats as sc
 import SDFC  as sd
 
@@ -31,7 +32,7 @@ from .__AbstractModel import AbstractModel
 
 class GEVModel(AbstractModel):##{{{
     
-    def __init__( self ):##{{{
+    def __init__( self ) -> None:##{{{
         
         AbstractModel.__init__( self ,
                                 p_name    = ("loc","scale","shape"),
@@ -43,23 +44,23 @@ class GEVModel(AbstractModel):##{{{
         
     ##}}}
     
-    def __repr__(self):##{{{
+    def __repr__(self) -> str:##{{{
         return self.__str__()
     ##}}}
     
-    def __str__(self):##{{{
+    def __str__(self) -> str:##{{{
         return "ANKIALE.stats.GEVModel"
     ##}}}
     
-    def _map_sdfit( self , Y , X ):##{{{
+    def _map_sdfit( self , Y: np.ndarray , X: np.ndarray ) -> tuple[np.ndarray,dict[str,Any]]:##{{{
         return (Y,),{ "c_loc" : X , "c_scale" : X , "l_scale" : sd.link.ULExponential() }
     ##}}}
     
-    def _map_scpar( self , **kwargs ):##{{{
+    def _map_scpar( self , **kwargs: dict[str,np.ndarray | xr.DataArray] ) -> dict[str,np.ndarray | xr.DataArray]:##{{{
         return { "loc" : kwargs["loc"] , "scale" : kwargs["scale"] , "c" : - kwargs["shape"] }
     ##}}}
     
-    def draw_params( self , X , hpar ):##{{{
+    def draw_params( self , X: xr.DataArray , hpar: xr.DataArray ) -> dict[str,xr.DataArray]:##{{{
         
         loc   = hpar.sel( hpar = "loc0" ) + hpar.sel( hpar = "loc1" ) * X
         scale = np.exp( hpar.sel( hpar = "scale0" ) + hpar.sel( hpar = "scale1" ) * X )

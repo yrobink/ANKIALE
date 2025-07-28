@@ -24,6 +24,10 @@
 import os
 import numpy as np
 
+from typing import Any
+from typing import Sequence
+
+
 #############
 ## Classes ##
 #############
@@ -33,7 +37,7 @@ import numpy as np
 ## Functions ##
 ###############
 
-def sort_run(key):##{{{
+def sort_run( key: str ) -> Sequence[int]:##{{{
     
     r = key.split("r")[1].split("i")[0]
     i = key.split("i")[1].split("p")[0]
@@ -43,7 +47,7 @@ def sort_run(key):##{{{
     return [int(s) for s in [r,i,p,f]]
 ##}}}
 
-def as_list( x ):##{{{
+def as_list( x: Any ) -> list:##{{{
     if isinstance( x , np.ndarray ):
         return x.tolist()
     elif not isinstance( x , list ):
@@ -51,11 +55,11 @@ def as_list( x ):##{{{
     return x
 ##}}}
 
-def coords_samples( size ):##{{{
+def coords_samples( size: int ) -> list[str]:##{{{
     return [ "S{:{fill}{align}{n}}".format( i , fill = "0" , align = ">" , n = int(np.log10(max(1,size-2))) + 1 ) for i in range(size) ]
 ##}}}
 
-def copy_files( *args ):##{{{
+def copy_files( *args: str ) -> None:##{{{
     
     ## Check number of arguments
     if not len(args) > 1:
@@ -79,6 +83,16 @@ def copy_files( *args ):##{{{
 ##}}}
 
 class Error:##{{{
+    """Class used in while loop to stop iterations when error is lower than
+    a tolerance, or numbers of iterations is greater than the maximal
+    numbers of iterations.
+
+    >>> err = Error()
+    >>> while not err.stop:
+    >>>     ## do something computing some error_value
+    >>>     err.value = error_value
+    """
+
     _tol: float = 1e-3
     _value: float = 1
     _nit: int   = 0

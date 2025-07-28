@@ -16,28 +16,29 @@
 ## You should have received a copy of the GNU General Public License
 ## along with ANKIALE.  If not, see <https://www.gnu.org/licenses/>.
 
+from typing import Any
 
 class DevException(Exception):
-    def __init__( self , *args , **kwargs ):
+    def __init__( self , *args: Any , **kwargs: Any ) -> None:
         super().__init__( *args , **kwargs )
 
 class AbortForHelpException(Exception):
-    def __init__( self , *args , **kwargs ):
+    def __init__( self , *args: Any , **kwargs: Any ) -> None:
         super().__init__( *args , **kwargs )
 
 class NoUserInputException(Exception):
-    def __init__( self , *args , **kwargs ):
+    def __init__( self , *args: Any , **kwargs: Any ) -> None:
         super().__init__( *args , **kwargs )
 
 class StanError(Exception):
-    def __init__( self , *args , **kwargs ):
+    def __init__( self , *args: Any , **kwargs: Any ) -> None:
         super().__init__( *args , **kwargs )
 
 class StanInitError(Exception):
-    def __init__( self , *args , **kwargs ):
+    def __init__( self , *args: Any , **kwargs: Any ) -> None:
         super().__init__( *args , **kwargs )
 
 class MCMCError(Exception):
-    def __init__( self , *args , **kwargs ):
+    def __init__( self , *args: Any , **kwargs: Any ) -> None:
         super().__init__( *args , **kwargs )
 

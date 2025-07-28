@@ -76,7 +76,7 @@ logger.addHandler(logging.NullHandler())
 ## run_ank ##{{{
 
 @log_start_end(logger)
-def run_ank():
+def run_ank() -> None:
     """
     ANKIALE.run_ank
     ===============
@@ -132,7 +132,7 @@ def run_ank():
     
 ##}}}
 
-def start_ank(*argv):##{{{
+def start_ank( *argv: Any ) -> None:##{{{
     """
     ANKIALE.start_ank
     =================
@@ -178,6 +178,7 @@ def start_ank(*argv):##{{{
             ("SDFC"       , SDFC )
            ]
     
+    logger.info( f"Python version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} ({sys.version_info.releaselevel})" )
     logger.info( "Packages version:" )
     logger.info( " * {:{fill}{align}{n}}".format( "ANKIALE" , fill = " " , align = "<" , n = 12 ) + f"version {version}" )
     for name_pkg,pkg in pkgs:

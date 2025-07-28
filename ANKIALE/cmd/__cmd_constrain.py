@@ -40,7 +40,8 @@ from ..__sys     import coords_samples
 from ..stats.__MultiGAM   import MPeriodSmoother
 from ..stats.__constraint import build_projection_matrix
 from ..stats.__constraint import constraint_covar
-from ..stats.__constraint import mcmc
+from ..stats.__constraint import constraint_var
+from ..stats.models.__AbstractModel import AbstractModel
 
 from ..__linalg import mean_cov_hpars
 
@@ -212,7 +213,7 @@ def run_ank_cmd_constrain_X() -> None:
 ##}}}
 
 
-def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STAN , tmp ):##{{{
+def zconstraint_var( ihpar: np.ndarray , ihcov: np.ndarray , Yo: np.ndarray , samples: np.ndarray , P: np.ndarray , size_chain: int , cnslaw: AbstractModel , use_STAN: bool , tmp: str | None ) -> np.ndarray:##{{{
     
     ssp    = ihpar.shape[:-2]
     nhpar  = ihpar.shape[-1]
@@ -238,7 +239,7 @@ def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STA
                 continue
             
             ## MCMC
-            oh = mcmc( ih , ic , iYo , A , size_chain , nslaw_class , use_STAN , tmp )
+            oh = constraint_var( ih , ic , iYo , P , size_chain , cnslaw , use_STAN , tmp )
             if not np.isfinite(oh).all():
                 distributed.print("Fail MCMC")
             
@@ -251,7 +252,7 @@ def zmcmc( ihpar , ihcov , Yo , samples , A , size_chain , nslaw_class , use_STA
 
 ## run_ank_cmd_constrain_Y ##{{{
 @log_start_end(logger)
-def run_ank_cmd_constrain_Y():
+def run_ank_cmd_constrain_Y() -> None:
     
     ##
     clim = ankParams.clim
@@ -259,7 +260,8 @@ def run_ank_cmd_constrain_Y():
     
     ## Load observations
     name,ifile = ankParams.input[0].split(",")
-    Yo = xr.open_dataset(ifile)[name]
+    time_coder = xr.coders.CFDatetimeCoder( use_cftime = True )
+    Yo = xr.open_dataset( ifile , decode_times = time_coder )[name]
     if clim.spatial_is_fake:
         Yo = xr.DataArray( Yo.values.reshape(-1,1) , dims = ("time",) + clim.d_spatial , coords = { **{ "time" : Yo.time.dt.year.values } , **clim.c_spatial } )
     else:
@@ -286,56 +288,44 @@ def run_ank_cmd_constrain_Y():
     hpar_names = clim.hpar_names
     ihpar      = clim.hpar
     ihcov      = clim.hcov
+    cname      = clim.cname
+    cnslaw     = clim.cnslaw
     
     ## Samples
     n_samples = ankParams.n_samples
     samples   = coords_samples(n_samples)
     zsamples  = zr.ZXArray.from_xarray( xr.DataArray( range(n_samples) , dims = ["sample"] , coords = [samples] ).astype(float) )
+    chains    = range(size_chain)
     
-    ##
-    chains = range(size_chain)
+    ## Find configuration
+    method_constraint = ankParams.config.get("method_constraint")
+    if method_constraint is None:
+        method_constraint = { cname : "full" }
+    else:
+        method_constraint = { cname : method_constraint }
     
-    ## Build projection operator for the covariable
-#    time = clim.time
-#    spl,lin,_,_ = clim.build_design_XFC()
-#    nper = len(clim.dpers)
-#    
-#    design_ = []
-#    for nameX in clim.namesX:
-#        if nameX == clim.cname:
-#            design_ = design_ + [spl for _ in range(nper)] + [nper * lin]
-#        else:
-#            design_ = design_ + [np.zeros_like(spl) for _ in range(nper)] + [np.zeros_like(lin)]
-#    design_ = design_ + [np.zeros( (time.size,clim.sizeY) )]
-#    design_ = np.hstack(design_)
-#    
-#    T = xr.DataArray( np.identity(design_.shape[0]) , dims = ["timeA","timeB"] , coords = [time,time] ).loc[Yo.time,time].values
-#    A = T @ design_ / nper
+    logger.info( f"Constraint method used: {cname} / {method_constraint}")
+    
+    ## Init smoother matrix for projection
     time = clim.time
-    lin,spl = clim.build_design_basis()
     nper = len(clim.dpers)
+    mps = MPeriodSmoother(
+        XN = clim.XN,
+        cnames = clim.cnames,
+        dpers = clim.dpers,
+        spl_config = clim.cconfig.spl_config
+    )
+    fake_zXo = { cname : xr.DataArray( dims = ["time0"] , coords = [Yo.time] ) }
+    P = build_projection_matrix( mps , fake_zXo , method_constraint )
     
-    ## Build the design_matrix for projection
-    design_ = []
-    for nameX in clim.namesX:
-        if nameX == clim.cname:
-            design_ = design_ + [spl[nameX][clim.dpers[iper]] for iper in range(nper)] + [nper * lin]
-        else:
-            design_ = design_ + [np.zeros_like(spl[nameX][clim.dpers[iper]]) for iper in range(nper)] + [np.zeros_like(lin)]
-    design_ = design_ + [np.zeros( (time.size,clim.sizeY) )]
-    design_ = np.hstack(design_)
-    
-    
-    T = xr.DataArray( np.identity(design_.shape[0]) , dims = ["timeA","timeB"] , coords = [time,time] ).loc[Yo.time,time].values
-    A = T @ design_ / nper
-    
-    ##
-    nslaw_class = clim._nslaw_class
+    ## Add to projection matrix the design part for variable
+    vP = np.zeros( (P.shape[0],clim.vsize) )
+    P  = np.hstack( (P,vP) )
     
     ## Init stan
     if use_STAN:
         logger.info(" * STAN compilation...")
-        nslaw_class().init_stan( tmp = ankParams.tmp_stan , force_compile = True )
+        cnslaw().init_stan( tmp = ankParams.tmp_stan , force_compile = True )
         logger.info(" * STAN compilation... Done.")
     
     ## Apply parameters
@@ -344,7 +334,7 @@ def run_ank_cmd_constrain_Y():
     output_dtypes    = [float]
     dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["time"] , [] ],
                          "output_core_dims" : [ ["hpar","chain"] ],
-                         "kwargs" : { "A" : A , "size_chain" : size_chain , "nslaw_class" : nslaw_class , "use_STAN" : use_STAN , "tmp" : ankParams.tmp_stan } ,
+                         "kwargs" : { "P" : P , "size_chain" : size_chain , "cnslaw" : cnslaw , "use_STAN" : use_STAN , "tmp" : ankParams.tmp_stan } ,
                          "dask" : "parallelized",
                          "dask_gufunc_kwargs" : { "output_sizes" : { "chain" : size_chain } },
                          "output_dtypes"  : [clim.hpar.dtype]
@@ -357,7 +347,7 @@ def run_ank_cmd_constrain_Y():
     ## Draw samples
     logger.info(" * Draw samples")
     with ankParams.get_cluster() as cluster:
-        ohpars = zr.apply_ufunc( zmcmc , ihpar , ihcov , zYo , zsamples ,
+        ohpars = zr.apply_ufunc( zconstraint_var , ihpar , ihcov , zYo , zsamples ,
                                  block_dims         = d_spatial + ("sample",),
                                  total_memory       = ankParams.total_memory,
                                  block_memory       = block_memory,

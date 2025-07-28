@@ -22,6 +22,9 @@
 
 import functools
 import warnings
+import logging
+from typing import Any
+from typing import Callable
 
 import datetime as dt
 
@@ -31,12 +34,8 @@ import datetime as dt
 
 LINE = "=" * 80
 
-def log_start_end(plog):##{{{
-    """
-    ANKIALE.log_start_end
-    =====================
-    
-    Decorator to add to the log the start / end of a function, and a walltime
+def log_start_end( plog: logging.Logger ) -> Callable:##{{{
+    """Decorator to add to the log the start / end of a function, and a walltime
     
     Parameters
     ----------
@@ -44,10 +43,10 @@ def log_start_end(plog):##{{{
         A logger from logging
     
     """
-    def _decorator(f):
+    def _decorator( f: Callable ) -> Callable:
         
         @functools.wraps(f)
-        def f_decor(*args,**kwargs):
+        def f_decor( *args: Any , **kwargs: Any ) -> Any:
             plog.info(f"ANKIALE:{f.__name__}:start")
             time0 = dt.datetime.now(dt.UTC)
             out = f(*args,**kwargs)
@@ -61,14 +60,10 @@ def log_start_end(plog):##{{{
     return _decorator
 ##}}}
 
-def disable_warnings( fun ):##{{{
+def disable_warnings( fun: Callable ) -> Callable:##{{{
+    """Decorator to supress warnings
     """
-    ANKIALE.disable_warnings
-    ========================
-    
-    Decorator to supress warnings
-    """
-    def fun_without_warnings( *args , **kwargs ):
+    def fun_without_warnings( *args: Any , **kwargs: Any ) -> Any:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             res = fun( *args , **kwargs )

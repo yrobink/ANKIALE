@@ -47,6 +47,9 @@ from ..__exceptions import MCMCError
 from ..__exceptions import DevException
 from ..__logs import disable_warnings
 
+from .models.__AbstractModel import AbstractModel
+
+
 ##################
 ## Init logging ##
 ##################
@@ -219,10 +222,10 @@ def constraint_covar( *args: np.ndarray , P: np.ndarray | None = None , timeXo: 
 
 
 
-def mcmc( hpar , hcov , Y , A , size_chain , nslaw_class , use_STAN , tmp_stan = None , n_try = 5 ):##{{{
+def constraint_var( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , P: np.ndarray , size_chain: int , cnslaw: AbstractModel , use_STAN: bool , tmp_stan: str | None = None , n_try: int = 5 ) -> np.ndarray:##{{{
     
     ## Law
-    nslaw   = nslaw_class()
+    nslaw   = cnslaw()
     nnshpar = nslaw.nhpar
     
     ## Prior
@@ -240,7 +243,7 @@ def mcmc( hpar , hcov , Y , A , size_chain , nslaw_class , use_STAN , tmp_stan =
         hpars[:] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = 1 ).reshape(-1,1)
         
         ## Build the covariable
-        X = A @ hpars[:,0]
+        X = P @ hpars[:,0]
         
         ## Keep finite
         idx = np.isfinite(X) & np.isfinite(Y)
