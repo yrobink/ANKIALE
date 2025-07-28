@@ -22,13 +22,7 @@
 
 import itertools as itt
 import logging
-
-from ..__logs import log_start_end
-from ..__logs import disable_warnings
-
-from ..__ANKParams import ankParams
-
-from ..__sys import coords_samples
+from typing import Sequence
 
 import numpy as np
 import xarray as xr
@@ -36,6 +30,12 @@ import zxarray as zr
 
 import netCDF4
 import cftime
+
+from ..__logs import log_start_end
+from ..__logs import disable_warnings
+from ..__ANKParams import ankParams
+from ..__sys import coords_samples
+from ..__exceptions import DevException
 
 
 ##################
@@ -53,7 +53,7 @@ logger.addHandler(logging.NullHandler())
 ## zdraw ##{{{
 
 @disable_warnings
-def zdraw( hpar , hcov , projF , projC , nslaw_class , n_samples ):
+def zdraw( hpar: np.ndarray , hcov: np.ndarray , projF: np.ndarray , projC: np.ndarray , cnslaw: type , n_samples: int ) -> Sequence[np.ndarray]:
     
     ## Coordinates
     nhpar = hpar.shape[-1]
@@ -65,7 +65,7 @@ def zdraw( hpar , hcov , projF , projC , nslaw_class , n_samples ):
     ##
     projF = projF.reshape( projF.shape[-4:] )
     projC = projC.reshape( projF.shape[-4:] )
-    nslaw = nslaw_class()
+    nslaw = cnslaw()
     
     ## Build output
     ohpars  = np.zeros( ssp + (nper,n_samples,nhpar) ) + np.nan
@@ -121,13 +121,13 @@ def zdraw( hpar , hcov , projF , projC , nslaw_class , n_samples ):
 
 ## run_ank_cmd_draw ##{{{
 @log_start_end(logger)
-def run_ank_cmd_draw():
+def run_ank_cmd_draw() -> None:
     
     ## Parameters
-    clim        = ankParams.clim
-    n_samples   = ankParams.n_samples
-    nslaw_class = clim._nslaw_class
-    time        = clim.time
+    clim      = ankParams.clim
+    n_samples = ankParams.n_samples
+    cnslaw    = clim.cnslaw
+    time      = clim.time
     
     ## Build projection operator for the covariable
     logger.info(" * Build projection operator")
@@ -144,15 +144,15 @@ def run_ank_cmd_draw():
     dpers   = clim.dpers
     samples = coords_samples(n_samples)
     time    = clim.time
-    nslaw   = nslaw_class()
+    nslaw   = cnslaw()
     npar    = nslaw.npar
     
     output_dims      = [ ("period","sample","hpar") + d_spatial ] + [ ("name","period","sample","time") + d_spatial for _ in range(2) ]  + [ ("period","sample","time") + d_spatial for _ in range(2 * npar) ]
-    output_coords    = [ [dpers,samples,hpar_names] + [ c_spatial[d] for d in d_spatial ] ] + [ [clim.namesX,dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2) ] + [ [dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2*npar) ]
+    output_coords    = [ [dpers,samples,hpar_names] + [ c_spatial[d] for d in d_spatial ] ] + [ [clim.cnames,dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2) ] + [ [dpers,samples,time] + [ c_spatial[d] for d in d_spatial ] for _ in range(2*npar) ]
     output_dtypes    = [clim.hpar.dtype for _ in range( 3 + 2 * npar)]
     dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["name","time","hpar"] , ["name","time","hpar"] ],
                          "output_core_dims" : [ ["sample","hpar"] , ["name","sample","time"] , ["name","sample","time"] ] + [ ["sample","time"] for _ in range(2 * npar) ],
-                         "kwargs"           : { "nslaw_class" : nslaw_class , "n_samples" : n_samples } ,
+                         "kwargs"           : { "cnslaw" : cnslaw , "n_samples" : n_samples } ,
                          "dask"             : "parallelized",
                          "output_dtypes"    : [clim.hpar.dtype for _ in range(3 + 2*npar)],
                          "dask_gufunc_kwargs" : { "output_sizes"     : { "sample" : n_samples } }
@@ -164,7 +164,7 @@ def run_ank_cmd_draw():
     
     ## Block memory function
     nhpar = len(clim.hpar_names)
-    block_memory = lambda x : 2 * ( nhpar + nhpar**2 + 5 * len(clim.namesX) * time.size * nhpar + n_samples * nhpar + 2 * npar * n_samples * time.size ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+    block_memory = lambda x : 2 * ( nhpar + nhpar**2 + 5 * len(clim.cnames) * time.size * nhpar + n_samples * nhpar + 2 * npar * n_samples * time.size ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
     
     ## Run with zxarray
     logger.info(" * Draw parameters")
@@ -193,7 +193,7 @@ def run_ank_cmd_draw():
         ## Define dimensions
         ncdims = {
                "sample"   : ncf.createDimension( "sample" , len(samples) ),
-               "name"     : ncf.createDimension(   "name" , len(clim.namesX) ),
+               "name"     : ncf.createDimension(   "name" , len(clim.cnames) ),
                "time"     : ncf.createDimension(   "time" , len(time)    ),
                "period"   : ncf.createDimension( "period" , len(dpers)   ),
                "hyper_parameter" : ncf.createDimension( "hyper_parameter" , len(hpar_names)  ),
@@ -212,7 +212,7 @@ def run_ank_cmd_draw():
                "hyper_parameter" : ncf.createVariable( "hyper_parameter" , str ,   ("hyper_parameter",) ),
         }
         
-        ncvars["name"][:]   = np.array( clim.namesX , dtype = str )
+        ncvars["name"][:]   = np.array( clim.cnames , dtype = str )
         ncvars["sample"][:] = np.array( samples , dtype = str )
         ncvars["period"][:] = np.array(   dpers , dtype = str )
         ncvars["hyper_parameter"][:] = np.array( hpar_names , dtype = str )
