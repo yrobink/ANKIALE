@@ -23,6 +23,7 @@ import os
 import warnings
 import tempfile
 from typing import Any
+from typing import Sequence
 
 import numpy as np
 import scipy.stats as sc

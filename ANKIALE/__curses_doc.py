@@ -27,6 +27,8 @@ except ModuleNotFoundError:
 
 from .__doc import doc as txt_doc
 
+from typing import Any
+
 ###############
 ## Functions ##
 ###############

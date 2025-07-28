@@ -24,6 +24,8 @@ import xarray as xr
 import scipy.stats as sc
 import SDFC  as sd
 
+from typing import Any
+
 from .__AbstractModel import AbstractModel
 
 
