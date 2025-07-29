@@ -55,6 +55,13 @@ logger.addHandler(logging.NullHandler())
 @disable_warnings
 def nslaw_fit( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , samples: np.ndarray , nslaw_class: type , proj: xr.DataArray , cname: str ) -> np.ndarray:
     
+    seed = 0
+    it   = 0
+    while seed < 1:
+        seed = int( np.nansum(Y) * 10**it )
+        it  += 1
+    np.random.seed(seed)
+    
     ## Init law
     nslaw = nslaw_class()
     

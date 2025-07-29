@@ -152,7 +152,7 @@ def run_ank_cmd_constrain_X() -> None:
             if cname not in method_constraint:
                 method_constraint[cname] = "full"
             if method_constraint[cname] not in ["full"] + clim.dpers:
-                raise ValueError(f"Constraint method not coherent: {cname} / {method_constraint['cname']}")
+                raise ValueError(f"Constraint method not coherent: {cname} / {method_constraint[cname]}")
                 
     logger.info( f"Constraint method used: {method_constraint}")
     
