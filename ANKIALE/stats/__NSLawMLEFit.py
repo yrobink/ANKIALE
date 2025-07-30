@@ -53,17 +53,7 @@ logger.addHandler(logging.NullHandler())
 ## nslaw_fit ##{{{
 
 @disable_warnings
-def nslaw_fit( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , samples: np.ndarray , nslaw_class: type , proj: xr.DataArray , cname: str ) -> np.ndarray:
-    
-    seed = 0
-    it   = 0
-    while seed < 1:
-        seed = int( np.nansum(Y) * 10**it )
-        it  += 1
-    np.random.seed(seed)
-    
-    ## Init law
-    nslaw = nslaw_class()
+def nslaw_fit( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , samples: np.ndarray , cnslaw: type , proj: xr.DataArray , cname: str ) -> np.ndarray:
     
     ## Find spatial size
     s_spatial = tuple()
@@ -72,7 +62,7 @@ def nslaw_fit( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , samples: np
     
     ## Init output
     hpar_names = proj.hpar.values.tolist()
-    s_hparY = hpar.size + nslaw.nhpar
+    s_hparY = hpar.size + cnslaw().nhpar
     dpers   = proj.period.values.tolist()
     ndpers  = Y.shape[-2]-1
     hpars   = np.zeros( s_spatial + (samples.size,s_hparY) ) + np.nan
@@ -82,7 +72,7 @@ def nslaw_fit( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , samples: np
     hpars[*([slice(None) for _ in range(hpars.ndim-1)] + [range(hpar.size)] ) ] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = hpars.size // s_hparY ).reshape( hpars.shape[:-1] + (hpar.size,) )
     hpars = xr.DataArray( hpars ,
                           dims = [f"spatial{i}" for i in range(len(s_spatial))] + ["sample","hpar"],
-                        coords = [ range(s) for s in s_spatial ] + [range(samples.size),hpar_names+list(nslaw.h_name)]
+                        coords = [ range(s) for s in s_spatial ] + [range(samples.size),hpar_names+list(cnslaw().h_name)]
                       )
     XF = ( proj.sel( name = cname ) @ hpars )
     hpars = xr.concat( [ hpars for _ in dpers ] , dim = "period" ).assign_coords( period = dpers )
@@ -103,6 +93,7 @@ def nslaw_fit( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , samples: np
             xX  = xX[idx]
             xY  = xY[idx]
             
+            nslaw = cnslaw()
             if init[iper] is None:
                 init[iper] = nslaw.fit_mle( xY , xX )
             

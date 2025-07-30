@@ -243,7 +243,7 @@ def run_ank_cmd_fit_Y() -> None:
     output_dtypes    = [ float ]
     dask_kwargs      = { "input_core_dims"  : [ ["hpar"] , ["hpar0","hpar1"] , ["time","period","run"] , []],
                          "output_core_dims" : [ ["hparY","dperiod"] ],
-                         "kwargs" : { "nslaw_class" : cnslaw , "proj" : projF , "cname" : cname },
+                         "kwargs" : { "cnslaw" : cnslaw , "proj" : projF , "cname" : cname },
                          "dask" : "parallelized",
                          "dask_gufunc_kwargs" : { "output_sizes" : { "hparY" : len(hpar_names) , "dperiod" : len(clim.dpers) } },
                          "output_dtypes"  : [clim.hpar.dtype]
