@@ -78,7 +78,7 @@ def nslaw_fit( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , samples: np
     hpars = xr.concat( [ hpars for _ in dpers ] , dim = "period" ).assign_coords( period = dpers )
     
     ## Now loop for fit
-    init = [None for _ in dpers]
+    init = None
     for idx0 in itt.product( *[ range(s) for s in hpars.shape[1:-1]] ):
         for iper,dper in enumerate(dpers):
             
@@ -94,17 +94,18 @@ def nslaw_fit( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , samples: np
             xY  = xY[idx]
             
             nslaw = cnslaw()
-            if init[iper] is None:
-                init[iper] = nslaw.fit_mle( xY , xX )
+            if init is None:
+                init = nslaw.fit_mle( xY , xX )
             
             ## Resampling
             p  = np.random.choice( xX.size , xX.size , replace = True )
             
             ## Fit
-            ns_hpar = nslaw.fit_mle( xY[p] , xX[p] , init = init[iper] )
+            ns_hpar = nslaw.fit_mle( xY[p] , xX[p] , init = init )
             
             ## Save
             hpars[ (iper,) + idx0 + (slice(hpar.size,s_hparY,1),) ] = ns_hpar
+            init = ns_hpar
     
     odims = [f"spatial{i}" for i in range(len(s_spatial))] + ["sample","hpar","period"]
     hpars = hpars.transpose(*odims)
