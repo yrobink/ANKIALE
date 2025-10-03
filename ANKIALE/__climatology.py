@@ -336,6 +336,8 @@ class Climatology:##{{{
             clim.cconfig = CoVarConfig( dof = dof , degree = degree , vXN = vXN )
             if incf_version < "1.1.0":
                 clim.cconfig.nknot = int(incf.variables["X"].getncattr("GAM_dof")) - 1
+            else:
+                clim.cconfig.nknot = int(incf.variables["X_nknot"][:])
             
             ## And spatial
             spatial_is_fake = False
