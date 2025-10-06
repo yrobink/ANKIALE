@@ -282,11 +282,15 @@ class Climatology:##{{{
         with netCDF4.Dataset( ifile , "r" ) as incf:
             
             if "ANK_version" in incf.ncattrs():
-                incf_version    = incf.getncattr("ANK_version")
+                incf_version = incf.getncattr("ANK_version")
             elif "BSAC_version" in incf.ncattrs():
-                incf_version    = incf.getncattr("BSAC_version")
+                incf_version = incf.getncattr("BSAC_version")
             else:
                 raise ValueError("Impossible to find the ANKIALE version of the file")
+            
+            if incf_version < "1.1.0":
+                raise ValueError( f"Input file from ANKIALE / BSAC version {incf_version} < 1.1.0 can not be read by ANKIALE version {version} >= 1.1.0, abort." )
+
             clim._names     = incf.variables["names"][:].tolist()
             clim.cper       = incf.variables["common_period"][:].tolist()
             clim.dpers      = incf.variables["different_periods"][:].tolist()
@@ -305,39 +309,22 @@ class Climatology:##{{{
             clim.time = [ t.year for t in cftime.num2date( nctime[:] , units , calendar ) ]
             
             ## Y config
-            if incf_version < "1.1.0":
-                try:
-                    cname   = str(incf.variables["Y"].getncattr("cname"))
-                    idnslaw = str(incf.variables["Y"].getncattr("nslawid"))
-                    vname   = clim._names[-1]
-                    clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
-                except Exception:
-                    vname = ""
-            else:
-                try:
-                    cname   = str(incf.variables["Y"].getncattr("cname"))
-                    vname   = str(incf.variables["Y"].getncattr("vname"))
-                    idnslaw = str(incf.variables["Y"].getncattr("idnslaw"))
-                    clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
-                except Exception:
-                    vname = ""
+            try:
+                cname   = str(incf.variables["Y"].getncattr("cname"))
+                vname   = str(incf.variables["Y"].getncattr("vname"))
+                idnslaw = str(incf.variables["Y"].getncattr("idnslaw"))
+                clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
+            except Exception:
+                vname = ""
             
             ## X config
             vXN    = str(incf.variables["X"].getncattr("XN_version"))
             cnames = [ name for name in clim._names if not name == vname ]
 
-            if incf_version < "1.1.0":
-                dof    = int(incf.variables["X"].getncattr("GAM_dof")) - 1
-                dof    = { f"{cname}_{per}" : dof for cname,per in itt.product(cnames,clim.dpers) }
-                degree = int(incf.variables["X"].getncattr("GAM_degree"))
-            else:
-                dof    = { f"{cname}_{per}" : int(incf.variables["X_dof"][icname,iper]) for (icname,cname),(iper,per) in itt.product(enumerate(cnames),enumerate(clim.dpers)) }
-                degree = int(incf.variables["X_degree"][:])
+            dof    = { f"{cname}_{per}" : int(incf.variables["X_dof"][icname,iper]) for (icname,cname),(iper,per) in itt.product(enumerate(cnames),enumerate(clim.dpers)) }
+            degree = int(incf.variables["X_degree"][:])
             clim.cconfig = CoVarConfig( dof = dof , degree = degree , vXN = vXN )
-            if incf_version < "1.1.0":
-                clim.cconfig.nknot = int(incf.variables["X"].getncattr("GAM_dof")) - 1
-            else:
-                clim.cconfig.nknot = int(incf.variables["X_nknot"][:])
+            clim.cconfig.nknot = int(incf.variables["X_nknot"][:])
             
             ## And spatial
             spatial_is_fake = False
