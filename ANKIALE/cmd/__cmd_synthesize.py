@@ -198,7 +198,7 @@ def run_ank_cmd_synthesize() -> None:
         
         ## Block memory function
         nhpar = len(hpar_names)
-        block_memory = lambda x : 5 * ( len(ifiles) * (nhpar + nhpar**2) + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+        block_memory = lambda x : 10 * ( len(ifiles) * (nhpar + nhpar**2) + nhpar + nhpar**2 ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
         
         ## Run
         with ankParams.get_cluster() as cluster:
