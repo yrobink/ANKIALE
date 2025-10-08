@@ -249,7 +249,7 @@ def constraint_var( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , P: np.
         idx = np.isfinite(X) & np.isfinite(Y)
         iX  = X[idx]
         iY  = Y[idx]
-        break
+        
         ## Apply constraint
         try:
             draw = nslaw.fit_bayesian( iY , iX , prior , size_chain , use_STAN = use_STAN , tmp = tmp_stan , n_try = n_try )
