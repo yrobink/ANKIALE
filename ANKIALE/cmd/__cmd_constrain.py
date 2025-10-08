@@ -304,7 +304,7 @@ def run_ank_cmd_constrain_Y() -> None:
     else:
         method_constraint = { cname : method_constraint }
     
-    logger.info( f"Constraint method used: {cname} / {method_constraint}")
+    logger.info( f"Constraint method used: {method_constraint}")
     
     ## Init smoother matrix for projection
     time = clim.time
@@ -342,7 +342,9 @@ def run_ank_cmd_constrain_Y() -> None:
     
     ## Block memory function
     nhpar = len(clim.hpar_names)
-    block_memory = lambda x : 50 * ( nhpar + nhpar**2 + time.size + 2 * nhpar * time.size + 1 + nhpar * 1 * size_chain ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+    size_data    = ( nhpar + nhpar**2 + time.size + 2 * nhpar * time.size + 1 + nhpar * 1 * size_chain )
+    sblock       = (np.finfo("float32").bits // zr.DMUnit.bits_per_octet)
+    block_memory = lambda x : ( 5 * int(size_data * sblock) * zr.DMUnit("1o") + zr.DMUnit("1Go") ) * int(np.prod(x))
     
     ## Draw samples
     logger.info(" * Draw samples")
