@@ -344,7 +344,7 @@ def run_ank_cmd_constrain_Y() -> None:
     nhpar = len(clim.hpar_names)
     size_data    = ( nhpar + nhpar**2 + time.size + 2 * nhpar * time.size + 1 + nhpar * 1 * size_chain )
     sblock       = (np.finfo("float32").bits // zr.DMUnit.bits_per_octet)
-    block_memory = lambda x : 5 * int(size_data * sblock) * zr.DMUnit("1o") * int(np.prod(x))
+    block_memory = lambda x : 2 * int(size_data * sblock) * zr.DMUnit("1o") * int(np.prod(x))
     
     ## Draw samples
     logger.info(" * Draw samples")
