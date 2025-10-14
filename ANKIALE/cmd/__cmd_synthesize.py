@@ -135,7 +135,6 @@ def run_ank_cmd_synthesize() -> None:
         
         ## Read clim
         iclim = Climatology.init_from_file(ifile)
-        cname = iclim.cname
         time  = iclim.time
         bper  = iclim._bper
         if clim.has_var:
