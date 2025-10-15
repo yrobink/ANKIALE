@@ -95,7 +95,7 @@ class AbstractModel:##{{{
     
     def init_stan( self , tmp: str , force_compile: bool = False ) -> stan.CmdStanModel:##{{{
         ### Define stan model
-        stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" )
+        stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" , "STAN" )
         stan_ifile = os.path.join( stan_path , self.stan_file )
         stan_ofile = os.path.join(       tmp , self.stan_file )
         if not os.path.isfile(stan_ofile):

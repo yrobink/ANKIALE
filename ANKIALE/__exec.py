@@ -98,22 +98,25 @@ def run_ank() -> None:
         
         ## Run command
         cmd = ankParams.cmd
-        if cmd.lower() == "show":
-            run_ank_cmd_show()
-        elif cmd.lower() == "fit":
-            run_ank_cmd_fit()
-        elif cmd.lower() == "draw":
-            run_ank_cmd_draw()
-        elif cmd.lower() == "synthesize":
-            run_ank_cmd_synthesize()
-        elif cmd.lower() == "constrain":
-            run_ank_cmd_constrain()
-        elif cmd.lower() == "attribute":
-            run_ank_cmd_attribute()
-        elif cmd.lower() == "misc":
-            run_ank_cmd_misc()
-        elif cmd.lower() == "example":
-            run_ank_cmd_example()
+        match cmd.lower():
+            case "show":
+                run_ank_cmd_show()
+            case "fit":
+                run_ank_cmd_fit()
+            case "draw":
+                run_ank_cmd_draw()
+            case "synthesize":
+                run_ank_cmd_synthesize()
+            case "constrain":
+                run_ank_cmd_constrain()
+            case "attribute":
+                run_ank_cmd_attribute()
+            case "misc":
+                run_ank_cmd_misc()
+            case "example":
+                run_ank_cmd_example(False)
+            case "sexample":
+                run_ank_cmd_example(True)
         
         ## And save clim ?
         logger.info(LINE)

@@ -4,12 +4,12 @@
 ## [Unreleased]
 
 ### Added
-- The spline basis of the covariate is highly customizable: the size, the dof
-  and the degree can be set for each covariate, and each differents periods.
-  These new parameters can be passed to ANKIALE with the new option
-  `--covar-config`, which takes arguments of the form:
-       `--covar-config name_covariate:period:size_basis:dof:degree`
-  If not given the default configuration is `6:6:3`. Note that the dof is only
+- The spline basis of the covariate is highly customizable: the dof and the
+  degree can be set for each covariate, and each differents periods. These new
+  parameters can be passed to ANKIALE with the new option `--covar-config`, which
+  takes arguments of the form:
+     `--covar-config name_covariate:period:dof`
+  If not given the default configuration is `6`. Note that the dof is only
   for the spline basis, without the intercept. So the total numbers of degree
   of freedom is `dof+2` for each different periods.
 - Add the method `ANKIALE.Climatology.build_design_basis` method, which return
@@ -22,6 +22,8 @@
   Default behavior is the independent case, but the KCC or MAR2 can be enabled
   by setting `--config method=KCC` or `--config method=MAR2` when the command
   `constraint X` is called.
+- Add a new command `sexample` for `short example`. This command has the same
+  effect as the `example` command, but the model numbers is limited to 5.
 
 ### Changed
 - Documentation has been changed accordingly to the new spline basis

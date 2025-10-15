@@ -52,7 +52,7 @@ def get_XN( time: np.ndarray | None = None , version: str = "CMIP6" ) -> xr.Data
     if version not in ["CMIP5","CMIP6"]:
         raise ValueError( "Version of XNGenerator must be CMIP5 or CMIP6")
     
-    dX = pd.read_csv( os.path.join( cpath , "data" , f"XN_{version}.csv" ) )
+    dX = pd.read_csv( os.path.join( cpath , "data" , "XN" , f"XN_{version}.csv" ) )
     
     XN = xr.DataArray( dX["XN"].values.astype(float) , dims = ["time"] , coords = [dX["year"].values.astype(int)] )
     

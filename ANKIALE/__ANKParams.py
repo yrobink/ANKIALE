@@ -251,7 +251,7 @@ class ANKParams:
                 raise AbortForHelpException
             
             ## Check the CMD
-            list_cmd = ["show","fit","draw","synthesize","constrain","attribute","misc","example"]
+            list_cmd = ["show","fit","draw","synthesize","constrain","attribute","misc","example","sexample"]
             if self.cmd is None or self.cmd.lower() not in list_cmd:
                 raise Exception(f"Bad command arguments, must be one of {', '.join(list_cmd)}")
             
@@ -269,10 +269,10 @@ class ANKParams:
                 raise ValueError(f"Cluster {self.cluster.upper()} is not supported" )
             
             ## Change periods format
+            self.common_period = [self.common_period]
             try:
-                self.common_period     = self.common_period.split(",")
                 self.different_periods = self.different_periods.split(",")
-            except Exception:
+            except:
                 pass
             
             self.bias_period = tuple([int(s) for s in self.bias_period.split("/")])
@@ -297,7 +297,6 @@ class ANKParams:
                     
                     ## Create dict
                     self.config["X_dof"][f"{cname}_{dper}"] = int(dof)
-        
         except Exception as e:
             self.abort = True
             self.error = e

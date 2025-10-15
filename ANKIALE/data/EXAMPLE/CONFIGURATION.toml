@@ -1,5 +1,6 @@
 
 [GMST]
+    bper  = "1900/1950"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
     [GMST.X]
@@ -8,6 +9,7 @@
         GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
 
 [GMST-EU]
+    bper  = "1900/1950"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
     [GMST-EU.X]
@@ -18,6 +20,7 @@
         EU = "EU_HadCRUT_tas_year_1850-2024.nc"
 
 [GEV-IDF]
+    bper  = "1961/1990"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
     cname = "EU"
@@ -51,6 +54,7 @@
             YEAR = 2019
 
 [GEV-PARIS]
+    bper  = "1961/1990"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
     cname = "EU"
@@ -76,6 +80,7 @@
             YEAR = 2019
 
 [NORMAL-FRA08]
+    bper  = "1961/1990"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
     cname = "EU"
@@ -100,26 +105,27 @@
             SIDE = "right"
             YEAR = 2003
 
-[GEVMIN-FRA-TN10n]
+[GEVMIN-FRA]
+    bper  = "1961/1990"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
     cname = "EU"
     vname = "TN10n"
     nslaw = "GEVMin"
     Y = "Y-FRA-TN10n"
-    [GEVMIN-FRA-TN10n.Yo]
+    [GEVMIN-FRA.Yo]
         tasmin = "SAFRAN_TN10n_nyear_1959-2024.nc"
-    [GEVMIN-FRA-TN10n.X]
+    [GEVMIN-FRA.X]
         GMST = "X-GMST"
         EU = "X-EU"
-    [GEVMIN-FRA-TN10n.Xo] 
+    [GEVMIN-FRA.Xo] 
         GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
         EU = "EU_HadCRUT_tas_year_1850-2024.nc"
-    [GEVMIN-FRA-TN10n.ATTRIBUTION]
-        [GEVMIN-FRA-TN10n.ATTRIBUTION.FINTENSITY-VALUE]
+    [GEVMIN-FRA.ATTRIBUTION]
+        [GEVMIN-FRA.ATTRIBUTION.FINTENSITY-VALUE]
             VALUE = 263.15
             SIDE = "left"
-        [GEVMIN-FRA-TN10n.ATTRIBUTION.EVENT]
+        [GEVMIN-FRA.ATTRIBUTION.EVENT]
             NAME = "tasmin"
             FILE = "SAFRAN_TN10n_nyear_1959-2024.nc"
             SIDE = "left"
