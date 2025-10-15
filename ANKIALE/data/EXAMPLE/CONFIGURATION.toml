@@ -1,0 +1,126 @@
+
+[GMST]
+    cper  = "historical"
+    dpers = "ssp126,ssp245,ssp370,ssp585"
+    [GMST.X]
+        GMST = "X-GMST"
+    [GMST.Xo] 
+        GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
+
+[GMST-EU]
+    cper  = "historical"
+    dpers = "ssp126,ssp245,ssp370,ssp585"
+    [GMST-EU.X]
+        GMST = "X-GMST"
+        EU = "X-EU"
+    [GMST-EU.Xo] 
+        GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
+        EU = "EU_HadCRUT_tas_year_1850-2024.nc"
+
+[GEV-IDF]
+    cper  = "historical"
+    dpers = "ssp126,ssp245,ssp370,ssp585"
+    cname = "EU"
+    vname = "IDF"
+    nslaw = "GEV"
+    spatial = "lat:lon"
+    Y = "Y-IDF-TX3x"
+    [GEV-IDF.Yo]
+        TX3x = "IDF_ERA5_TX3x_year_1940-2024.nc"
+    [GEV-IDF.X]
+        GMST = "X-GMST"
+        EU = "X-EU"
+    [GEV-IDF.Xo] 
+        GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
+        EU = "EU_HadCRUT_tas_year_1850-2024.nc"
+    [GEV-IDF.GRID]
+        FILE = "MASK_IDF.nc"
+        NAME = "area_fraction"
+    [GEV-IDF.ATTRIBUTION]
+        [GEV-IDF.ATTRIBUTION.FINTENSITY-MAP]
+            NAME = "TX3x"
+            FILE = "IDF_ERA5_TX3x_xyear_1940-2024.nc"
+            SIDE = "right"
+        [GEV-IDF.ATTRIBUTION.FINTENSITY-VALUE]
+            VALUE = 323.15
+            SIDE = "right"
+        [GEV-IDF.ATTRIBUTION.EVENT]
+            NAME = "TX3x"
+            FILE = "IDF_ERA5_TX3x_year_1940-2024.nc"
+            SIDE = "right"
+            YEAR = 2019
+
+[GEV-PARIS]
+    cper  = "historical"
+    dpers = "ssp126,ssp245,ssp370,ssp585"
+    cname = "EU"
+    vname = "TX3x"
+    nslaw = "Normal"
+    Y = "Y-PARIS-TX3x"
+    [GEV-PARIS.Yo]
+        TX3x = "PARIS_ERA5_TX3x_year_1940-2024.nc"
+    [GEV-PARIS.X]
+        GMST = "X-GMST"
+        EU = "X-EU"
+    [GEV-PARIS.Xo] 
+        GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
+        EU = "EU_HadCRUT_tas_year_1850-2024.nc"
+    [GEV-PARIS.ATTRIBUTION]
+        [GEV-PARIS.ATTRIBUTION.FINTENSITY-VALUE]
+            VALUE = 323.15
+            SIDE = "right"
+        [GEV-PARIS.ATTRIBUTION.EVENT]
+            NAME = "TX3x"
+            FILE = "PARIS_ERA5_TX3x_year_1940-2024.nc"
+            SIDE = "right"
+            YEAR = 2019
+
+[NORMAL-FRA08]
+    cper  = "historical"
+    dpers = "ssp126,ssp245,ssp370,ssp585"
+    cname = "EU"
+    vname = "tas"
+    nslaw = "Normal"
+    Y = "Y-FRA08-TM"
+    [NORMAL-FRA08.Yo]
+        tas = "SAFRAN_TM08_FRA_1958-2024.nc"
+    [NORMAL-FRA08.X]
+        GMST = "X-GMST"
+        EU = "X-EU"
+    [NORMAL-FRA08.Xo] 
+        GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
+        EU = "EU_HadCRUT_tas_year_1850-2024.nc"
+    [NORMAL-FRA08.ATTRIBUTION]
+        [NORMAL-FRA08.ATTRIBUTION.FINTENSITY-VALUE]
+            VALUE = 303.15
+            SIDE = "right"
+        [NORMAL-FRA08.ATTRIBUTION.EVENT]
+            NAME = "tas"
+            FILE = "SAFRAN_TM08_FRA_1958-2024.nc"
+            SIDE = "right"
+            YEAR = 2003
+
+[GEVMIN-FRA-TN10n]
+    cper  = "historical"
+    dpers = "ssp126,ssp245,ssp370,ssp585"
+    cname = "EU"
+    vname = "TN10n"
+    nslaw = "GEVMin"
+    Y = "Y-FRA-TN10n"
+    [GEVMIN-FRA-TN10n.Yo]
+        tasmin = "SAFRAN_TN10n_nyear_1959-2024.nc"
+    [GEVMIN-FRA-TN10n.X]
+        GMST = "X-GMST"
+        EU = "X-EU"
+    [GEVMIN-FRA-TN10n.Xo] 
+        GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
+        EU = "EU_HadCRUT_tas_year_1850-2024.nc"
+    [GEVMIN-FRA-TN10n.ATTRIBUTION]
+        [GEVMIN-FRA-TN10n.ATTRIBUTION.FINTENSITY-VALUE]
+            VALUE = 263.15
+            SIDE = "left"
+        [GEVMIN-FRA-TN10n.ATTRIBUTION.EVENT]
+            NAME = "tasmin"
+            FILE = "SAFRAN_TN10n_nyear_1959-2024.nc"
+            SIDE = "left"
+            YEAR = 2012
