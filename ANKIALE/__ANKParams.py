@@ -85,7 +85,7 @@ class ANKParams:
     common_period     : list | None = None
     different_periods : list | None = None
     bias_period       : tuple[int,int] | str = "1961/1990"
-    n_samples         : int = 100
+    n_samples         : int = 10
     XN_version        : str = "CMIP6"
     
     clim      : Climatology | None = None
@@ -130,7 +130,7 @@ class ANKParams:
         parser.add_argument( "--common-period"     , default = None )
         parser.add_argument( "--different-periods" , default = None )
         parser.add_argument( "--bias-period"       , default = "1961/1990" )
-        parser.add_argument( "--n-samples"         , default = 10000 , type = int )
+        parser.add_argument( "--n-samples"         , default = 10 , type = int )
         parser.add_argument( "--XN-version"        , default = "CMIP6" , type = str )
         
         ## Transform in dict
