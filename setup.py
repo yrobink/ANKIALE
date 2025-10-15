@@ -78,7 +78,7 @@ requires    = [
                "SDFC (>=0.9.0)",
                "statsmodels (>= 0.14)",
                "xesmf",
-               "zxarray (>=0.10.0)",
+               "zxarray (>=0.12.0)",
                "cmdstanpy",
               ]
 scripts     = ["scripts/ank"]

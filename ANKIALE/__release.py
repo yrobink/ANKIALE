@@ -19,13 +19,13 @@
 version_major = 1
 version_minor = 1
 version_patch = 0
-version_extra = "a33"
+version_extra = "a34"
 version      = f"{version_major}.{version_minor}.{version_patch}{version_extra}"
 
 name         = "ANKIALE"
 description  = "ANalysis of Klimate with bayesian Inference: AppLication to extreme Events"
 author       = "Yoann Robin"
-author_email = "yoann.robin.k@gmail.com"
+author_email = "yoann.robin+dev.github@ikmail.com"
 license      = "GNU-GPL3"
 src_url      = "https://github.com/yrobink/ANKIALE"
 

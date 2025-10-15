@@ -33,7 +33,6 @@ import xarray as xr
 import zxarray as zr
 
 from typing import Sequence
-from typing import Any
 
 from .__MultiGAM import MPeriodSmoother
 
@@ -43,9 +42,7 @@ from .__KCC import MAR2
 from ..__sys import Error
 from ..__exceptions import StanError
 from ..__exceptions import StanInitError
-from ..__exceptions import MCMCError
 from ..__exceptions import DevException
-from ..__logs import disable_warnings
 
 from .models.__AbstractModel import AbstractModel
 

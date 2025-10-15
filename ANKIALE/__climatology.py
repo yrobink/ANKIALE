@@ -27,7 +27,6 @@ import numpy as np
 import xarray as xr
 import netCDF4
 import cftime
-import statsmodels.gam.api as smg
 
 from typing import Sequence
 from typing import Any

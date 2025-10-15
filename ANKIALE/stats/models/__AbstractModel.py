@@ -29,8 +29,6 @@ import numpy as np
 import scipy.stats as sc
 import xarray as xr
 
-from SDFC.__AbstractLaw import AbstractLaw
-
 import cmdstanpy as stan
 import logging
 
