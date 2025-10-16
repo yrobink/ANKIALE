@@ -167,7 +167,7 @@ def plot_covariates( RVS: xr.Dataset , ofile: str | None = None ) -> None:
             if ofile is None:
                 plt.show()
             else:
-                pdf.savefig( fig , dpi = 600 )
+                pdf.savefig( fig , dpi = 300 )
             plt.close(fig)
     
     if ofile is not None:
@@ -288,7 +288,7 @@ def plot_constrain_CX( RVS: xr.Dataset , SRVS: xr.Dataset , Xo: xr.DataArray , o
             if ofile is None:
                 plt.show()
             else:
-                pdf.savefig( fig , dpi = 600 )
+                pdf.savefig( fig , dpi = 300 )
             plt.close(fig)
     
     if ofile is not None:
