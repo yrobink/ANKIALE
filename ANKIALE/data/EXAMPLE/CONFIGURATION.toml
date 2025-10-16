@@ -3,6 +3,8 @@
     bper  = "1900/1950"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
+    time  = "1850/2014/2100"
+    names = "GMST"
     [GMST.X]
         GMST = "X-GMST"
     [GMST.Xo] 
@@ -12,6 +14,8 @@
     bper  = "1900/1950"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
+    time  = "1850/2014/2100"
+    names = "GMST EU"
     [GMST-EU.X]
         GMST = "X-GMST"
         EU = "X-EU"
@@ -23,6 +27,8 @@
     bper  = "1961/1990"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
+    time  = "1850/2014/2100"
+    names = "GMST EU IDF"
     cname = "EU"
     vname = "IDF"
     nslaw = "GEV"
@@ -40,6 +46,8 @@
         FILE = "MASK_IDF.nc"
         NAME = "area_fraction"
     [GEV-IDF.ATTRIBUTION]
+        [GEV-IDF.ATTRIBUTION.FRETURNT]
+            SIDE = "right"
         [GEV-IDF.ATTRIBUTION.FINTENSITY-MAP]
             NAME = "TX3x"
             FILE = "IDF_ERA5_TX3x_xyear_1940-2024.nc"
@@ -57,9 +65,11 @@
     bper  = "1961/1990"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
+    time  = "1850/2014/2100"
+    names = "GMST EU TX3x"
     cname = "EU"
     vname = "TX3x"
-    nslaw = "Normal"
+    nslaw = "GEV"
     Y = "Y-PARIS-TX3x"
     [GEV-PARIS.Yo]
         TX3x = "PARIS_ERA5_TX3x_year_1940-2024.nc"
@@ -70,6 +80,8 @@
         GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
         EU = "EU_HadCRUT_tas_year_1850-2024.nc"
     [GEV-PARIS.ATTRIBUTION]
+        [GEV-PARIS.ATTRIBUTION.FRETURNT]
+            SIDE = "right"
         [GEV-PARIS.ATTRIBUTION.FINTENSITY-VALUE]
             VALUE = 323.15
             SIDE = "right"
@@ -83,6 +95,8 @@
     bper  = "1961/1990"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
+    time  = "1850/2014/2100"
+    names = "GMST EU tas"
     cname = "EU"
     vname = "tas"
     nslaw = "Normal"
@@ -96,6 +110,8 @@
         GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
         EU = "EU_HadCRUT_tas_year_1850-2024.nc"
     [NORMAL-FRA08.ATTRIBUTION]
+        [NORMAL-FRA08.ATTRIBUTION.FRETURNT]
+            SIDE = "right"
         [NORMAL-FRA08.ATTRIBUTION.FINTENSITY-VALUE]
             VALUE = 303.15
             SIDE = "right"
@@ -109,6 +125,8 @@
     bper  = "1961/1990"
     cper  = "historical"
     dpers = "ssp126,ssp245,ssp370,ssp585"
+    time  = "1850/2014/2100"
+    names = "GMST EU TN10n"
     cname = "EU"
     vname = "TN10n"
     nslaw = "GEVMin"
@@ -122,6 +140,8 @@
         GMST = "GMST_GISTEMP_tas_year_1880-2024.nc"
         EU = "EU_HadCRUT_tas_year_1850-2024.nc"
     [GEVMIN-FRA.ATTRIBUTION]
+        [GEVMIN-FRA.ATTRIBUTION.FRETURNT]
+            SIDE = "left"
         [GEVMIN-FRA.ATTRIBUTION.FINTENSITY-VALUE]
             VALUE = 263.15
             SIDE = "left"

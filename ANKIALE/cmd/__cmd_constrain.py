@@ -38,7 +38,6 @@ from ..__logs import log_start_end
 from ..__sys     import coords_samples
 
 from ..stats.__MultiGAM   import MPeriodSmoother
-from ..stats.__constraint import build_projection_matrix
 from ..stats.__constraint import constraint_covar
 from ..stats.__constraint import constraint_var
 from ..stats.models.__AbstractModel import AbstractModel
@@ -95,6 +94,7 @@ def run_ank_cmd_constrain_X() -> None:
 
     ## Load observations
     zXo = {}
+    timeXo = {}
     for i,inp in enumerate(ankParams.input):
         
         ## Name and file
@@ -107,6 +107,7 @@ def run_ank_cmd_constrain_X() -> None:
         
         ## Time axis
         time = idata.time.dt.year.values
+        timeXo[name] = time.copy()
         time = xr.DataArray( time , dims = [f"time{i}"] , coords = [time] )
         
         ## Init zarr file
@@ -158,14 +159,13 @@ def run_ank_cmd_constrain_X() -> None:
     
     ## Init smoother matrix for projection
     time = clim.time
-    nper = len(clim.dpers)
     mps = MPeriodSmoother(
         XN = clim.XN,
-        cnames = clim.cnames,
-        dpers = clim.dpers,
-        spl_config = clim.cconfig.spl_config
+        total_dof = clim.cconfig.total_dof,
+        n_spl_basis = clim.cconfig.nknot,
+        degree = clim.cconfig.degree
     )
-    P = build_projection_matrix( mps , zXo , method_constraint )
+    P = mps.obs_projection( mix_periods = method_constraint , time = timeXo )
     
     ## Add to projection matrix the design part for variable
     if clim.has_var:
@@ -308,15 +308,13 @@ def run_ank_cmd_constrain_Y() -> None:
     
     ## Init smoother matrix for projection
     time = clim.time
-    nper = len(clim.dpers)
     mps = MPeriodSmoother(
         XN = clim.XN,
-        cnames = clim.cnames,
-        dpers = clim.dpers,
-        spl_config = clim.cconfig.spl_config
+        total_dof = clim.cconfig.total_dof,
+        n_spl_basis = clim.cconfig.nknot,
+        degree = clim.cconfig.degree
     )
-    fake_zXo = { cname : xr.DataArray( dims = ["time0"] , coords = [Yo.time] ) }
-    P = build_projection_matrix( mps , fake_zXo , method_constraint )
+    P = mps.obs_projection( mix_periods = method_constraint , time = { cname: Yo.time.values } )
     
     ## Add to projection matrix the design part for variable
     vP = np.zeros( (P.shape[0],clim.vsize) )

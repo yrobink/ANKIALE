@@ -30,11 +30,8 @@ import logging
 import numpy as np
 import scipy.stats as sc
 import xarray as xr
-import zxarray as zr
 
 from typing import Sequence
-
-from .__MultiGAM import MPeriodSmoother
 
 from .__KCC import KCC
 from .__KCC import MAR2
@@ -63,43 +60,6 @@ logger.addHandler(logging.NullHandler())
 ###############
 ## Functions ##
 ###############
-
-def build_projection_matrix( mps: MPeriodSmoother , zXo: dict[str,zr.ZXArray] , method_constraint: dict | None = None ):##{{{
-
-    time   = mps.time
-    cnames = mps.cnames
-    dpers  = mps.dpers
-    lin    = mps.lin
-    SB0    = mps.SB0
-    nper = len(dpers)
-
-    if method_constraint is None:
-        method_constraint = { cname : "full" for cname in zXo }
-
-    drP = {}
-    for icname,cname in enumerate(zXo):
-        cst = nper if method_constraint[cname] == "full" else 1
-        rP = [lin]
-
-        for per in dpers:
-            if method_constraint[cname] == "full":
-                rP.append(SB0 / cst)
-            else:
-                rP.append( (per == method_constraint[cname]) * SB0 )
-        idxt = [ t in zXo[cname][f'time{icname}'].values for t in time]
-        drP[cname] = np.hstack(rP)[idxt,:]
-
-    P = []
-    for cname0 in zXo:
-        row = []
-        for cname1 in cnames:
-            row.append( drP[cname0] * (cname0 == cname1))
-        P.append( np.hstack(row) )
-    P = np.vstack(P)
-
-    return P
-##}}}
-
 
 def infer_hcov_o_IND( Ros: Sequence[xr.DataArray] , size: int ) -> np.ndarray:##{{{
     hcov_o = np.zeros((size,size))

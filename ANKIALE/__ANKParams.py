@@ -31,12 +31,15 @@ import dataclasses
 
 import dask
 import distributed
+import numpy as np
+import xarray as xr
 import zxarray as zr
 
 from .__exceptions  import AbortForHelpException
 from .__exceptions  import NoUserInputException
 from .__climatology import Climatology
 from .__climatology import CoVarConfig
+from .__climatology import VarConfig
 
 from typing import Any
 from typing import Sequence
@@ -87,7 +90,13 @@ class ANKParams:
     bias_period       : tuple[int,int] | str = "1961/1990"
     n_samples         : int = 10
     XN_version        : str = "CMIP6"
-    
+    names: list | None = None
+    cname: str | None = None
+    vname: str | None = None
+    time: str = "1850/2014/2100"
+    nslaw: str | None = None
+    spatial: str | None = None
+
     clim      : Climatology | None = None
     load_clim :         str | None = None
     save_clim :         str | None = None
@@ -130,6 +139,14 @@ class ANKParams:
         parser.add_argument( "--common-period"     , default = None )
         parser.add_argument( "--different-periods" , default = None )
         parser.add_argument( "--bias-period"       , default = "1961/1990" )
+        
+        parser.add_argument( "--names" , nargs = "+" , action = "extend" )
+        parser.add_argument( "--cname" , default = None )
+        parser.add_argument( "--vname" , default = None )
+        parser.add_argument( "--time"  , default = "1850/2014/2100" , type = str )
+        parser.add_argument( "--nslaw"  , default = None )
+        parser.add_argument( "--spatial"  , default = None )
+        
         parser.add_argument( "--n-samples"         , default = 10 , type = int )
         parser.add_argument( "--XN-version"        , default = "CMIP6" , type = str )
         
@@ -222,11 +239,20 @@ class ANKParams:
         ## Init from scratch
         self.clim = Climatology()
         
+        ## Period
         self.clim.bper  = self.bias_period
         self.clim.cper  = self.common_period
         self.clim.dpers = self.different_periods
         
+        ## Time axis
+        t0,t1,t2 = [ int(s) for s in self.time.split("/") ]
+        self.clim._time  = np.arange( t0     , t2 + 1 , 1 , dtype = int )
+        self.clim._ctime = np.arange( t0     , t1 + 1 , 1 , dtype = int )
+        self.clim._dtime = np.arange( t1 + 1 , t2 + 1 , 1 , dtype = int )
+        
+        ## Covariate configuration
         self.clim.cconfig = CoVarConfig( self.config.get("X_dof") , self.config.get("X_degree") )
+        self.clim.vconfig = VarConfig( self.cname , self.vname , self.nslaw )
 
     ##}}}
     
@@ -254,6 +280,8 @@ class ANKParams:
             list_cmd = ["show","fit","draw","synthesize","constrain","attribute","misc","example","sexample"]
             if self.cmd is None or self.cmd.lower() not in list_cmd:
                 raise Exception(f"Bad command arguments, must be one of {', '.join(list_cmd)}")
+            if self.cmd.lower() in ["example","sexample"]:
+                return
             
             ## Check and set the memory
             if self.memory_per_worker == "auto":
@@ -268,6 +296,14 @@ class ANKParams:
             if self.cluster.upper() not in ["THREADING","PROCESS"]:
                 raise ValueError(f"Cluster {self.cluster.upper()} is not supported" )
             
+            ## Check time axis
+            try:
+                t0,t1,t2 = [ int(s) for s in self.time.split("/") ]
+            except:
+                raise ValueError("Invalid format for time axis")
+            if not ( (t0 < t1) and (t1 < t2) ):
+                raise ValueError("Invalid format for time axis")
+
             ## Change periods format
             self.common_period = [self.common_period]
             try:
@@ -276,27 +312,27 @@ class ANKParams:
                 pass
             
             self.bias_period = tuple([int(s) for s in self.bias_period.split("/")])
-            
-            ##
+
+            ## Others configurations
             if self.config is not None:
                 self.config     = { c.split("=")[0] : c.split("=")[1] for c in self.config.split(",") }
             else:
                 self.config = {}
             
             ## Create GAM configuration, if given
-            if "X_dof" not in self.config:
-                self.config["X_dof"] = {}
             if "X_degree" not in self.config:
                 self.config["X_degree"] = 3
+            cnames = self.names
+            try:
+                cnames.remove(self.vname)
+            except:
+                pass
+            self.config["X_dof"] = xr.DataArray( 8. , dims = ["name","period"] , coords = [cnames,self.dpers] )
             if self.covar_config is not None:
-                
                 for f in self.covar_config:
-                    
-                    ## Extract
                     cname,dper,dof = f.split(":")
-                    
-                    ## Create dict
-                    self.config["X_dof"][f"{cname}_{dper}"] = int(dof)
+                    self.config["X_dof"].loc[cname,dper] = int(dof)
+        
         except Exception as e:
             self.abort = True
             self.error = e

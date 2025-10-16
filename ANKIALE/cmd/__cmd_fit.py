@@ -56,86 +56,88 @@ def run_ank_cmd_fit_X() -> None:
     
     ##
     clim = ankParams.clim
-
+    
     ## Check the inputs
     logger.info("Check inputs")
     n_X   = len(ankParams.input)
-    cnames = []
     if n_X == 0:
         raise ValueError("Fit asked, but no input given, abort.")
     inputs = { inp.split(",")[0] : inp.split(",")[1] for inp in ankParams.input }
     for cname in inputs:
         if not os.path.isfile(inputs[cname]):
             raise FileNotFoundError(f"File '{inputs[cname]}' is not found, abort.")
-        else:
-            logger.info( f" * covariate {cname} detected" )
-            cnames.append(cname)
-    clim._names = cnames
+        if cname not in clim.cnames:
+            raise ValueError(f"{cname} is not given in the list of variable of the climatology")
+    
+    ## Parameters
+    cnames  = clim.cnames
+    periods = clim.dpers
+    time    = clim.time
     
     ## Now open the data
     logger.info("Open the data")
-    X = {}
-    for cname in cnames:
-        idata   = xr.open_dataset( inputs[cname] )[cname].mean( dim = "run" )
-        periods = list(set(idata.period.values.tolist()) & set(ankParams.dpers))
-        periods.sort()
-        X[cname] = { p : idata.sel( period = ankParams.cper + [p] ).mean( dim = "period" ).dropna( dim = "time" ) for p in periods }
-    clim.dpers = periods
-
-    ## Restrict time axis
-    time = X[cname][periods[0]].time.values.tolist()
-    for cname in cnames:
-        for p in X[cname]:
-            time = list(set(time) & set(X[cname][p].time.values.tolist()))
-    time = sorted(time)
-    for cname in cnames:
-        for p in X[cname]:
-            X[cname][p] = X[cname][p].sel( time = time )
-    time = np.array(time)
-    clim._time = time
-    
-    ## Find the bias
-    logger.info( "Build bias:" )
-    bias = { cname : 0 for cname in cnames }
-    for cname in cnames:
-        for p in X[cname]:
-            bias[cname] = float(X[cname][p].sel( time = slice(*clim.bper) ).mean( dim = "time" ).values)
-            X[cname][p]   -= bias[cname]
-        logger.info( f" * {cname}: {bias[cname]}" )
-    clim._bias = bias
-    
-    dX = xr.DataArray( dims = ["cname","period","time"],
-                      coords = [list(X),periods,time]
+    dX = xr.DataArray( dims = ["name","period","time"],
+                      coords = [cnames,periods,time]
                       )
     for cname in cnames:
-        for p in X[cname]:
-            dX.loc[cname,p,:] = X[cname][p].values
-    
-    ## Init smooth parameters
-    for cname in cnames:
+        idata    = xr.open_dataset( inputs[cname] )[cname].mean( dim = "run" )
+        for per in clim.cper + clim.dpers:
+            if per not in idata.period:
+                raise ValueError(f"Period {per} not found in input data {inputs[cname]}, abort")
         for per in periods:
-            if f"{cname}_{per}" not in clim.cconfig.dof:
-                clim.cconfig.dof[f"{cname}_{per}"] = 6
-    clim.cconfig.find_nknot()
+            ## Extract and store
+            X = idata.sel( period = ankParams.cper + [per] ).mean( dim = "period" ).sel( time = slice(time[0],time[-1]) )
+            dX.loc[cname,per,X.time] = X
+            
+            ## Re-extract the TOTAL time axis to check if all values are valid
+            X = dX.loc[cname,per,:]
+            if np.isfinite(X).all():
+                continue
+            nantime = X.time[~np.isfinite(X)].values
+            for t in nantime:
+                m = X.sel( time = slice( t - 15 , t + 15 ) ).mean()
+                s = X.sel( time = slice( t - 15 , t + 15 ) ).std()
+                m = float(m)
+                s = float(s)
+                if not np.isfinite([m,s]).all():
+                    raise ValueError("Impossible to remove nan values, abort.")
+                X.loc[t] = float(np.random.normal( loc = m , scale = s , size = 1 ))
+            dX.loc[cname,per:] = X
+    
+    ## Find the bias
+    logger.info( "Build bias" )
+    bias = dX.sel( time = slice(*clim.bper) ).mean( dim = ["period","time"] )
+    dX   = dX - bias
+    clim._bias = { cname : float(bias.loc[cname].values) for cname in cnames }
+    for cname in cnames:
+        logger.info( f" * {cname}: {clim._bias[cname]}" )
     
     ## Find natural forcings version
     clim._vXN = ankParams.XN_version
     
     ## Create smoother
-    logger.info( f"Create smoother" )
+    logger.info( "Create smoother" )
     mps = MPeriodSmoother(
         XN = clim.XN,
-        cnames = cnames,
-        dpers = periods,
-        spl_config = clim.cconfig.spl_config
+        total_dof = clim.cconfig.total_dof,
+        n_spl_basis = clim.cconfig.nknot,
+        degree = clim.cconfig.degree
     )
     
     ## Fit
-    logger.info( f"Fit the MultiGAM model" )
+    logger.info( "Fit the MultiGAM model" )
     hpar,hcov = mps.fit(dX)
     
+    if clim.vconfig.is_init:
+        vhpar = xr.DataArray( np.nan, dims = ["hpar"] , coords = [clim.hpar_names] )
+        vhcov = xr.DataArray( np.nan, dims = ["hpar0","hpar1"] , coords = [clim.hpar_names,clim.hpar_names] )
+        vhpar.loc[hpar.hpar] = hpar
+        vhcov.loc[hcov.hpar0,hcov.hpar1] = hcov
+        hpar = vhpar
+        hcov = vhcov
+
     ## Store
-    logger.info( f"Save in clim" )
+    logger.info( "Save in clim" )
     clim.hpar = hpar
     clim.hcov = hcov
 
@@ -153,34 +155,27 @@ def run_ank_cmd_fit_Y() -> None:
     logger.info(" * Find parameters")
     
     ## Name of the variable to fit
-    vname = ankParams.config["vname"]
+    vname = clim.vname
+    cname = clim.cname
     
     ## Spatial dimensions
-    d_spatial = ankParams.config.get("spatial")
+    d_spatial = ankParams.spatial
     if d_spatial is not None:
         d_spatial = d_spatial.split(":")
     else:
         d_spatial = []
     d_spatial = tuple(d_spatial)
-    
-    ## Set the covariate
-    cname = ankParams.config.get("cname",clim.names[-1])
-    
-    ## Find the nslaw
-    idnslaw = ankParams.config.get("nslaw")
-    if idnslaw is None:
-        raise ValueError( "nslaw must be set" )
-    
-    ## And set Y config
-    clim.vconfig._vname  = vname
-    clim.vconfig._cname  = cname
-    clim.vconfig.idnslaw = idnslaw
-    clim._names.append(vname)
 
     ## Open the data
     logger.info(" * Open data")
     ifile = ankParams.input[0]
     idata = xr.open_dataset(ifile).load()
+    
+    ## Check periods
+    for p in clim.dpers:
+        if not p in idata.period.values:
+            raise ValueError(f"Periods {p} not found in {ifile}")
+    idata = idata.sel( period = clim.cper + clim.dpers )
     
     ## Check if variables in idata
     for v in (vname,) + d_spatial:
@@ -206,20 +201,12 @@ def run_ank_cmd_fit_Y() -> None:
         c_spatial = { "fake" : xr.DataArray( [0] , dims = ["fake"] , coords = [[0]] ) }
         Y         = xr.DataArray( Y.values.reshape( Y.shape + (1,) ) , dims = Y.dims + ("fake",) , coords = { **c_spatial , **dict(Y.coords) } )
         biasY     = xr.DataArray( [biasY] , dims = ("fake",) , coords = c_spatial )
-    
+
     ## Transform in ZXArray
     zY = zr.ZXArray.from_xarray(Y)
-
-    ## Check periods
-    periods = list(set(clim.dpers) & set(Y.period.values.tolist()))
-    periods.sort()
-    
-    ## And restrict its
-    clim = clim.restrict_dpers(periods)
     
     ## Find the nslaw
     cnslaw = clim.vconfig.cnslaw
-    nslaw  = cnslaw()
     
     ## Design matrix of the covariate
     chpar_names = clim.chpar_names
@@ -229,8 +216,8 @@ def run_ank_cmd_fit_Y() -> None:
     projF = projF.sel( hpar = chpar_names )
     
     ## Time axis
-    time = sorted( list( set(clim.time.tolist()) & set(Y.time.values.tolist()) ) )
-    zY   = Y.sel( time = time )
+    zY   = Y.sel( time = slice(clim.time[0],clim.time[-1]) )
+    projF = projF.sel( time = zY["time"].values )
     
     ## Samples
     n_samples = ankParams.n_samples
@@ -251,12 +238,15 @@ def run_ank_cmd_fit_Y() -> None:
     
     ## Block memory function
     nhpar = len(hpar_names)
-    block_memory = lambda x : 2 * ( nhpar + nhpar**2 + len(time) * (clim.ndpers+1) * Y["run"].size + nhpar * clim.ndpers ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
+    block_memory = lambda x : 2 * ( nhpar + nhpar**2 + clim.time.size * (clim.ndpers+1) * Y["run"].size + nhpar * clim.ndpers ) * np.prod(x) * (np.finfo("float32").bits // zr.DMUnit.bits_per_octet) * zr.DMUnit("1o")
     
+    hpar  = clim.hpar.dataarray.loc[chpar_names]
+    hcov  = clim.hcov.dataarray.loc[chpar_names,chpar_names]
+    hpar  = zr.ZXArray.from_xarray(hpar)
+    hcov  = zr.ZXArray.from_xarray(hcov)
+
     ## Fit samples of parameters
     logger.info(" * Fit samples")
-    hpar  = clim.hpar
-    hcov  = clim.hcov
     with ankParams.get_cluster() as cluster:
         hpars = zr.apply_ufunc( nslaw_fit , hpar , hcov , zY, samples,
                                 block_dims         = ("sample",) + d_spatial,

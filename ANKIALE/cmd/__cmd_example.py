@@ -102,7 +102,11 @@ def run_ank_cmd_example( short: bool ) -> None:
     if not isinstance(dpers,list):
         dpers = [dpers]
     cconfig = " ".join([f"{cname}:{dper}:8" for cname,dper in itt.product(cnames,dpers)])
-    
+    mconfig = ""
+    for v in ["time","names","cname","vname","nslaw","spatial"]:
+        if v in config:
+            mconfig = mconfig + f" --{v} {config[v]}"
+
     ## Step 1, initial configuration of the script ##{{{
     
     step1_start = "#!/bin/bash"
@@ -143,9 +147,11 @@ N_SAMPLES={}""".format( ankParams.n_workers,
 ## Fixed Parameters
 BIAS_PERIOD='{}'
 DPERS='{}'
+MISC_CONFIG='{}'
 CCONFIG='{}'""".format( bper,
-                      ",".join(dpers),
-                      cconfig
+                        ",".join(dpers),
+                        mconfig,
+                        cconfig,
                     )
     
     step1_path = """
@@ -244,11 +250,12 @@ do
     gen_script_model_X = r"""
     echo "   => fit X"
     ank fit X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITX_'$MOD.log\
-               --bias-period $BIAS_PERIOD\
                --input {}\
                --save-clim $DPATH/FIT/X/FITX_$MOD'.nc'\
                --common-period historical --different-periods $DPERS\
+               --bias-period $BIAS_PERIOD\
                --covar-config $CCONFIG\
+               $MISC_CONFIG\
                --memory-per-worker $MEMORY_PER_WORKER\
                --n-workers $N_WORKERS\
                --threads-per-worker $THREADS_PER_WORKER
@@ -257,10 +264,13 @@ do
     gen_script_model_showX = r"""
     echo "   => show X"
     ank show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'SHOWX_'$MOD.log\
-                --bias-period $BIAS_PERIOD\
-                --load-clim $DPATH/FIT/X/FITX_$MOD'.nc'\
                 --input {}\
                 --output $DPATH/FIGURES/SHOWX_$MOD.pdf\
+                --load-clim $DPATH/FIT/X/FITX_$MOD'.nc'\
+                --common-period historical --different-periods $DPERS\
+                --bias-period $BIAS_PERIOD\
+                --covar-config $CCONFIG\
+                $MISC_CONFIG\
                 --memory-per-worker $MEMORY_PER_WORKER\
                 --n-workers $N_WORKERS\
                 --threads-per-worker $THREADS_PER_WORKER
@@ -269,18 +279,17 @@ do
     gen_script_model_Y = r"""
     echo "   => fit Y"
     ank fit Y --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/'FITY_'$MOD.log\
-               --bias-period $BIAS_PERIOD\
                --input {}\
-               --config {}\
-               --covar-config $CCONFIG\
                --load-clim $DPATH/FIT/X/FITX_$MOD'.nc'\
                --save-clim $DPATH/FIT/Y/FITY_$MOD'.nc'\
                --common-period historical --different-periods $DPERS\
+               --bias-period $BIAS_PERIOD\
+               --covar-config $CCONFIG\
+               $MISC_CONFIG\
                --memory-per-worker $MEMORY_PER_WORKER\
                --n-workers $N_WORKERS\
                --threads-per-worker $THREADS_PER_WORKER
     """.format
-    
     if cY is not None:
         script = script + gen_script_model_begY( cX[list(cX)[0]] , cY )
     else:
@@ -292,12 +301,7 @@ do
     script = script + gen_script_model_X( " ".join(["{},$DPATH/INPUT/{}/$MODNC".format( key , cX[key] ) for key in cX]) )\
                     + gen_script_model_showX( " ".join(["{},$DPATH/INPUT/{}/$MODNC".format( key , cX[key] ) for key in cX]) )
     if cY is not None:
-        _config = [ f"{key}={config[key]}" for key in ["cname","vname","nslaw"] ]
-        if "spatial" in config:
-            _config.append("spatial={}".format(config['spatial']))
-        script = script + gen_script_model_Y( r"$DPATH/INPUT/{}/$MODNC".format(cY),
-                                              ",".join( _config )
-                                            )
+        script = script + gen_script_model_Y( r"$DPATH/INPUT/{}/$MODNC".format(cY) )
     script = script + "\n" + "done" + "\n"
     
     ##}}}
@@ -321,12 +325,12 @@ do
 ## Run synthesis
 echo " * synthesis"
 ank synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
-                --bias-period $BIAS_PERIOD\
                 --input $DPATH/FIT/{}/*.nc\
-                --common-period historical --different-periods $DPERS\
-                --config {}\
-                --covar-config $CCONFIG\
                 --save-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
+                --common-period historical --different-periods $DPERS\
+                --bias-period $BIAS_PERIOD\
+                --covar-config $CCONFIG\
+                {} $MISC_CONFIG\
                 --memory-per-worker $MEMORY_PER_WORKER\
                 --n-workers $N_WORKERS\
                 --threads-per-worker $THREADS_PER_WORKER
@@ -335,25 +339,23 @@ ank synthesize -v --log-file $HPATH/LOG/SYNTHESIS.log\
     gen_script_show_synthesis = r"""
 echo " * show X of synthesis"
 ank show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_SYNTHESIS.log\
-            --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
             --output $DPATH/FIGURES/SHOWX_SYNTHESIS.pdf\
+            --common-period historical --different-periods $DPERS\
+            --bias-period $BIAS_PERIOD\
+            --covar-config $CCONFIG\
+            $MISC_CONFIG\
             --memory-per-worker $MEMORY_PER_WORKER\
             --n-workers $N_WORKERS\
             --threads-per-worker $THREADS_PER_WORKER
     """.format
 
-    _config = ["names={}".format(":".join(cnames))]
+    _config = ""
     if cY is not None:
-        _config = ["names={}".format(":".join(cnames + [config['vname']]))]
-        _config.extend( [ f"{key}={config[key]}" for key in ["cname","vname","nslaw"] ] )
-        if "spatial" in config:
-            _config.append("spatial={}".format(config['spatial']))
         if "GRID" in config:
-            _config.append( "grid=$DPATH/INPUT/INFOS/{}".format(config["GRID"]["FILE"]) )
-            _config.append( "grid_name='{}'".format(config["GRID"]["NAME"]) )
+            _config = "--config grid=$DPATH/INPUT/INFOS/{},grid_name='{}'".format( config["GRID"]["FILE"] , config["GRID"]["NAME"] )
     p = "X" if "Y" not in config else "Y"
-    script = script + gen_script_synthesis( p , ",".join(_config) )
+    script = script + gen_script_synthesis( p , _config )
     script = script + gen_script_show_synthesis()
     
     ##}}}
@@ -378,10 +380,13 @@ ank show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_SYNTHESIS.log\
 ## Run constraint
 echo " * constraint X of observations"
 ank constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log\
-                 --bias-period $BIAS_PERIOD\
+                 --input {}\
                  --load-clim $DPATH/SYNTHESIS/SYNTHESIS.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
-                 --input {}\
+                 --common-period historical --different-periods $DPERS\
+                 --bias-period $BIAS_PERIOD\
+                 --covar-config $CCONFIG\
+                 $MISC_CONFIG\
                  --config method_oerror=IND,method_constraint='{}'\
                  --memory-per-worker $MEMORY_PER_WORKER\
                  --n-workers $N_WORKERS\
@@ -391,9 +396,12 @@ ank constrain X -v --log-file $HPATH/LOG/CONSTRAINX.log\
     gen_constraint_showX = r"""
 echo " * show X of constraint"
 ank show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_CONSTRAINX.log\
-            --bias-period $BIAS_PERIOD\
             --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
             --output $DPATH/FIGURES/SHOWCX_CONSTRAINX.pdf\
+            --common-period historical --different-periods $DPERS\
+            --bias-period $BIAS_PERIOD\
+            --covar-config $CCONFIG\
+            $MISC_CONFIG\
             --memory-per-worker $MEMORY_PER_WORKER\
             --n-workers $N_WORKERS\
             --threads-per-worker $THREADS_PER_WORKER
@@ -402,10 +410,13 @@ ank show X --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWX_CONSTRAINX.log\
     gen_constraint_showXS = r"""
 echo " * show X of constraint VS synthesis"
 ank show CX --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWCX_CONSTRAINX-VS-SYNTHESIS.log\
-             --bias-period $BIAS_PERIOD\
              --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
              --input $DPATH/SYNTHESIS/SYNTHESIS.nc\
              --output $DPATH/FIGURES/SHOWCX-VS-S_CONSTRAINX.pdf\
+             --common-period historical --different-periods $DPERS\
+             --bias-period $BIAS_PERIOD\
+             --covar-config $CCONFIG\
+             $MISC_CONFIG\
              --memory-per-worker $MEMORY_PER_WORKER\
              --n-workers $N_WORKERS\
              --threads-per-worker $THREADS_PER_WORKER
@@ -434,13 +445,15 @@ ank show CX --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/SHOWCX_CONSTRAINX-VS
     ## Step 5.2, build script ##{{{
     gen_script_constraintY = r"""
 echo " * constraint Y of observations"
-ank constrain Y -v --log-file $HPATH/LOG/CONSTRAINY.log\
-                 --n-samples $N_SAMPLES\
-                 --bias-period $BIAS_PERIOD\
+ank constrain Y --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/CONSTRAINY.log\
                  --load-clim $DPATH/CONSTRAIN/CONSTRAINX.nc\
                  --save-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
                  --input {},$DPATH/INPUT/Yo/{}\
                  --output $DPATH/CONSTRAIN/SAMPLES_CONSTRAINY.nc\
+                 --common-period historical --different-periods $DPERS\
+                 --bias-period $BIAS_PERIOD\
+                 --covar-config $CCONFIG\
+                 $MISC_CONFIG\
                  --config size-chain=50,method_constraint=full\
                  --memory-per-worker $MEMORY_PER_WORKER\
                  --n-workers $N_WORKERS\
@@ -475,12 +488,15 @@ ank constrain Y -v --log-file $HPATH/LOG/CONSTRAINY.log\
     gen_script_attribution0 = r"""
 ## Attribution
 echo " * Attribution: freturnt"
-ank attribute freturnt -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
-                        --n-samples $N_SAMPLES\
+ank attribute freturnt --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
                         --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
                         --input 2,10,30,50,100,1000\
                         --output $DPATH/ANALYSIS/FRETURNT.nc\
-                        --config mode=quantile,side=right\
+                        --common-period historical --different-periods $DPERS\
+                        --bias-period $BIAS_PERIOD\
+                        --covar-config $CCONFIG\
+                        $MISC_CONFIG\
+                        --config mode=quantile,side={}\
                         --memory-per-worker $MEMORY_PER_WORKER\
                         --n-workers $N_WORKERS\
                         --threads-per-worker $THREADS_PER_WORKER
@@ -488,11 +504,14 @@ ank attribute freturnt -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FRETURNT.log\
 
     gen_script_attribution1 = r"""
 echo " * Attribution: fintensity"
-ank attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
-                          --n-samples $N_SAMPLES\
+ank attribute fintensity --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
                           --input {},$DPATH/INPUT/Yo/{}\
                           --output $DPATH/ANALYSIS/FINTENSITY-MAP.nc\
+                          --common-period historical --different-periods $DPERS\
+                          --bias-period $BIAS_PERIOD\
+                          --covar-config $CCONFIG\
+                          $MISC_CONFIG\
                           --config mode=quantile,side={}\
                           --memory-per-worker $MEMORY_PER_WORKER\
                           --n-workers $N_WORKERS\
@@ -501,11 +520,14 @@ ank attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
 
     gen_script_attribution2 = r"""
 echo " * Attribution: fintensity"
-ank attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
-                          --n-samples $N_SAMPLES\
+ank attribute fintensity --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
                           --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
                           --input {}\
                           --output $DPATH/ANALYSIS/FINTENSITY-VALUE.nc\
+                          --common-period historical --different-periods $DPERS\
+                          --bias-period $BIAS_PERIOD\
+                          --covar-config $CCONFIG\
+                          $MISC_CONFIG\
                           --config mode=quantile,side={}\
                           --memory-per-worker $MEMORY_PER_WORKER\
                           --n-workers $N_WORKERS\
@@ -514,11 +536,14 @@ ank attribute fintensity -v --log-file $HPATH/LOG/ANALYSIS_ATTR-FINTENSITY.log\
 
     gen_script_attribution3 = r"""
 echo " * Attribution: event"
-ank attribute event -v --log-file $HPATH/LOG/ANALYSIS_ATTR-EVENT{}.log\
-                     --n-samples $N_SAMPLES\
+ank attribute event --n-samples $N_SAMPLES -v --log-file $HPATH/LOG/ANALYSIS_ATTR-EVENT{}.log\
                      --load-clim $DPATH/CONSTRAIN/CONSTRAINY.nc\
                      --input {},$DPATH/INPUT/Yo/{}\
                      --output $DPATH/ANALYSIS/EVENT{}.nc\
+                     --common-period historical --different-periods $DPERS\
+                     --bias-period $BIAS_PERIOD\
+                     --covar-config $CCONFIG\
+                     $MISC_CONFIG\
                      --config time={},mode=quantile,side={}\
                      --memory-per-worker $MEMORY_PER_WORKER\
                      --n-workers $N_WORKERS\
@@ -526,7 +551,9 @@ ank attribute event -v --log-file $HPATH/LOG/ANALYSIS_ATTR-EVENT{}.log\
     """.format
     
     if "ATTRIBUTION" in config:
-        script = script + gen_script_attribution0()
+        if "FRETURNT" in config["ATTRIBUTION"]:
+            d = config["ATTRIBUTION"]["FRETURNT"]
+            script = script + gen_script_attribution0( d["SIDE"] )
         
         if "FINTENSITY-MAP" in config["ATTRIBUTION"]:
             d = config["ATTRIBUTION"]["FINTENSITY-MAP"]

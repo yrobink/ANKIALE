@@ -82,36 +82,25 @@ def run_ank_cmd_synthesize() -> None:
     
     ## Read the grid
     logger.info( " * Read the target grid" )
-    try:
-        regrid   = True
-        gridfile = ankParams.config.get("grid")
-        gridname = ankParams.config.get("grid_name") #, ankParams.config["names"].split(":")[-1] )
+
+    gridfile = ankParams.config.get("grid")
+    regrid   = gridfile is not None
+    if regrid:
+        logger.info( "   => Need regrid" )
+        gridname = ankParams.config.get("grid_name")
+        if gridname is None:
+            raise ValueError("If a grid is given, a grid_name must be given also")
         
         grid = xr.open_dataset(gridfile)
         mask = grid[gridname] > 0
-        clim._spatial = { d : grid[d] for d in ankParams.config["spatial"].split(":") }
-        logger.info( "   => Need regrid" )
-    except Exception:
-        regrid        = False
-        clim._spatial = Climatology.init_from_file( ankParams.input[0] )._spatial
+        clim._spatial = { d : grid[d] for d in ankParams.spatial.split(":") }
+    else:
         logger.info( "   => No regrid needed" )
+        clim = Climatology.init_from_file( ankParams.input[0] )
     
     ## Parameters
     logger.info( " * Extract parameters" )
     ifiles      = ankParams.input
-    clim._names = ankParams.config["names"].split(":")
-    
-    ## Set the v parameters
-    try:
-        vname       = ankParams.config["vname"]
-        cname       = ankParams.config["cname"]
-        idnslaw     = ankParams.config["nslaw"]
-        clim.vconfig._cname = cname
-        clim.vconfig._vname = vname
-        clim.vconfig.idnslaw = idnslaw
-    except:
-        pass
-    
 
     hpar_names = clim.hpar_names
     d_spatial = clim.d_spatial

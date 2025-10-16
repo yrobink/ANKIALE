@@ -62,7 +62,7 @@ class CoVarConfig:##{{{
     nknot: int
     vXN: str
 
-    def __init__( self , dof: dict[str,int] , degree: int = 3 , vXN = "CMIP6" ):##{{{
+    def __init__( self , dof: xr.DataArray , degree: int = 3 , vXN = "CMIP6" ):##{{{
         self.degree = degree
         self.dof    = dof
         self.vXN    = vXN
@@ -74,17 +74,19 @@ class CoVarConfig:##{{{
     ##}}}
 
     def find_nknot(self) -> None:##{{{
-        self.nknot  = 0
-        for key in self.dof:
-            self.nknot = max( self.nknot , self.dof[key] )
-        self.nknot += self.degree + 1
+        self.nknot  = int(self.dof.max()) + self.degree + 1
     ##}}}
     
     ## Properties ##{{{
+    
+    @property
+    def cnames(self) -> Sequence[str]:
+        return self.dof["name"].values.tolist()
 
     @property
-    def spl_config(self) -> dict:
-        return { **self.dof , **{ 'degree' : self.degree , 'nknot' : self.nknot} }
+    def total_dof(self) -> xr.DataArray:
+        return self.dof
+    
     ##}}}    
 
 ##}}}
@@ -106,7 +108,7 @@ class VarConfig:##{{{
         return VarConfig( self._cname , self._vname , self.idnslaw )
     
     @property
-    def idnslaw(self) -> str:
+    def idnslaw(self) -> str | None:
         return self._idnslaw
     
     @idnslaw.setter
@@ -117,7 +119,7 @@ class VarConfig:##{{{
 
     @property
     def is_init(self) -> bool:
-        return self._cname is not None
+        return self._cname is not None and self._vname is not None and self._idnslaw is not None
     
     @property
     def cname(self) -> str:
@@ -142,7 +144,6 @@ class VarConfig:##{{{
 class Climatology:##{{{
     
     ## Attributes ##{{{
-    _names: Sequence[str]
     _cper: str
     _bper: tuple[int,int]
     _dpers = Sequence[str]
@@ -151,6 +152,8 @@ class Climatology:##{{{
     _hcov : zr.ZXArray | None = None
     _bias : dict[Any]
     _time : np.ndarray
+    _ctime : np.ndarray
+    _dtime : np.ndarray
     _XN   : xr.DataArray | None = None
     
     _spatial     = None
@@ -193,6 +196,8 @@ class Climatology:##{{{
         cper  = not_defined( self , "cper" )
         dpers = not_defined( self , "dpers" )
         time  = not_defined( self , "time" )
+        ctime = not_defined( self , "ctime" )
+        dtime = not_defined( self , "dtime" )
         mshape  = "Not defined" if self._hpar is None else str(self.hpar.shape)
         cshape  = "Not defined" if self._hcov is None else str(self.hcov.shape)
         spatial = "Not defined" if self._spatial is None else ", ".join(self._spatial)
@@ -208,6 +213,8 @@ class Climatology:##{{{
                "common_period",
                "different_periods",
                "time",
+               "ctime",
+               "dtime",
                "hpar_shape",
                "hcov_shape",
                "spatial"
@@ -223,6 +230,8 @@ class Climatology:##{{{
                cper,
                dpers,
                time,
+               ctime,
+               dtime,
                mshape,
                cshape,
                spatial
@@ -260,6 +269,8 @@ class Climatology:##{{{
             else:
                 oclim._bias[key] = float(b)
         oclim.time = self.time
+        oclim._ctime = self._ctime
+        oclim._dtime = self._dtime
         
         oclim.cconfig = self.cconfig.copy()
         oclim.vconfig = self.vconfig.copy()
@@ -290,12 +301,23 @@ class Climatology:##{{{
             if incf_version < "1.1.0":
                 raise ValueError( f"Input file from ANKIALE / BSAC version {incf_version} < 1.1.0 can not be read by ANKIALE version {version} >= 1.1.0, abort." )
 
-            clim._names     = incf.variables["names"][:].tolist()
-            clim.cper       = incf.variables["common_period"][:].tolist()
-            clim.dpers      = incf.variables["different_periods"][:].tolist()
+            cnames     = incf.variables["cnames"][:].tolist()
+            clim.cper  = incf.variables["common_period"][:].tolist()
+            clim.dpers = incf.variables["different_periods"][:].tolist()
+            names      = list(cnames)
+            
+            ## Y config
+            try:
+                cname   = str(incf.variables["Y"].getncattr("cname"))
+                vname   = str(incf.variables["Y"].getncattr("vname"))
+                idnslaw = str(incf.variables["Y"].getncattr("idnslaw"))
+                clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
+                names.append(vname)
+            except Exception:
+                pass
             
             clim._bias = {}
-            for name in clim.names:
+            for name in names:
                 if len(incf.variables[f"bias_{name}"].shape) == 0:
                     clim._bias[name] = float(incf.variables[f"bias_{name}"][:])
                 else:
@@ -306,24 +328,17 @@ class Climatology:##{{{
             units     = nctime.getncattr( "units"    )
             calendar  = nctime.getncattr( "calendar" )
             clim.time = [ t.year for t in cftime.num2date( nctime[:] , units , calendar ) ]
-            
-            ## Y config
-            try:
-                cname   = str(incf.variables["Y"].getncattr("cname"))
-                vname   = str(incf.variables["Y"].getncattr("vname"))
-                idnslaw = str(incf.variables["Y"].getncattr("idnslaw"))
-                clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
-            except Exception:
-                vname = ""
+            t0 = clim.time[0]
+            t2 = clim.time[-1]
+            t1 = int(incf.variables["time"].getncattr("year_cut"))
+            clim._ctime = np.arange( t0     , t1 + 1 , 1 , dtype = int )
+            clim._dtime = np.arange( t1 + 1 , t2 + 1 , 1 , dtype = int )
             
             ## X config
             vXN    = str(incf.variables["X"].getncattr("XN_version"))
-            cnames = [ name for name in clim._names if not name == vname ]
-
-            dof    = { f"{cname}_{per}" : int(incf.variables["X_dof"][icname,iper]) for (icname,cname),(iper,per) in itt.product(enumerate(cnames),enumerate(clim.dpers)) }
+            dof    = xr.DataArray( incf.variables["X_dof"][:] , dims = ["name","period"] , coords = [cnames,clim.dpers] )
             degree = int(incf.variables["X_degree"][:])
             clim.cconfig = CoVarConfig( dof = dof , degree = degree , vXN = vXN )
-            clim.cconfig.nknot = int(incf.variables["X_nknot"][:])
             
             ## And spatial
             spatial_is_fake = False
@@ -368,7 +383,7 @@ class Climatology:##{{{
             logger.info(" * Define dimensions")
             ncdims = {
                    "hyper_parameter"   : ncf.createDimension(   "hyper_parameter" , self.hpar.shape[0] ),
-                   "names"             : ncf.createDimension(             "names" , len(self.names) ),
+                   "cnames"            : ncf.createDimension(            "cnames" , len(self.cnames) ),
                    "common_period"     : ncf.createDimension(     "common_period" , len(self.cper)  ),
                    "different_periods" : ncf.createDimension( "different_periods" , len(self.dpers) ),
                    "time"              : ncf.createDimension(              "time" , len(self.time)  ),
@@ -384,11 +399,11 @@ class Climatology:##{{{
             logger.info(" * Define variables")
             ncvars = {
                    "hyper_parameter"   : ncf.createVariable(   "hyper_parameter" , str       ,          ("hyper_parameter",) ),
-                   "names"             : ncf.createVariable(             "names" , str       ,                    ("names",) ),
+                   "cnames"            : ncf.createVariable(            "cnames" , str       ,                   ("cnames",) ),
                    "common_period"     : ncf.createVariable(     "common_period" , str       ,            ("common_period",) ),
                    "different_periods" : ncf.createVariable( "different_periods" , str       ,        ("different_periods",) ),
                    "time"              : ncf.createVariable(              "time" , "float32" ,                     ("time",) ),
-                     "X_dof"           : ncf.createVariable(         "X_dof"     , "int32"   , ("names","different_periods") ),
+                     "X_dof"           : ncf.createVariable(         "X_dof"     , "int32"   , ("cnames","different_periods") ),
                      "X_nknot"         : ncf.createVariable(         "X_nknot"   , "int32"                                   ),
                      "X_degree"        : ncf.createVariable(         "X_degree"  , "int32"                                   ),
                      "X"               : ncf.createVariable(                 "X" , "int32"                                   ),
@@ -396,7 +411,7 @@ class Climatology:##{{{
                    "hcov"              : ncf.createVariable(              "hcov" , "float32" ,   ("hyper_parameter","hyper_parameter") + spatial ),
             }
             for name in self.names:
-                B = self.bias[name]
+                B = self.bias.get(name,np.nan)
                 try:
                     B = float(B)
                 except Exception:
@@ -419,7 +434,7 @@ class Climatology:##{{{
             ## Fill variables of dimension
             logger.info(" * Fill variables of dimensions")
             ncvars[  "hyper_parameter"][:] = np.array( self.hpar_names , dtype = str )
-            ncvars[            "names"][:] = np.array( self.names      , dtype = str )
+            ncvars[           "cnames"][:] = np.array( self.cnames     , dtype = str )
             ncvars[    "common_period"][:] = np.array( self.cper       , dtype = str )
             ncvars["different_periods"][:] = np.array( self.dpers      , dtype = str )
             
@@ -433,6 +448,7 @@ class Climatology:##{{{
             ncvars["time"].setncattr( "units"         , units       )
             ncvars["time"].setncattr( "calendar"      , calendar    )
             ncvars["time"].setncattr( "axis"          , "T"         )
+            ncvars["time"].setncattr( "year_cut"      , str(self._ctime[-1]) )
             
             ## Fill variables
             logger.info(" * Fill variables")
@@ -449,10 +465,7 @@ class Climatology:##{{{
             logger.info( " * Fill GAM basis" )
             ncvars["X_nknot"][:]  = self.nknot
             ncvars["X_degree"][:] = self.degree
-            ncvars["X_dof"][:] = 0
-            for icname,cname in enumerate(self.cnames):
-                for idper,dper in enumerate(self.dpers):
-                    ncvars["X_dof"][icname,idper]    = self.dof[f"{cname}_{dper}"]
+            ncvars["X_dof"][:]    = self.dof.values[:]
             
             ## Fill informations variables
             logger.info(" * Fill informations variables")
@@ -537,14 +550,12 @@ class Climatology:##{{{
     
     def projection(self) -> tuple[xr.DataArray,xr.DataArray]:##{{{
         
-        mps = MPeriodSmoother( self.XN , self.cnames , self.dpers , self.cconfig.spl_config , init_smoother = False )
+        mps = MPeriodSmoother( self.XN , self.cconfig.total_dof , self.cconfig.nknot , self.cconfig.degree )
         chpar_names = self.chpar_names
         
         ## Create projF, for X
-        cprojF = xr.DataArray( mps.D0.reshape(self.ncnames,self.ndpers,self.time.size,-1),
-                             dims = ["name","period","time","hpar"],
-                             coords = [self.cnames,self.dpers,self.time,chpar_names]
-                             )
+        cprojF = mps.MB0.copy()
+        cprojF = cprojF.assign_coords( hpar = chpar_names )
         
         ## Add variable part
         if self.only_covar:
@@ -575,6 +586,14 @@ class Climatology:##{{{
             hpar = self.hpar.dataarray.values
             hcov = self.hcov.dataarray.values
         
+        ##
+        if self.vconfig.is_init:
+            if not np.isfinite(hpar[-self.vsize:]).all():
+                hpar[-self.vsize:] = 0
+                hcov[-self.vsize:,-self.vsize:] = np.identity(self.vsize)
+                hcov[-self.vsize:,:] = 0
+                hcov[:,-self.vsize:] = 0
+
         ## if add BE
         samples = coords_samples(size)
         if add_BE:
@@ -605,6 +624,14 @@ class Climatology:##{{{
     @property
     def time(self) -> np.ndarray:
         return self._time
+    
+    @property
+    def ctime(self) -> np.ndarray:
+        return self._ctime
+    
+    @property
+    def dtime(self) -> np.ndarray:
+        return self._dtime
     
     @time.setter
     def time( self , value: np.ndarray ) -> None:
@@ -640,11 +667,14 @@ class Climatology:##{{{
     
     @property
     def names(self) -> Sequence[str]:
-        return self._names
+        names = self.cconfig.cnames
+        if self.vconfig.is_init:
+            names.append(self.vconfig.vname)
+        return names
     
     @property
     def cnames(self) -> Sequence[str]:
-        return self.names if self.only_covar else [cname for cname in self.names if not cname == self.vconfig.vname]
+        return self.cconfig.cnames
     
     @property
     def ncnames(self) -> int:
