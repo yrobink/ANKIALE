@@ -68,6 +68,7 @@ release = Release("ANKIALE")
 ## Required elements
 package_dir = { "ANKIALE" : "ANKIALE" }
 requires    = [
+               "toml",
                "numpy",
                "scipy",
                "xarray",

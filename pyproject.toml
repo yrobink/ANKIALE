@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ANKIALE"
 dynamic = ["version"]
 dependencies = [
+  "toml",
   "numpy",
   "scipy",
   "xarray",
