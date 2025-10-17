@@ -90,15 +90,14 @@ def run_ank() -> None:
     try:
         
         ## Init clim
-        cmd = ankParams.cmd
-        if not cmd in ["example","sexample"]:
-            ankParams.init_clim()
+        ankParams.init_clim()
         logger.info(LINE)
         logger.info("Summary of the climatology")
         logger.info(ankParams.clim)
         logger.info(LINE)
         
         ## Run command
+        cmd = ankParams.cmd
         match cmd.lower():
             case "show":
                 run_ank_cmd_show()

@@ -236,6 +236,12 @@ class ANKParams:
             self.clim._tmp = self.tmp
             return
         
+        if self.cmd in ["example","sexample"]:
+            return
+        if self.cmd == "show":
+            if len(self.arg) > 0 and self.arg[0] == "XN":
+                return
+
         ## Init from scratch
         self.clim = Climatology()
         
@@ -327,6 +333,11 @@ class ANKParams:
                 cnames.remove(self.vname)
             except:
                 pass
+            if self.cmd == "show":
+                if len(self.arg) > 0:
+                    if self.arg[0] == "XN":
+                        cnames = ["A","B"]
+                        self.different_periods = ["C","D"]
             self.config["X_dof"] = xr.DataArray( 8. , dims = ["name","period"] , coords = [cnames,self.dpers] )
             if self.covar_config is not None:
                 for f in self.covar_config:
