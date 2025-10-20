@@ -51,7 +51,7 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def zsynthesis( hpars: zr.ZXArray , hcovs: zr.ZXArray ) -> tuple[zr.ZXArray,zr.ZXArray]:##{{{
+def zsynthesis( hpars: zr.ZXArray , hcovs: zr.ZXArray , method: str ) -> tuple[zr.ZXArray,zr.ZXArray]:##{{{
     
     ssp   = hpars.shape[:-2]
 #    nmod  = hpars.shape[-2]
@@ -66,7 +66,7 @@ def zsynthesis( hpars: zr.ZXArray , hcovs: zr.ZXArray ) -> tuple[zr.ZXArray,zr.Z
         h  = hpars[idx1d]
         c  = hcovs[idx2d]
         
-        h,c = synthesis( h , c )
+        h,c = synthesis( h , c , method )
         hpar[idx1d[:-1]] = h
         hcov[idx2d[:-1]] = c
     
@@ -98,9 +98,13 @@ def run_ank_cmd_synthesize() -> None:
         logger.info( "   => No regrid needed" )
         clim = Climatology.init_from_file( ankParams.input[0] )
     
+
     ## Parameters
     logger.info( " * Extract parameters" )
     ifiles      = ankParams.input
+    method_synthesis = ankParams.config.get( "method_synthesis" , "Ribes2017" )
+    if not method_synthesis.lower() in ["ribes2017","classic"]:
+        raise ValueError("Unknow synthesis method, must be one of 'Ribes2017' or 'classic'")
 
     hpar_names = clim.hpar_names
     d_spatial = clim.d_spatial
@@ -179,7 +183,7 @@ def run_ank_cmd_synthesize() -> None:
         output_dtypes = [hpars.dtype,hpars.dtype]
         dask_kwargs   = { "input_core_dims"  : [ ["clim","hpar"] , ["clim","hpar0","hpar1"] ],
                           "output_core_dims" : [ ["hpar"],["hpar0","hpar1"] ],
-                          "kwargs" : {},
+                          "kwargs" : { "method": method_synthesis },
                           "dask" : "parallelized",
                           "output_dtypes"  : [hpars.dtype,hpars.dtype]
                             }
@@ -203,7 +207,7 @@ def run_ank_cmd_synthesize() -> None:
                                         cluster            = cluster,
                                         )
     else:
-        hpar,hcov = synthesis( hpars.dataarray , hcovs.dataarray )
+        hpar,hcov = synthesis( hpars.dataarray , hcovs.dataarray , method_synthesis )
     
     logger.info( " * Copy to the clim" )
     clim.hpar = hpar

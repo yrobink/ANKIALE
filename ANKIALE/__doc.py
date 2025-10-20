@@ -222,6 +222,9 @@ The 'synthesize' command
         grid: a file describing the grid of the synthesize (clim will be remap
               on this grid)
         grid_name: name of the variable for the grid
+        method_synthesis: Synthesis method used. This one of 'Ribes2017' or
+              'classic' (covariance matrix do not use the covariance matrix
+              of each individual model).
 
 
 The 'constrain' command

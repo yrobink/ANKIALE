@@ -59,8 +59,8 @@ def synthesis( hpars: np.ndarray , hcovs: np.ndarray , method: str = "Ribes2017"
     
     hpar = np.nanmean( hpars , axis = 0 )
     
-    match method:
-        case "Ribes2017":
+    match method.lower():
+        case "ribes2017":
             n_mod = hpars.shape[0]
             Si    = np.nansum( hcovs , axis = 0 ) ## Sum of covariance matrix of the models
             Se    = (n_mod-1) * nancov(hpars)    ## Inter-model covariance matrix
@@ -68,8 +68,10 @@ def synthesis( hpars: np.ndarray , hcovs: np.ndarray , method: str = "Ribes2017"
             Su    = matrix_positive_part(Su)
             
             hcov = (1 + 1 / n_mod) * Su + Si / n_mod**2
-        case _:
+        case "classic":
             hcov = nancov(hpars)    ## Inter-model covariance matrix
+        case _:
+            raise ValueError("Unknow synthesis method, must be one of 'Ribes2017' or 'classic'")
     hcov = matrix_positive_part(hcov)
     
     return hpar,hcov
