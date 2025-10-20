@@ -22,6 +22,8 @@
 
 from __future__ import annotations
 
+import os
+import toml
 import datetime as dt
 import argparse
 import tempfile
@@ -228,21 +230,65 @@ class ANKParams:
         dask.config.set(**dask_config)
     ##}}}
     
+    def init_GAM_config(self) -> None:##{{{
+        ## Create GAM configuration, if given
+        if "X_degree" not in self.config:
+            self.config["X_degree"] = 3
+        cnames = self.names
+        if self.vname is not None:
+            if self.vname in cnames:
+                cnames.remove(self.vname)
+
+        self.config["X_dof"] = xr.DataArray( 8. , dims = ["name","period"] , coords = [cnames,self.dpers] )
+        if self.covar_config is not None:
+            for f in self.covar_config:
+                cname,dper,dof = f.split(":")
+                self.config["X_dof"].loc[cname,dper] = int(dof)
+    ##}}}
+
+    def _init_clim_example(self) -> None:##{{{
+        
+        ## Open configuration
+        cpath = os.path.dirname(os.path.abspath(__file__))
+        epath = os.path.join( cpath , "data" , "EXAMPLE" )
+        fconfig = toml.load( os.path.join( epath , "CONFIGURATION.toml" ) )
+        cmd = self.arg[0].upper()
+        if cmd not in fconfig:
+            raise ValueError(f"Bad argument of the fit command ({cmd}), must be: {', '.join(list(fconfig))}")
+        config = fconfig[cmd]
+        if self.bias_period is None:
+            self.bias_period = config["bper"]
+        if self.common_period is None:
+            self.common_period = [config["cper"]]
+        if self.different_periods is None:
+            self.different_periods = config["dpers"].split(",")
+        if self.names is None:
+            self.names = config["names"].split(" ")
+        for v in ["time","cname","vname","nslaw","spatial"]:
+            if getattr( self , v , None ) is None and v in config:
+                setattr( self , v , config[v] )
+    ##}}}
+
     def init_clim(self) -> None:##{{{
         
-        ## Load from file
+        ## Special case 1: load from file
         if self.load_clim is not None:
             self.clim = Climatology.init_from_file( self.load_clim )
             self.clim._tmp = self.tmp
             return
         
-        if self.cmd in ["example","sexample"]:
-            return
+        ## Special case 2: this is the show command for XN, so no parameters
+        ## are needed
         if self.cmd == "show":
             if len(self.arg) > 0 and self.arg[0] == "XN":
                 return
-
-        ## Init from scratch
+        
+        ## Special case 3: init from an example
+        if self.cmd in ["example","sexample"]:
+            self._init_clim_example()
+        
+        ## Global case: init from scratch
+        self.init_GAM_config()
         self.clim = Climatology()
         
         ## Period
@@ -286,8 +332,6 @@ class ANKParams:
             list_cmd = ["show","fit","draw","synthesize","constrain","attribute","misc","example","sexample"]
             if self.cmd is None or self.cmd.lower() not in list_cmd:
                 raise Exception(f"Bad command arguments, must be one of {', '.join(list_cmd)}")
-            if self.cmd.lower() in ["example","sexample"]:
-                return
             
             ## Check and set the memory
             if self.memory_per_worker == "auto":
@@ -325,25 +369,6 @@ class ANKParams:
             else:
                 self.config = {}
             
-            ## Create GAM configuration, if given
-            if "X_degree" not in self.config:
-                self.config["X_degree"] = 3
-            cnames = self.names
-            try:
-                cnames.remove(self.vname)
-            except:
-                pass
-            if self.cmd == "show":
-                if len(self.arg) > 0:
-                    if self.arg[0] == "XN":
-                        cnames = ["A","B"]
-                        self.different_periods = ["C","D"]
-            self.config["X_dof"] = xr.DataArray( 8. , dims = ["name","period"] , coords = [cnames,self.dpers] )
-            if self.covar_config is not None:
-                for f in self.covar_config:
-                    cname,dper,dof = f.split(":")
-                    self.config["X_dof"].loc[cname,dper] = int(dof)
-        
         except Exception as e:
             self.abort = True
             self.error = e

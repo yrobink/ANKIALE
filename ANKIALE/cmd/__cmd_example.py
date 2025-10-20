@@ -97,11 +97,12 @@ def run_ank_cmd_example( short: bool ) -> None:
     ## Open configuration
     config  = full_config[cmd]
     cnames  = list(config["X"])
-    bper    = config["bper"]
+    bper    = config["bper"] if ankParams.bias_period is None else "{}/{}".format(*ankParams.bias_period)
     dpers   = config["dpers"].split(",") if ankParams.dpers is None else ankParams.dpers
     if not isinstance(dpers,list):
         dpers = [dpers]
-    cconfig = " ".join([f"{cname}:{dper}:8" for cname,dper in itt.product(cnames,dpers)])
+    cc = ankParams.clim.cconfig
+    cconfig = " ".join([f"{cname}:{dper}:{int(cc.dof.loc[cname,dper])}" for cname,dper in itt.product(cnames,dpers)])
     mconfig = ""
     for v in ["time","names","cname","vname","nslaw","spatial"]:
         if v in config:
