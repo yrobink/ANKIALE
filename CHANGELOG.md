@@ -1,7 +1,7 @@
 
 # Changelog
 
-## [Unreleased]
+## [1.1.0]
 
 ### Added
 - The spline basis of the covariate is highly customizable: the dof and the
