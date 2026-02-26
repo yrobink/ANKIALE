@@ -199,7 +199,7 @@ def constraint_var( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , P: np.
         
         ## Draw covariate parameters
         _U,_S,_Vh = np.linalg.svd(hcov)
-        scov      = _U @ np.sqrt(np.diag(_S)) @ _Vh
+        scov      = _U @ np.sqrt(np.diag(np.abs(_S))) @ _Vh
         _N        = np.random.normal( size = (hpar.size,1) )
         hpars[:]  = scov @ _N + hpar.reshape(-1,1)
 #        hpars[:] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = 1 ).reshape(-1,1)
