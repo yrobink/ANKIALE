@@ -1,5 +1,5 @@
 
-## Copyright(c) 2024, 2025 Yoann Robin
+## Copyright(c) 2024 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -196,8 +196,13 @@ def constraint_var( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , P: np.
     ##
     chain_is_valid = False
     for _ in range(n_try):
+        
         ## Draw covariate parameters
-        hpars[:] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = 1 ).reshape(-1,1)
+        _U,_S,_Vh = np.linalg.svd(hcov)
+        scov      = _U @ np.sqrt(np.diag(_S)) @ _Vh
+        _N        = np.random.normal( size = (hpar.size,1) )
+        hpars[:]  = scov @ _N + hpar.reshape(-1,1)
+#        hpars[:] = np.random.multivariate_normal( mean = hpar , cov = hcov , size = 1 ).reshape(-1,1)
         
         ## Build the covariable
         X = P @ hpars[:,0]
