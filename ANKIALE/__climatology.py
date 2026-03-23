@@ -517,15 +517,16 @@ class Climatology:##{{{
                 if not self.only_covar:
                     clim._bias[self.vname] = xr.DataArray( [float(clim._bias[self.vname])] , dims = ["fake"] , coords = [fakes] )
         
-        clim._names = self._names
         clim._cper  = self._cper
         clim._bper  = self._bper
         clim._dpers = self._dpers
         
         clim._time = self._time
+        clim._ctime = self._ctime
+        clim._dtime = self._dtime
         
-        clim._cconfig = self._cconfig
-        clim._vconfig = self._vconfig
+        clim.cconfig = self.cconfig
+        clim.vconfig = self.vconfig
         
         return clim
     ##}}}
