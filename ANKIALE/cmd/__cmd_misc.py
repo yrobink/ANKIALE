@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -201,7 +201,8 @@ def run_ank_cmd_misc_wpe() -> None:
         modes = samples
     
     ## Projection matrix
-    projF,projC = clim.projection()
+    projF = clim.projection( world = "F" )
+    projC = clim.projection( world = "C" )
     projC = projC.assign_coords( period = [ f"c_{p}" for p in projC.period.values.tolist() ] )
     proj  = xr.concat( (projC,projF) , dim = "period" ).sel( period = [projC.period.values.tolist()[0]] + projF.period.values.tolist() ).assign_coords( period = ["cfactual"] + projF.period.values.tolist() )
     proj  = proj[-1,:,:,:].drop("name")

@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -212,8 +212,7 @@ def run_ank_cmd_fit_Y() -> None:
     chpar_names = clim.chpar_names
     vhpar_names = clim.vhpar_names
     hpar_names  = clim.hpar_names
-    projF,_ = clim.projection()
-    projF = projF.sel( hpar = chpar_names )
+    projF = clim.projection( world = "F" ).sel( hpar = chpar_names )
     
     ## Time axis
     zY   = Y.sel( time = slice(clim.time[0],clim.time[-1]) )

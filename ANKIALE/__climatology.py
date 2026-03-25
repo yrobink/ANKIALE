@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -549,32 +549,66 @@ class Climatology:##{{{
         return self
     ##}}}
     
-    def projection(self) -> tuple[xr.DataArray,xr.DataArray]:##{{{
+    def projection( self, world: str = "Factual", der: int = 0 ) -> xr.DataArray:##{{{
+        """
+        Create the projection matrix to transform hpar to covariate
+        
+        Arguments
+        ---------
+        world: str
+            World can be the 'Factual', the 'Counterfactual' or 'Anthropic'
+            only. The first letter ('F', 'C' or 'A') can be used
+        der: int
+            Derivative. Can be 0, 1 or 2. Order 1 and 2 can be given only for
+            the world 'A'
+
+        Return
+        ------
+        P: xarray.DataArray
+            The projection matrix with dimensions (name,period,time,hpar)
+        """
         
         mps = MPeriodSmoother( self.XN , self.cconfig.total_dof , self.cconfig.nknot , self.cconfig.degree )
         chpar_names = self.chpar_names
         
-        ## Create projF, for X
-        cprojF = mps.MB0.copy()
-        cprojF = cprojF.assign_coords( hpar = chpar_names )
+        ## Create proj, for X
+        if der > 0 and not world == "A":
+            raise ValueError(f"Order {der} derivate is not available for world {world}")
+        match der:
+            case 0:
+                cproj = mps.MB0.copy()
+            case 1:
+                cproj = mps.MB1.copy()
+            case 2:
+                cproj = mps.MB2.copy()
+            case _:
+                raise ValueError(f"Derivative order (={der}) must be <= 2")
+        cproj = cproj.assign_coords( hpar = chpar_names )
+        
+        match world[0].upper():
+            case "F":
+                pass
+            case "C":
+                idx = [h for h in chpar_names if not "X0" in h and not "XN" in h]
+                cproj.loc[:,:,:,idx] = 0
+            case "A":
+                idx = [h for h in chpar_names if "X0" in h or "XN" in h]
+                cproj.loc[:,:,:,idx] = 0
+            case _:
+                raise ValueError(f"Unknow world '{world}', must be 'F', 'C' or 'A'")
         
         ## Add variable part
         if self.only_covar:
-            projF = cprojF
+            proj = cproj
         else:
             vhpar_names = self.vhpar_names
-            vprojF = xr.DataArray( 0. ,
+            vproj = xr.DataArray( 0. ,
                                   dims = ["name","period","time","hpar"],
                                   coords = [self.cnames,self.dpers,self.time,vhpar_names]
                                   )
-            projF = xr.concat( (cprojF,vprojF) , dim = "hpar" )
+            proj = xr.concat( (cproj,vproj) , dim = "hpar" )
         
-        ## Create projC from projF
-        idx   = [h for h in chpar_names if not "X0" in h and not "XN" in h]
-        projC = projF.copy()
-        projC.loc[:,:,:,idx] = 0.
-
-        return projF,projC
+        return proj
     ##}}}
     
     def crvs( self , size: int , add_BE: bool = False ) -> xr.Dataset:##{{{

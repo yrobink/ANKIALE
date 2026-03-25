@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -205,7 +205,8 @@ def run_ank_cmd_attribute_fcreturnt(arg: Any) -> None:
     logger.info( f" * Return time: {RT.values}" )
     
     ## Build projection operator for the covariable
-    projF,projC = clim.projection()
+    projF = clim.projection( world = "F" )
+    projC = clim.projection( world = "C" )
     zprojF = zr.ZXArray.from_xarray(projF.loc[clim.cname,:,:,:])
     zprojC = zr.ZXArray.from_xarray(projC.loc[clim.cname,:,:,:])
     
@@ -478,7 +479,8 @@ def run_ank_cmd_attribute_fintensity(arg: Any) -> None:
     zIF = zr.ZXArray.from_xarray( xIF.transpose(*clim.d_spatial).copy() )
     
     ## Build projection operator for the covariable
-    projF,projC = clim.projection()
+    projF = clim.projection( world = "F" )
+    projC = clim.projection( world = "C" )
     zprojF = zr.ZXArray.from_xarray(projF.loc[clim.cname,:,:,:])
     zprojC = zr.ZXArray.from_xarray(projC.loc[clim.cname,:,:,:])
     
@@ -762,7 +764,8 @@ def run_ank_cmd_attribute_event() -> None:
     zYo = zr.ZXArray.from_xarray( Yo.transpose(*clim.d_spatial).copy() )
     
     ## Build projection operator for the covariable
-    projF,projC = clim.projection()
+    projF = clim.projection( world = "F" )
+    projC = clim.projection( world = "C" )
     zprojF = zr.ZXArray.from_xarray(projF.loc[clim.cname,:,:,:])
     zprojC = zr.ZXArray.from_xarray(projC.loc[clim.cname,:,:,:])
     

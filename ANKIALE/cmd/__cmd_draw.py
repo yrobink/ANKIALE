@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -131,7 +131,8 @@ def run_ank_cmd_draw() -> None:
     
     ## Build projection operator for the covariable
     logger.info(" * Build projection operator")
-    projF,projC = clim.projection()
+    projF = clim.projection( world = "F" )
+    projC = clim.projection( world = "C" )
     zprojF      = zr.ZXArray.from_xarray(projF)
     zprojC      = zr.ZXArray.from_xarray(projC)
     
