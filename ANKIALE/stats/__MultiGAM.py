@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -343,6 +343,8 @@ class MPeriodSmoother:##{{{
             mper = mix_periods[name]
             if mper == "full":
                 mper = self.periods
+            if isinstance(mper,str):
+                mper = [mper]
             lB0.append( self.MB0.loc[name,mper,time[name],:].mean( dim = "period" ).values )
 
         return np.vstack(lB0)
