@@ -572,7 +572,7 @@ class Climatology:##{{{
         chpar_names = self.chpar_names
         
         ## Create proj, for X
-        if der > 0 and not world == "A":
+        if der > 0 and not world[0].upper() == "A":
             raise ValueError(f"Order {der} derivate is not available for world {world}")
         match der:
             case 0:
@@ -640,7 +640,8 @@ class Climatology:##{{{
             hpars[0,:] = hpar
 
         ## Build the design matrix
-        projF,projC = self.projection()
+        projF = self.projection( world = "F", der = 0 )
+        projC = self.projection( world = "C", der = 0 )
         
         ## Compute covariates
         XF = projF @ hpars
