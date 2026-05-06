@@ -275,7 +275,7 @@ def run_ank_cmd_constrain_Y() -> None:
     except Exception:
         pass
     if clim.spatial_is_fake:
-        bias = xr.DataArray( [bias] , dims = clim.d_spatial , coords = clim.c_spatial )
+        bias = xr.DataArray( bias.values.reshape(clim.s_spatial) , dims = clim.d_spatial , coords = clim.c_spatial )
     clim._bias[clim.vname] = bias
     
     ## Transform in ZXArray
