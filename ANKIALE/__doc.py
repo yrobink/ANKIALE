@@ -138,12 +138,12 @@ to the scripts.
 Possible examples for scenarios SSP1-2.6, SSP2-4.5, SSP3-7.0 and SSP5-8.5:
 - GMST: Global warming estimates.
 - GMST-EU: Global and Regional (Europe) warming estimates.
-- NORMAL-FRA03: Normal distribution analysis of the average August temperature
+- NORMAL-FRA08: Normal distribution analysis of the average August temperature
   in France. Used to analyse the August 2003 heatwave.
 - GEV-PARIS: GEV law analysis of TX3x in Paris (France). Enable analysis of
   the July 2019 heatwave.
 - GEV-IDF: GEV analysis of TX3x over the Ile de France (France).
-- GEVMIN-FRA12: Analysis with the GEVMin law of the TN10n over France. Enable
+- GEVMIN-FRA: Analysis with the GEVMin law of the TN10n over France. Enable
   analysis of the February 2012 cold snap.
 
 
