@@ -720,7 +720,7 @@ def run_ank_cmd_attribute_event() -> None:
     mode      = ankParams.config.get("mode","sample")
     ci        = float(ankParams.config.get("ci",0.05))
     t_event   = int(ankParams.config["time"])
-    idx_event = int(np.argwhere( time == t_event ).ravel())
+    idx_event = int(np.argwhere( time == t_event ).ravel()[0])
     
     ## Logs
     logger.info(  " * Configuration" )

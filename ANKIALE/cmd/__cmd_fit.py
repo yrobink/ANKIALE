@@ -94,6 +94,7 @@ def run_ank_cmd_fit_X() -> None:
             if np.isfinite(X).all():
                 continue
             nantime = X.time[~np.isfinite(X)].values
+            logger.debug( f" => Nan time founds for period {per}: {nantime}")
             for t in nantime:
                 m = X.sel( time = slice( t - 15 , t + 15 ) ).mean()
                 s = X.sel( time = slice( t - 15 , t + 15 ) ).std()
@@ -101,7 +102,7 @@ def run_ank_cmd_fit_X() -> None:
                 s = float(s)
                 if not np.isfinite([m,s]).all():
                     raise ValueError("Impossible to remove nan values, abort.")
-                X.loc[t] = float(np.random.normal( loc = m , scale = s , size = 1 ))
+                X.loc[t] = np.random.normal( loc = m , scale = s , size = 1 )[0]
             dX.loc[cname,per:] = X
     
     ## Find the bias
