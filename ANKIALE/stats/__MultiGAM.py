@@ -345,7 +345,7 @@ class MPeriodSmoother:##{{{
                 mper = self.periods
             if isinstance(mper,str):
                 mper = [mper]
-            lB0.append( self.MB0.loc[name,mper,time[name],:].mean( dim = "period" ).values )
+            lB0.append( self.MB0.loc[name,mper,time[name],:].mean( dim = self._dperiod ).values )
 
         return np.vstack(lB0)
 
