@@ -603,7 +603,7 @@ class Climatology:##{{{
         else:
             vhpar_names = self.vhpar_names
             vproj = xr.DataArray( 0. ,
-                                  dims = ["name","period","time","hpar"],
+                                  dims = ["name",mps._dperiod,"time","hpar"],
                                   coords = [self.cnames,self.dpers,self.time,vhpar_names]
                                   )
             proj = xr.concat( (cproj,vproj) , dim = "hpar" )

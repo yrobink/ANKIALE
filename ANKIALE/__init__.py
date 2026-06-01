@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -33,6 +33,8 @@ from .__sys import Error
 
 from .__natural import get_XN
 
+from .__climatology import CoVarConfig
+from .__climatology import VarConfig
 from .__climatology import Climatology
 
 from . import plot
