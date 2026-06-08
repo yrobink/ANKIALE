@@ -475,6 +475,13 @@ def run_ank_cmd_attribute_fintensity(arg: Any) -> None:
         if not xIF[d].size == clim._spatial[d].size:
             raise Exception( f"Bad size of the dimension {d}: {xIF[d].size} != {clim._spatial[d].size}" )
     
+    ## Check if a time is a dimension of size 1
+    if "time" in xIF.dims:
+        if xIF["time"].size == 1:
+            xIF = xIF.sel( time = xIF.time[0] ).drop_vars("time")
+        else:
+            raise Exception("Multiple time step given for input intensity, abort")
+    
     ## Reorganize dimension and transform in zarr
     zIF = zr.ZXArray.from_xarray( xIF.transpose(*clim.d_spatial).copy() )
     
