@@ -306,6 +306,9 @@ class MPeriodSmoother:##{{{
 
     def fit( self , X: xr.DataArray ) -> tuple[xr.DataArray,xr.DataArray]:##{{{
         
+        ##
+        X = X.transpose(self.dname,self.dperiod,self.dtime)
+
         ## Create smoother
         if self._edof is None:
             self._init_smoother()
