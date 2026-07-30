@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -323,7 +323,7 @@ def run_ank_cmd_constrain_Y() -> None:
     ## Init stan
     if use_STAN:
         logger.info(" * STAN compilation...")
-        cnslaw().init_stan( tmp = ankParams.tmp_stan , force_compile = True )
+        cnslaw().init_stan()
         logger.info(" * STAN compilation... Done.")
     
     ## Apply parameters

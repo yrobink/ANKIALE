@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -32,10 +32,13 @@ import xarray as xr
 import cmdstanpy as stan
 import logging
 
+from pathlib import Path
+
 from ...__sys import copy_files
 from ...__linalg import sqrtm
 from ...__exceptions import StanError
 from ...__exceptions import StanInitError
+from ...__release import version
 
 cmdstanpy_logger = logging.getLogger("cmdstanpy")
 cmdstanpy_logger.disabled = True
@@ -82,6 +85,15 @@ class AbstractModel:##{{{
         return Y,X
     ##}}}
     
+    def fit_mle_with_cov( self , Y: np.ndarray , X: np.ndarray , **kwargs: Any ) -> np.ndarray:##{{{
+        law = self.sdlaw( method = "mle" )
+        sdargs,sdkwargs = self._map_sdfit( Y , X )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            law.fit( *sdargs , **{ **sdkwargs , **kwargs } )
+        return law.coef_,law.cov_
+    ##}}}
+
     def fit_mle( self , Y: np.ndarray , X: np.ndarray , **kwargs: Any ) -> np.ndarray:##{{{
         law = self.sdlaw( method = "mle" )
         sdargs,sdkwargs = self._map_sdfit( Y , X )
@@ -91,13 +103,19 @@ class AbstractModel:##{{{
         return law.coef_
     ##}}}
     
-    def init_stan( self , tmp: str , force_compile: bool = False ) -> stan.CmdStanModel:##{{{
-        ### Define stan model
-        stan_path  = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" , "STAN" )
-        stan_ifile = os.path.join( stan_path , self.stan_file )
-        stan_ofile = os.path.join(       tmp , self.stan_file )
+    def init_stan( self, force_compile: bool = False ) -> stan.CmdStanModel:##{{{
+        
+        ## Paths
+        istan_path = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" , "STAN" )
+        ostan_path = Path( os.environ.get( "XDG_DATA_HOME" , Path.home() / ".local" / "share" ) ) / "ANKIALE" / f"v{version}_STANFILES"
+        if not os.path.isdir(ostan_path):
+            os.makedirs(ostan_path)
+        stan_ifile = os.path.join( istan_path, self.stan_file )
+        stan_ofile = os.path.join( ostan_path, self.stan_file )
         if not os.path.isfile(stan_ofile):
             copy_files( stan_ifile , stan_ofile )
+        
+        ### Define stan model
         stan_model = stan.CmdStanModel( stan_file = stan_ofile , force_compile = force_compile )
         
         return stan_model
@@ -149,17 +167,19 @@ class AbstractModel:##{{{
             ## Find inits points
             init_failed = True
             ninit = 10
+            upscale = 0.5
             while init_failed:
                 ninit  = 10 * ninit
+                upscale = 2 * upscale
                 npar   = np.random.normal( loc = 0 , scale = 1 , size = (ninit,len(self.h_name)) )
-                hpar   = xr.DataArray( (idata["prior_hstd"] @ npar.T).T + idata["prior_hpar"].reshape(1,-1) , dims = ["sample","hpar"] , coords = [range(ninit),list(self.h_name)] )
+                hpar   = xr.DataArray( upscale * (idata["prior_hstd"] @ npar.T).T + idata["prior_hpar"].reshape(1,-1) , dims = ["sample","hpar"] , coords = [range(ninit),list(self.h_name)] )
                 XX     = xr.DataArray( XX , dims = ["time"] , coords = [range(XX.size)] )
                 kwargs = self.draw_params( XX , hpar )
                 sckwd  = self._map_scpar(**kwargs)
                 lpdf   = xr.DataArray( self.sclaw.logpdf( YY.reshape(1,-1) * np.ones((ninit,YY.size)) , **sckwd ).sum( axis = 1 ) , dims = ["sample"] , coords = [hpar.sample] )
                 idx    = np.isfinite(lpdf)
                 init_failed = ~np.any(idx)
-                if ninit > 10000:
+                if ninit > 100000:
                     break
             if init_failed:
                 raise StanInitError
