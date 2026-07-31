@@ -72,9 +72,9 @@ def zconstraint_covar( *args: np.ndarray , P: np.ndarray | None = None , timeXo:
         idx2d = idx + tuple([slice(None) for _ in range(2)])
         ih    = ihpar[idx1d]
         ic    = ihcov[idx2d]
-        iargs = [ih,ic] + [ Xo[idx1d] for Xo in lXo ]
+        args = [ xr.DataArray( Xo[idx1d].ravel(), dims = ["time"], coords = [_t] ) for Xo,_t in zip(lXo,timeXo) ]
         
-        oh,oc = constraint_covar( *iargs , P = P , timeXo = timeXo , method_oerror = method_oerror )
+        oh,oc = constraint_covar( ih, ic, P, *args, method_oerror = method_oerror )
         ohpar[idx1d] = oh
         ohcov[idx2d] = oc
     

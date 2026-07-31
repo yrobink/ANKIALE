@@ -1,5 +1,5 @@
 
-## Copyright(c) 2025 Yoann Robin
+## Copyright(c) 2025, 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -30,9 +30,9 @@ from typing import Self
 
 import numpy as np
 import xarray as xr
-import scipy.stats as sc
-import scipy.linalg as scl
-import scipy.optimize as sco
+import scipy as sp
+
+from ..__linalg import toeplitz_logdet
 
 
 ##################
@@ -71,7 +71,7 @@ class AR1:##{{{
         return self.c / ( 1 - self.alpha )
     
     def cov( self , size: int ) -> np.ndarray:
-        C = self.scale**2 / ( 1 - self.alpha**2) * scl.toeplitz( self.alpha**np.arange( 0 , size , 1 ) )
+        C = self.scale**2 / ( 1 - self.alpha**2) * sp.linalg.toeplitz( self.alpha**np.arange( 0 , size , 1 ) )
         return C
     
     def rvs( self , size: int = 1 , samples: int = 1 , burn: int = -1 ) -> np.ndarray:
@@ -92,7 +92,7 @@ class AR1:##{{{
 
     @staticmethod
     def fit( X: np.ndarray ) -> Self:
-        a,c,_,_,_ = sc.linregress( X[:-1] , X[1:] )
+        a,c,_,_,_ = sp.stats.linregress( X[:-1] , X[1:] )
         s = np.std( X[1:] - c - a * X[:-1] )
         
         return AR1( c = c , alpha = a , scale = s )
@@ -100,7 +100,7 @@ class AR1:##{{{
 ##}}}
 
 class MAR2:##{{{
-    
+
     _ar_f: AR1
     _ar_s: AR1
 
@@ -117,10 +117,10 @@ class MAR2:##{{{
         sf = str(self._ar_f)
         ss = str(self._ar_s)
         return "\n".join( [sf,ss] )
-    
+
     def cov( self , size: int ) -> np.ndarray:
         return self._ar_f.cov(size) + self._ar_s.cov(size)
-    
+
     def rvs( self , size: int = 1 , samples: int = 1 , burn: int = -1 ) -> np.ndarray:
         Xf = self._ar_f.rvs( size = size , samples = samples , burn = burn )
         Xs = self._ar_s.rvs( size = size , samples = samples , burn = burn )
@@ -136,37 +136,61 @@ class MAR2:##{{{
         for nit in range(maxit):
             arf = AR1.fit(R)
             R = (X[1:] - arf.alpha * X[:-1] - arf.c)/ arf.scale
-            
+        
             ars = AR1.fit(R)
             R = (X[1:] - ars.alpha * X[:-1] - ars.c)/ ars.scale
 
             c = np.array([arf.alpha , arf.scale , arf.c , ars.alpha , ars.scale , ars.c ])
             lerr.append( np.linalg.norm( c - p ) / np.linalg.norm(c) )
-            
+        
             if lerr[-1] < tol:
                 break
             if lerr[-1] > lerr[-2]:
                 c = p
                 break
             p = c
-        
+    
         return MAR2( c[0] , c[3] , c[1] , c[4] , c[2] , c[5] )
 
     @staticmethod
-    def _fit_mle( X: np.ndarray , maxtry: int = 5 ) -> Self:
+    def _fit_mle( X: np.ndarray , version: str = "v2", maxtry: int = 10 ) -> Self:
 
         def logit( x , a = -1 , b = 1 ):
             return 1. / ( 1 + np.exp(-x) ) * (b - a) + a
-    
+
         def ilogit( y , a = -1 , b = 1 ):
             return np.where( np.abs(y) < 1 , - np.log( (b-a) / (y - a) - 1 ) , np.sign(y) - np.sign(y) * 1e-6 )
 
-        def _nlll( hpar , X ):
+        def _nlll_v1( hpar , X ):
             arf  = AR1( hpar[0] , logit(hpar[1]) , np.exp(hpar[2]) )
             ars  = AR1( hpar[3] , logit(hpar[4]) , np.exp(hpar[5]) )
             size = X.size
             cov  = arf.cov(size) + ars.cov(size)
-            return -sc.multivariate_normal.logpdf( X , mean = np.zeros(size) , cov = cov , allow_singular = True ).sum()
+            return -sp.stats.multivariate_normal.logpdf( X , mean = np.zeros(size) , cov = cov , allow_singular = True ).sum()
+        
+        def _nlll_v2( hpar, X ):
+            alpha_f = min( logit(hpar[1]), 1-1e-2 )
+            scale_f = np.exp(hpar[2])
+            alpha_s = min( logit(hpar[4]), 1-1e-2 )
+            scale_s = np.exp(hpar[5])
+            _c_f = scale_f**2 / ( 1 - alpha_f**2) * alpha_f**np.arange( 0 , X.size , 1 )
+            _c_s = scale_s**2 / ( 1 - alpha_s**2) * alpha_s**np.arange( 0 , X.size , 1 )
+            _c   = _c_f + _c_s
+            _C   = sp.linalg.toeplitz(_c)
+
+            _lpdf = ( sp.linalg.solve_toeplitz(_c, X) * X ).sum() / 2\
+                    + toeplitz_logdet(_c) / 2
+#                    + np.log(np.linalg.det(_C)) / 2
+#                    + np.log(2*np.pi) * X.size / 2
+            
+            return _lpdf
+            
+        match version:
+            case "v1":
+                _nlll = _nlll_v1
+            case "v2":
+                _nlll = _nlll_v2
+        
         try:
             hpar0 = MAR2.fit( X , method = "backfitting" ).hpar
         except:
@@ -175,12 +199,12 @@ class MAR2:##{{{
         hpar0[[1,4]] = ilogit(hpar0[[1,4]])
         hpar0[[2,5]] = np.log(hpar0[[2,5]])
         hparI = hpar0.copy()
-        
+    
         success = False
         nit = 0
         while not success:
             try:
-                res = sco.minimize( _nlll , x0 = hpar0 , args = (X,) , method = "BFGS" )
+                res = sp.optimize.minimize( _nlll , x0 = hpar0 , args = (X,) , method = "BFGS" )
                 hpar = res.x
                 success = True
             except:
@@ -188,26 +212,27 @@ class MAR2:##{{{
             nit += 1
             if nit > maxtry:
                 raise ValueError("Impossible to fit the MAR2")
+                
         arf  = AR1( hpar[0] , logit(hpar[1]) , np.exp(hpar[2]) )
         ars  = AR1( hpar[3] , logit(hpar[4]) , np.exp(hpar[5]) )
-        
-        return MAR2( arf.alpha , ars.alpha , arf.scale , ars.scale , arf.c , ars.c )
     
+        return MAR2( arf.alpha , ars.alpha , arf.scale , ars.scale , arf.c , ars.c )
+
     @staticmethod
-    def fit( X: np.ndarray , method: str = "mle" , maxit: int = 50 , tol: float = 1e-3 ) -> Self:
+    def fit( X: np.ndarray , method: str = "mle" , version: str = "v2", maxit: int = 50 , tol: float = 1e-3 ) -> Self:
 
         match method.lower():
             case "backfitting":
                 mar2 = MAR2._fit_backfitting( X , maxit , tol )
             case "mle":
-                mar2 = MAR2._fit_mle( X )
+                mar2 = MAR2._fit_mle( X, version = version )
 
         return mar2
 
     @property
     def alpha_f(self) -> float:
         return self._ar_f.alpha
-    
+
     @property
     def alpha_s(self) -> float:
         return self._ar_s.alpha
@@ -215,15 +240,15 @@ class MAR2:##{{{
     @property
     def scale_f(self) -> float:
         return self._ar_f.scale
-    
+
     @property
     def scale_s(self) -> float:
         return self._ar_s.scale
-    
+
     @property
     def c_f(self) -> float:
         return self._ar_f.c
-    
+
     @property
     def c_s(self) -> float:
         return self._ar_s.c
@@ -255,8 +280,8 @@ class KCC:##{{{
     def _build_toeplitz_iv( alpha_0: float , alpha_1: float , size0: int , size1: int ) -> np.ndarray:##{{{
         sizen  = min(size0,size1)
         sizex  = max(size0,size1)
-        cov_ll = scl.toeplitz( alpha_0**np.arange( 0 , size0 , 1 ).astype(int) )
-        cov_ur = scl.toeplitz( alpha_1**np.arange( 0 , size1 , 1 ).astype(int) )
+        cov_ll = sp.linalg.toeplitz( alpha_0**np.arange( 0 , size0 , 1 ).astype(int) )
+        cov_ur = sp.linalg.toeplitz( alpha_1**np.arange( 0 , size1 , 1 ).astype(int) )
         cov_ll[np.triu_indices(size0)] = 0
         cov_ur[np.tril_indices(size1)] = 0
         cov    = np.identity(sizex)[:size0,:size1]
@@ -275,6 +300,7 @@ class KCC:##{{{
         d01 = 1 - alpha_0 * alpha_1
         
         cst = n0 / ( d0 * d1 * d01 )
+#        cst = L * np.sqrt(scale_0) * np.sqrt(scale_1) * d0 * d1 / d01
         
         return cst
     ##}}}
@@ -282,16 +308,16 @@ class KCC:##{{{
     def _build_lag_cov( self , h: int , L: float , alpha_0: float , alpha_1: float , scale_0: float , scale_1: float ) -> np.ndarray:##{{{
         return alpha_0**h * self._build_cst_iv( L , alpha_0 , alpha_1 , scale_0 , scale_1 )
     ##}}}
-    
-    def _find_L( self , R0: xr.DataArray , R1: xr.DataArray ) -> None:##{{{
+
+    def _find_L_moments( self , R0: xr.DataArray , R1: xr.DataArray ) -> None:##{{{
         
-        cf_max = self._build_cst_iv( 1. , self._mar2_0.alpha_f , self._mar2_1.alpha_f , self._mar2_0.scale_f , self._mar2_1.scale_f )
-        cs_max = self._build_cst_iv( 1. , self._mar2_0.alpha_s , self._mar2_1.alpha_s , self._mar2_0.scale_s , self._mar2_1.scale_s )
+        cf_max = self._build_cst_iv( 1. , self._mar2_0.alpha_f , self._mar2_1.alpha_f , self._mar2_0.scale_f**2 , self._mar2_1.scale_f**2 )
+        cs_max = self._build_cst_iv( 1. , self._mar2_0.alpha_s , self._mar2_1.alpha_s , self._mar2_0.scale_s**2 , self._mar2_1.scale_s**2 )
         
         self._rho_res = float(xr.corr( R0 , R1 ))
-        self._rho_mar = (cf_max + cs_max) / np.sqrt( (self._mar2_0.scale_f + self._mar2_0.scale_s) * (self._mar2_1.scale_f + self._mar2_1.scale_s) )
-        
-        self._L = max( min( self._rho_res / self._rho_mar , 1 ) , -1 )
+        self._rho_mar = (cf_max + cs_max) / np.sqrt( (self._mar2_0.scale_f**2 + self._mar2_0.scale_s**2) * (self._mar2_1.scale_f**2 + self._mar2_1.scale_s**2) )
+
+        self._L = max( min( self._rho_res / self._rho_mar , 1. ) , -1. )
     ##}}}
     
     def fit( self , R0: xr.DataArray , R1: xr.DataArray ) -> Self:##{{{
@@ -305,15 +331,15 @@ class KCC:##{{{
         self._mar2_1 = MAR2.fit( R1.values )
         
         ## Find L
-        self._find_L( R0 , R1 )
+        self._find_L_moments( R0 , R1 )
         
         ## Build the toeplitz matrix
         cov_iv_f = self._build_toeplitz_iv( self._mar2_0.alpha_f , self._mar2_1.alpha_f , self._size0 , self._size1 )
         cov_iv_s = self._build_toeplitz_iv( self._mar2_0.alpha_s , self._mar2_1.alpha_s , self._size0 , self._size1 )
         
         ## And build the cov_iv matrix
-        cf = self._build_cst_iv( self.L , self._mar2_0.alpha_f , self._mar2_1.alpha_f , self._mar2_0.scale_f , self._mar2_1.scale_f )
-        cs = self._build_cst_iv( self.L , self._mar2_0.alpha_s , self._mar2_1.alpha_s , self._mar2_0.scale_s , self._mar2_1.scale_s )
+        cf = self._build_cst_iv( self.L , self._mar2_0.alpha_f , self._mar2_1.alpha_f , self._mar2_0.scale_f**2 , self._mar2_1.scale_f**2 )
+        cs = self._build_cst_iv( self.L , self._mar2_0.alpha_s , self._mar2_1.alpha_s , self._mar2_0.scale_s**2 , self._mar2_1.scale_s**2 )
         
         self._cov_iv01 = cf * cov_iv_f + cs * cov_iv_s
         

@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -123,4 +123,31 @@ def mean_cov_hpars( hpars: np.ndarray ) -> tuple[np.ndarray,np.ndarray]:
     return hpar,hcov
 ##}}}
 
+## toeplitz_logdet ##{{{
+
+@disable_warnings
+def toeplitz_logdet(c: np.ndarray) -> float:
+    c = np.asarray(c, dtype=float)
+    n = len(c)
+    
+    if c[0] <= 0:
+        raise ValueError("c[0] must be non-negative")
+        
+    a = np.zeros(n)
+    E = c[0]
+    log_det = n * np.log(c[0])
+    
+    for k in range(1, n):
+        lambda_k = (c[k] - np.dot(a[:k], c[1:k+1][::-1])) / E
+        
+        a_new = a[:k] - lambda_k * a[:k][::-1]
+        a[:k] = a_new
+        a[k] = lambda_k
+        
+        E *= (1.0 - lambda_k**2)
+        
+        log_det += (n - k) * np.log(1.0 - lambda_k**2)
+        
+    return log_det
+##}}}
 

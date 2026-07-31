@@ -31,6 +31,7 @@ import numpy as np
 import scipy.stats as sc
 import xarray as xr
 
+from typing import Any
 from typing import Sequence
 
 from .__KCC import KCC
@@ -43,6 +44,8 @@ from ..__exceptions import DevException
 
 from .models.__AbstractModel import AbstractModel
 
+from ..__logs import disable_warnings
+import traceback
 
 ##################
 ## Init logging ##
@@ -77,7 +80,7 @@ def infer_hcov_o_MAR2( Ros: Sequence[xr.DataArray] , size: int ) -> np.ndarray:#
     b = 0
     for Ro in Ros:
         e = b + Ro.size
-        hcov_o[b:e,b:e] = MAR2.fit( Ro ).cov(Ro.size)
+        hcov_o[b:e,b:e] = MAR2.fit( Ro.values ).cov(Ro.size)
         b += Ro.size
     
     return hcov_o
@@ -105,7 +108,9 @@ def _infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataAr
     Ros = []
     for Xo in Xos:
         e = b + Xo.size
-        Ros.append( Xo.values - X[b:e] )
+        Ros.append(
+            Xo.copy( data = Xo.values - X[b:e] )
+        )
         b += Xo.size
     hcov_o = np.zeros((b,b))
 
@@ -125,17 +130,20 @@ def _infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataAr
 def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArray] , P: np.ndarray , method_oerror: str = 'IND' ) -> np.ndarray:##{{{
     try:
         hcov_o = _infer_hcov_o( hpar , hcov , Xos , P , method_oerror )
+        omethod_oerror = method_oerror
     except Exception as e:
+        logger.error( f"Error: {e}" )
+        logger.error( f"Traceback:\n{traceback.format_exc()}" )
         match method_oerror:
             case "KCC":
                 logger.warning("Fail to use KCC, back to MAR2")
-                hcov_o = infer_hcov_o( hpar , hcov , Xos , P , "MAR2" )
+                hcov_o,omethod_oerror = infer_hcov_o( hpar , hcov , Xos , P , "MAR2" )
             case "MAR2":
                 logger.warning("Fail to use MAR2, back to IND")
-                hcov_o = infer_hcov_o( hpar , hcov , Xos , P , "IND" )
+                hcov_o,omethod_oerror = infer_hcov_o( hpar , hcov , Xos , P , "IND" )
             case _:
                 raise e
-    return hcov_o
+    return hcov_o,omethod_oerror
 ##}}}
 
 
@@ -148,35 +156,104 @@ def gaussian_conditionning( hpar: np.ndarray , hcov: np.ndarray , P: np.ndarray 
     return hparC,hcovC
 ##}}}
 
-def constraint_covar( *args: np.ndarray , P: np.ndarray | None = None , timeXo: Sequence[np.ndarray] | None = None , method_oerror: str | None = None ) -> tuple[np.ndarray,np.ndarray]:##{{{
-    
-    ## Extract data
-    hpar = args[0]
-    hcov = args[1]
-    Xos  = [ xr.DataArray( Xo , dims = ["time"] , coords = [time] )
-            for Xo,time in zip(args[2:],timeXo) ]
-    
-    ## Check data are finite
-    if not np.isfinite(hpar).all() or not np.isfinite(hcov).all():
-        hparC = np.zeros_like(hpar) + np.nan
-        hcovC = np.zeros_like(hcov) + np.nan
-        return hparC,hcovC
+
+def _constraint_covar( hpar: np.ndarray, hcov: np.ndarray, Xos: Sequence[xr.DataArray], hcov_o: np.ndarray | None, P: np.ndarray | None = None , hcov_o_meas: np.ndarray | float = 0., method_oerror: str | None = None ) -> tuple[np.ndarray,np.ndarray,np.ndarray]: ##{{{
     
     ## Init
-    err = Error()
-    hcov_o = infer_hcov_o( hpar , hcov , Xos , P , method_oerror )
+    err = Error( tol = 1e-3 )
+    if hcov_o is None:
+        hcov_o_iv,_ = infer_hcov_o( hpar , hcov , Xos , P , "IND" )
+        hcov_o = hcov_o_iv + hcov_o_meas
     
     ## Loop on constraint until convergence
+    merr = method_oerror
     gXo = np.hstack( [Xo.values for Xo in Xos] )
+    logger.debug( f" * Constraint with method {method_oerror}" )
     while not err.stop:
         hparC,hcovC = gaussian_conditionning( hpar , hcov , P , gXo , hcov_o )
-        hcov_u      = infer_hcov_o( hparC , hcovC , Xos , P , method_oerror )
+        hcov_u_iv,merr = infer_hcov_o( hparC , hcovC , Xos , P , merr )
+        hcov_u = hcov_u_iv + hcov_o_meas
+#        err.value   = np.linalg.norm( ( np.linalg.inv(hcov_o) @ hcov_u ) - np.identity(hcov_u.shape[0]) )
         err.value   = np.linalg.norm( hcov_o - hcov_u ) / np.linalg.norm(hcov_o)
         hcov_o      = hcov_u
+        logger.debug( f"   => Observed matrix convergence error: {err.value}" )
+    
+    return hparC,hcovC,hcov_o
+##}}}
+
+## constraint_covar ##{{{
+
+@disable_warnings
+def constraint_covar( hpar: np.ndarray | xr.DataArray,
+                      hcov: np.ndarray | xr.DataArray,
+                      P: np.ndarray | xr.DataArray,
+                      *args: Any,
+                      hcov_o_meas: np.ndarray | xr.DataArray | None = None,
+                      method_oerror: str = "IND",
+                     ) -> tuple[np.ndarray | xr.DataArray,np.ndarray | xr.DataArray]:
+    """
+    Function for constraining the distribution N(hpar,hcov) using observations.
+    The observations Xo1, Xo2,... are provided as additional arguments (*args)
+    and must be xarray.DataArray objects with time as the dimension for each
+    observed covariate. The projection matrix P must satisfy the following
+    relationship:
+    [Xo1,Xo2,...] = P @ hpar
+
+    Arguments
+    ---------
+    hpar: np.ndarray | xr.DataArray
+        Mean of parameters to constrain
+    hcov: np.ndarray | xr.DataArray
+        Covariance matrix of parameters to constrain
+    P: np.ndarray | xr.DataArray
+        Projection operator to apply gaussian conditionning theorem
+    args: Sequence[xr.DataArray]
+        Sequence of observations
+    method_oerror: str
+        Observed error estimation method. Must be one of:
+            - 'IND': Observed residuals are independent
+            - 'MAR2': Observed residuals follow a sum of two AR(1) process
+            - 'KCC': If numbers of covariates is greater than 1, assume MAR2
+                     and add a dependency term between covariates.
+    """
+
+    ## Convert all in np.ndarray
+    _hpar = hpar.values if isinstance(hpar,xr.DataArray) else hpar
+    _hcov = hcov.values if isinstance(hcov,xr.DataArray) else hcov
+    _P    =    P.values if isinstance(   P,xr.DataArray) else P
+    
+    _hcov_o_meas = hcov_o_meas
+    if isinstance(_hcov_o_meas,xr.DataArray):
+        _hcov_o_meas = hcov_o_meas.values
+    if _hcov_o_meas is None:
+        _hcov_o_meas = 0
+    
+    ## Observations
+    Xos = args
+
+    ## Check data are finite
+    if not np.isfinite(_hpar).all() or not np.isfinite(_hcov).all():
+        hparC = np.zeros_like(_hpar) + np.nan
+        hcovC = np.zeros_like(_hcov) + np.nan
+        if isinstance(hpar,xr.DataArray):
+            hparC = hpar.copy( data = _hpar )
+        if isinstance(hcov,xr.DataArray):
+            hcovC = hcov.copy( data = _hcov )
+        return hparC,hcovC
+    
+    ##
+    hparC,hcovC,hcov_o = _constraint_covar( _hpar, _hcov, Xos, None, _P, _hcov_o_meas, "IND" )
+    
+    if method_oerror in ["MAR2","KCC"]:
+        hparC,hcovC,hcov_o = _constraint_covar( _hpar, _hcov, Xos, hcov_o, _P, _hcov_o_meas, method_oerror )
+    
+    if isinstance(hpar,xr.DataArray):
+        hparC = hpar.copy( data = hparC )
+    if isinstance(hcov,xr.DataArray):
+        hcovC = hcov.copy( data = hcovC )
     
     return hparC,hcovC
 ##}}}
-
 
 
 def constraint_var( hpar: np.ndarray , hcov: np.ndarray , Y: np.ndarray , P: np.ndarray , size_chain: int , cnslaw: AbstractModel , use_STAN: bool , tmp_stan: str | None = None , n_try: int = 5 ) -> np.ndarray:##{{{
