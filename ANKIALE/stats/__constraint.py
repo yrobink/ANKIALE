@@ -127,13 +127,15 @@ def _infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataAr
     return hcov_o
 ##}}}
 
-def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArray] , P: np.ndarray , method_oerror: str = 'IND' ) -> np.ndarray:##{{{
+def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArray] , P: np.ndarray , method_oerror: str = 'IND', errors: str = "raise" ) -> np.ndarray:##{{{
     try:
         hcov_o = _infer_hcov_o( hpar , hcov , Xos , P , method_oerror )
         omethod_oerror = method_oerror
     except Exception as e:
         logger.error( f"Error: {e}" )
         logger.error( f"Traceback:\n{traceback.format_exc()}" )
+        if errors == "raise":
+            raise e
         match method_oerror:
             case "KCC":
                 logger.warning("Fail to use KCC, back to MAR2")
@@ -157,7 +159,7 @@ def gaussian_conditionning( hpar: np.ndarray , hcov: np.ndarray , P: np.ndarray 
 ##}}}
 
 
-def _constraint_covar( hpar: np.ndarray, hcov: np.ndarray, Xos: Sequence[xr.DataArray], hcov_o: np.ndarray | None, P: np.ndarray | None = None , hcov_o_meas: np.ndarray | float = 0., method_oerror: str | None = None ) -> tuple[np.ndarray,np.ndarray,np.ndarray]: ##{{{
+def _constraint_covar( hpar: np.ndarray, hcov: np.ndarray, Xos: Sequence[xr.DataArray], hcov_o: np.ndarray | None, P: np.ndarray | None = None , hcov_o_meas: np.ndarray | float = 0., method_oerror: str | None = None, errors: str = "raise" ) -> tuple[np.ndarray,np.ndarray,np.ndarray]: ##{{{
     
     ## Init
     err = Error( tol = 1e-3 )
@@ -171,7 +173,7 @@ def _constraint_covar( hpar: np.ndarray, hcov: np.ndarray, Xos: Sequence[xr.Data
     logger.debug( f" * Constraint with method {method_oerror}" )
     while not err.stop:
         hparC,hcovC = gaussian_conditionning( hpar , hcov , P , gXo , hcov_o )
-        hcov_u_iv,merr = infer_hcov_o( hparC , hcovC , Xos , P , merr )
+        hcov_u_iv,merr = infer_hcov_o( hparC , hcovC , Xos , P , merr, errors = errors )
         hcov_u = hcov_u_iv + hcov_o_meas
 #        err.value   = np.linalg.norm( ( np.linalg.inv(hcov_o) @ hcov_u ) - np.identity(hcov_u.shape[0]) )
         err.value   = np.linalg.norm( hcov_o - hcov_u ) / np.linalg.norm(hcov_o)
@@ -190,6 +192,7 @@ def constraint_covar( hpar: np.ndarray | xr.DataArray,
                       *args: Any,
                       hcov_o_meas: np.ndarray | xr.DataArray | None = None,
                       method_oerror: str = "IND",
+                     errors: str = "KCC-MAR2-IND",
                      ) -> tuple[np.ndarray | xr.DataArray,np.ndarray | xr.DataArray]:
     """
     Function for constraining the distribution N(hpar,hcov) using observations.
@@ -215,6 +218,12 @@ def constraint_covar( hpar: np.ndarray | xr.DataArray,
             - 'MAR2': Observed residuals follow a sum of two AR(1) process
             - 'KCC': If numbers of covariates is greater than 1, assume MAR2
                      and add a dependency term between covariates.
+    errors: str = "raise" or "KCC-MAR2-IND"
+        if an error occured, if errors is:
+            - "raise": raise an Exception
+            - "KCC-MAR2-IND", if method_oerror is KCC, use MAR2, if it is MAR2
+              use IND, if it is IND, raise the Exception
+        
     """
 
     ## Convert all in np.ndarray
@@ -242,10 +251,10 @@ def constraint_covar( hpar: np.ndarray | xr.DataArray,
         return hparC,hcovC
     
     ##
-    hparC,hcovC,hcov_o = _constraint_covar( _hpar, _hcov, Xos, None, _P, _hcov_o_meas, "IND" )
+    hparC,hcovC,hcov_o = _constraint_covar( _hpar, _hcov, Xos, None, _P, _hcov_o_meas, "IND", errors = "raise" )
     
     if method_oerror in ["MAR2","KCC"]:
-        hparC,hcovC,hcov_o = _constraint_covar( _hpar, _hcov, Xos, hcov_o, _P, _hcov_o_meas, method_oerror )
+        hparC,hcovC,hcov_o = _constraint_covar( _hpar, _hcov, Xos, hcov_o, _P, _hcov_o_meas, method_oerror, errors = errors )
     
     if isinstance(hpar,xr.DataArray):
         hparC = hpar.copy( data = hparC )

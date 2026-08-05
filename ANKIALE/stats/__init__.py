@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -23,6 +23,7 @@ from .__NSLawMLEFit import nslaw_fit
 from .__synthesis   import synthesis
 from .__constraint  import gaussian_conditionning
 from .__constraint  import constraint_covar
+from .__constraint  import constraint_var
 
 from .__KCC import AR1
 from .__KCC import MAR2
