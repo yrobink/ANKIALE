@@ -127,7 +127,7 @@ def _infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataAr
     return hcov_o
 ##}}}
 
-def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArray] , P: np.ndarray , method_oerror: str = 'IND', errors: str = "raise" ) -> np.ndarray,str:##{{{
+def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArray] , P: np.ndarray , method_oerror: str = 'IND', errors: str = "raise" ) -> tuple[np.ndarray,str]:##{{{
     try:
         hcov_o = _infer_hcov_o( hpar , hcov , Xos , P , method_oerror )
         omethod_oerror = method_oerror
