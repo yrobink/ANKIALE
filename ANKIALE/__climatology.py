@@ -298,7 +298,9 @@ class Climatology:##{{{
             else:
                 raise ValueError("Impossible to find the ANKIALE version of the file")
             
-            if incf_version < "1.1.0":
+            b_version = "1.1.0"
+            _map_version = lambda v: tuple(map(int, v.split('.')))
+            if _map_version(incf_version) < _map_version(b_version):
                 raise ValueError( f"Input file from ANKIALE / BSAC version {incf_version} < 1.1.0 can not be read by ANKIALE version {version} >= 1.1.0, abort." )
 
             cnames     = incf.variables["cnames"][:].tolist()

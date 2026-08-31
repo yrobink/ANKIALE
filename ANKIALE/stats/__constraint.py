@@ -127,7 +127,7 @@ def _infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataAr
     return hcov_o
 ##}}}
 
-def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArray] , P: np.ndarray , method_oerror: str = 'IND', errors: str = "raise" ) -> np.ndarray:##{{{
+def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArray] , P: np.ndarray , method_oerror: str = 'IND', errors: str = "raise" ) -> np.ndarray,str:##{{{
     try:
         hcov_o = _infer_hcov_o( hpar , hcov , Xos , P , method_oerror )
         omethod_oerror = method_oerror
@@ -139,10 +139,10 @@ def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArr
         match method_oerror:
             case "KCC":
                 logger.warning("Fail to use KCC, back to MAR2")
-                hcov_o,omethod_oerror = infer_hcov_o( hpar , hcov , Xos , P , "MAR2" )
+                hcov_o,omethod_oerror = infer_hcov_o( hpar , hcov , Xos , P , "MAR2", errors )
             case "MAR2":
                 logger.warning("Fail to use MAR2, back to IND")
-                hcov_o,omethod_oerror = infer_hcov_o( hpar , hcov , Xos , P , "IND" )
+                hcov_o,omethod_oerror = infer_hcov_o( hpar , hcov , Xos , P , "IND", errors )
             case _:
                 raise e
     return hcov_o,omethod_oerror

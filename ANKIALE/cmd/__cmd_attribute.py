@@ -269,7 +269,7 @@ def run_ank_cmd_attribute_fcreturnt(arg: Any) -> None:
                "period" : ncf.createDimension( "period"      , len(clim.dpers) ),
                "time"   : ncf.createDimension(   "time" ),
         }
-        if clim.has_spatial is not None and not clim.spatial_is_fake:
+        if clim.has_spatial and not clim.spatial_is_fake:
             for d in d_spatial:
                 ncdims[d] = ncf.createDimension( d , c_spatial[d].size )
         

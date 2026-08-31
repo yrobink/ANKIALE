@@ -139,7 +139,7 @@ def run_ank_cmd_constrain_X() -> None:
     if method_oerror not in ["IND","MAR2","KCC"]:
         raise ValueError(f"Observation constraint method must be one of 'IND', 'MAR2' or 'KCC' ({method_oerror} is given)")
     if method_oerror == "KCC" and not len(zXo) == 2:
-        logging.warning("'KCC' method can not be used if covariate number '{len(zXo)' != 2. Use 'MAR2' method.")
+        logging.warning(f"'KCC' method can not be used if covariate number '{len(zXo)}' != 2. Use 'MAR2' method.")
         method_oerror = 'MAR2'
     logger.info( f"Observation error method used: {method_oerror}" )
 

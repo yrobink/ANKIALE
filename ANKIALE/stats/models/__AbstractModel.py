@@ -150,7 +150,7 @@ class AbstractModel:##{{{
         show_console = False
         
         ## Load stan model
-        stan_model = self.init_stan( tmp )
+        stan_model = self.init_stan( False )
         
         ## Fit the model
         idata  = {

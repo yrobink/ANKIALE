@@ -103,7 +103,7 @@ def run_ank_cmd_fit_X() -> None:
                 if not np.isfinite([m,s]).all():
                     raise ValueError("Impossible to remove nan values, abort.")
                 X.loc[t] = np.random.normal( loc = m , scale = s , size = 1 )[0]
-            dX.loc[cname,per:] = X
+            dX.loc[cname,per,:] = X
     
     ## Find the bias
     logger.info( "Build bias" )

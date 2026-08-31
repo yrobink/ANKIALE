@@ -286,14 +286,14 @@ class MPeriodSmoother:##{{{
             self._build_smoother(L_L)
             if (self._edof > self._tdof).all():
                 break
-            L_L /= L_L
+            L_L /= 10.
         
         L_R  = xr.DataArray( 1e3 , dims = [self.dname,self.dperiod] , coords = [self.names,self.periods] )
         while True:
             self._build_smoother(L_R)
             if (self._edof < self._tdof).all():
                 break
-            L_R *= L_R
+            L_R *= 10.
         
         while True:
             L = (L_R + L_L) / 2
