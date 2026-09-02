@@ -561,8 +561,7 @@ class Climatology:##{{{
             World can be the 'Factual', the 'Counterfactual' or 'Anthropic'
             only. The first letter ('F', 'C' or 'A') can be used
         der: int
-            Derivative. Can be 0, 1 or 2. Order 1 and 2 can be given only for
-            the world 'A'
+            Derivative. Can be 0, 1 or 2.
 
         Return
         ------
@@ -574,8 +573,6 @@ class Climatology:##{{{
         chpar_names = self.chpar_names
         
         ## Create proj, for X
-        if der > 0 and not world[0].upper() == "A":
-            raise ValueError(f"Order {der} derivate is not available for world {world}")
         match der:
             case 0:
                 cproj = mps.MB0.copy()

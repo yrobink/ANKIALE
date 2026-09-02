@@ -203,13 +203,18 @@ class MPeriodSmoother:##{{{
                           )
         MB1 = MB0.copy()
         MB2 = MB0.copy()
+        XN0 = XN.copy()
+        spl = sci.UnivariateSpline( self.time, XN0, s = 0, k = self.degree )
+        XN1 = spl( self.time, nu = 1 )
+        XN2 = spl( self.time, nu = 2 )
         for name,per in itt.product(self.names,self.periods):
             hpn = [f"XS{i}_{name}_{per}" for i in range(self.n_spl_basis) ]
             MB0.loc[name,per,:,f"X0_{name}"]  = 1.
-            MB0.loc[name,per,:,f"XN_{name}"]  = XN
+            MB0.loc[name,per,:,f"XN_{name}"]  = XN0
             MB0.loc[name,per,:,hpn]           = B0
-            MB1.loc[name,per,:,f"XN_{name}"]  = 1.
+            MB1.loc[name,per,:,f"XN_{name}"]  = XN1
             MB1.loc[name,per,:,hpn]           = B1
+            MB2.loc[name,per,:,f"XN_{name}"]  = XN2
             MB2.loc[name,per,:,hpn]           = B2
         
         self._MB0 = MB0
