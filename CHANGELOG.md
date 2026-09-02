@@ -1,6 +1,11 @@
 
 # Changelog
 
+## [1.3.0]
+
+### Changed
+- Compilation of STAN file is now stored in the home users.
+
 ## [1.1.0]
 
 ### Added
