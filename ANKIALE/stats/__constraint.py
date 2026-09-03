@@ -132,8 +132,8 @@ def infer_hcov_o( hpar: np.ndarray , hcov: np.ndarray , Xos: Sequence[xr.DataArr
         hcov_o = _infer_hcov_o( hpar , hcov , Xos , P , method_oerror )
         omethod_oerror = method_oerror
     except Exception as e:
-        logger.error( f"Error: {e}" )
-        logger.error( f"Traceback:\n{traceback.format_exc()}" )
+        logger.debug( f"Error: {e}" )
+        logger.debug( f"Traceback:\n{traceback.format_exc()}" )
         if errors == "raise":
             raise e
         match method_oerror:

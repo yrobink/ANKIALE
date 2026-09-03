@@ -188,6 +188,7 @@ class MPeriodSmoother:##{{{
     _MB0: xr.DataArray
     _MB1: xr.DataArray
     _MB2: xr.DataArray
+    _xMB2: xr.DataArray
     _K0: np.ndarray | None = None
     _P: np.ndarray | None = None
     
@@ -201,8 +202,9 @@ class MPeriodSmoother:##{{{
                           dims   = [self.dname,self.dperiod,self.dtime,self.dhpar],
                           coords = [self.names,self.periods,self.time ,self.chpar]
                           )
-        MB1 = MB0.copy()
-        MB2 = MB0.copy()
+        MB1 = MB0.copy( deep = True )
+        MB2 = MB0.copy( deep = True )
+        xB2 = MB0.copy( deep = True )
         XN0 = XN.copy()
         spl = sci.UnivariateSpline( self.time, XN0, s = 0, k = self.degree )
         XN1 = spl( self.time, nu = 1 )
@@ -216,10 +218,12 @@ class MPeriodSmoother:##{{{
             MB1.loc[name,per,:,hpn]           = B1
             MB2.loc[name,per,:,f"XN_{name}"]  = XN2
             MB2.loc[name,per,:,hpn]           = B2
+            xB2.loc[name,per,:,hpn]           = B2
         
         self._MB0 = MB0
         self._MB1 = MB1
         self._MB2 = MB2
+        self._xB2 = xB2
     ##}}}
 
     def __init__( self , XN: xr.DataArray, total_dof: xr.DataArray , n_spl_basis: int , degree: int = 3 , tol: float = 1e-3 ) -> None:##{{{
@@ -274,7 +278,7 @@ class MPeriodSmoother:##{{{
     def _build_smoother( self , L: xr.DataArray ) -> None:##{{{:
         ML  = self._cst_matrix(L)
         xB0 = self.MB0.values.reshape(-1,self.nhpar)
-        xB2 = self.MB2.values.reshape(-1,self.nhpar)
+        xB2 = self._xB2.values.reshape(-1,self.nhpar)
         
         K0   = np.linalg.inv(xB0.T @ xB0 + ML @ xB2.T @ xB2 )
         P    = xB0 @ K0 @ xB0.T
