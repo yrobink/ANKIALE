@@ -285,7 +285,7 @@ class Climatology:##{{{
     
     ## staticmethod.init_from_file ##{{{
     @staticmethod
-    def init_from_file( ifile: str ) -> Self:
+    def init_from_file( ifile: str, cnslaw: AbstractModel | None = None ) -> Self:
         
         clim = Climatology()
         
@@ -314,6 +314,10 @@ class Climatology:##{{{
                 vname   = str(incf.variables["Y"].getncattr("vname"))
                 idnslaw = str(incf.variables["Y"].getncattr("idnslaw"))
                 clim.vconfig = VarConfig( cname = cname , vname = vname , idnslaw = idnslaw )
+                if idnslaw == "user":
+                    if cnslaw is None:
+                        raise ValueError("Impossible to find the class of the ns law")
+                    clim.vconfig.cnslaw = cnslaw
                 names.append(vname)
             except Exception:
                 pass

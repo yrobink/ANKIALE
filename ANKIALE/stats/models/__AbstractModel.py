@@ -85,6 +85,10 @@ class AbstractModel:##{{{
         return Y,X
     ##}}}
     
+    def _model_params(self) -> dict[str,Any]:##{{{
+        return {}
+    ##}}}
+
     def fit_mle_with_cov( self , Y: np.ndarray , X: np.ndarray , **kwargs: Any ) -> np.ndarray:##{{{
         law = self.sdlaw( method = "mle" )
         sdargs,sdkwargs = self._map_sdfit( Y , X )
@@ -103,11 +107,13 @@ class AbstractModel:##{{{
         return law.coef_
     ##}}}
     
-    def init_stan( self, force_compile: bool = False ) -> stan.CmdStanModel:##{{{
+    def init_stan( self, force_compile: bool = False, istan_path: str | Path | None = None, ostan_path = str | Path | None ) -> stan.CmdStanModel:##{{{
         
         ## Paths
-        istan_path = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" , "STAN" )
-        ostan_path = Path( os.environ.get( "XDG_DATA_HOME" , Path.home() / ".local" / "share" ) ) / "ANKIALE" / f"v{version}_STANFILES"
+        if istan_path is None:
+            istan_path = os.path.join( os.path.dirname(os.path.abspath(__file__)) , ".." , ".." , "data" , "STAN" )
+        if ostan_path is None:
+            ostan_path = Path( os.environ.get( "XDG_DATA_HOME" , Path.home() / ".local" / "share" ) ) / "ANKIALE" / f"v{version}_STANFILES"
         if not os.path.isdir(ostan_path):
             os.makedirs(ostan_path)
         stan_ifile = os.path.join( istan_path, self.stan_file )
@@ -145,12 +151,12 @@ class AbstractModel:##{{{
         return draw
     ##}}}
     
-    def _fit_bayesian_STAN( self , Y: np.ndarray , X: np.ndarray , prior: PriorType , n_mcmc_drawn: int , tmp: str ) -> np.ndarray:##{{{
+    def _fit_bayesian_STAN( self , Y: np.ndarray , X: np.ndarray , prior: PriorType , n_mcmc_drawn: int , tmp: str, istan_path: str | Path | None = None, ostan_path = str | Path | None ) -> np.ndarray:##{{{
         YY,XX = self._map_stanpar(Y,X)
         show_console = False
         
         ## Load stan model
-        stan_model = self.init_stan( False )
+        stan_model = self.init_stan( force_compile = False, istan_path = istan_path, ostan_path = ostan_path )
         
         ## Fit the model
         idata  = {
@@ -162,6 +168,7 @@ class AbstractModel:##{{{
             "X"          : XX,
             "Y"          : YY,
         }
+        idata = idata | self._model_params()
         with tempfile.TemporaryDirectory( dir = tmp ) as tmp_draw:
             
             ## Find inits points
@@ -195,9 +202,9 @@ class AbstractModel:##{{{
         return draw
     ##}}}
     
-    def fit_bayesian( self , Y: np.ndarray , X: np.ndarray , prior: PriorType , n_mcmc_drawn: int , use_STAN: bool , tmp: str , n_try: int = 5 ) -> np.ndarray:##{{{
+    def fit_bayesian( self , Y: np.ndarray , X: np.ndarray , prior: PriorType , n_mcmc_drawn: int , use_STAN: bool , tmp: str , n_try: int = 5, istan_path: str | Path | None = None, ostan_path = str | Path | None  ) -> np.ndarray:##{{{
         if use_STAN:
-            draw = self._fit_bayesian_STAN( Y , X , prior , n_mcmc_drawn , tmp )
+            draw = self._fit_bayesian_STAN( Y , X , prior , n_mcmc_drawn, tmp, istan_path = istan_path, ostan_path = ostan_path )
         else:
             draw = self._fit_bayesian_ORIGIN( Y , X , prior , n_mcmc_drawn , n_try )
         

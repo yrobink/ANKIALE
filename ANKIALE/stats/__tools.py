@@ -1,5 +1,5 @@
 
-## Copyright(c) 2023 / 2025 Yoann Robin
+## Copyright(c) 2023 / 2026 Yoann Robin
 ## 
 ## This file is part of ANKIALE.
 ## 
@@ -51,7 +51,7 @@ logger.addHandler(logging.NullHandler())
 ## Functions ##
 ###############
 
-def nslawid_to_class( nslawid: str ) -> AbstractModel:
+def nslawid_to_class( nslawid: str ) -> AbstractModel | None:
     
     match nslawid:
         case "GEV":
@@ -60,6 +60,8 @@ def nslawid_to_class( nslawid: str ) -> AbstractModel:
             cnslaw = GEVMinModel
         case "Normal":
             cnslaw = NormalModel
+        case "user":
+            cnslaw = None
         case _:
             raise ValueError( f"NSlaw not known (={nslawid})" )
 
